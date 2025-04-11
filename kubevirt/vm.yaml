@@ -1,0 +1,33 @@
+apiVersion: kubevirt.io/v1
+kind: VirtualMachine
+metadata:
+  name: testvm
+  namespace: default
+spec:
+  running: false
+  template:
+    metadata:
+      labels:
+        kubevirt.io/domain: testvm
+    spec:
+      domain:
+        cpu:
+          cores: 2
+        devices:
+          disks:
+            - name: containerdisk
+              disk:
+                bus: virtio
+            - name: cloudinitdisk
+              disk:
+                bus: virtio
+        resources:
+          requests:
+            memory: "1024M"
+      volumes:
+        - name: containerdisk
+          containerDisk:
+            image: kubevirt/fedora-cloud-container-disk-demo:latest
+        - name: cloudinitdisk
+          cloudInitNoCloud:
+            userDataBase64: "${user_data_base64}" 
