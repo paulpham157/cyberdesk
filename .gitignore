@@ -25,3 +25,7 @@ terraform.rc
 
 # Ignore kubeconfig
 kubeconfig.yaml 
+
+# Ignore testing-do-not-push
+testing-do-not-push/*
+
