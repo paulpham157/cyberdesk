@@ -184,7 +184,7 @@ EOF
 resource "kubernetes_manifest" "vm_manifest" {
   manifest = yamldecode(replace(
     file("${path.module}/kubevirt/vm.yaml"),
-    "${user_data_base64}",
+    "<<USER_DATA_BASE64>>",
     local.user_data_base64
   ))
 
