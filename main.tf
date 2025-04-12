@@ -178,14 +178,15 @@ EOF
 
   # Base64-encode the cloud-init script.
   user_data_base64 = base64encode(local.user_data)
-  
-  # Prepare the VM manifest with the replaced cloud-init data
-  vm_yaml = replace(file("${path.module}/kubevirt/vm.yaml"), "${user_data_base64}", local.user_data_base64)
 }
 
-# Manage the KubeVirt VirtualMachine resource using kubectl_manifest
-resource "kubectl_manifest" "vm_manifest" {
-  yaml_body = local.vm_yaml
+# Manage the KubeVirt VirtualMachine resource natively via the Kubernetes provider.
+resource "kubernetes_manifest" "vm_manifest" {
+  manifest = yamldecode(replace(
+    file("${path.module}/kubevirt/vm.yaml"),
+    "${user_data_base64}",
+    local.user_data_base64
+  ))
 
-  depends_on = [kubectl_manifest.kubevirt_cr]
+  depends_on = [kubernetes_manifest.kubevirt_cr]
 }
