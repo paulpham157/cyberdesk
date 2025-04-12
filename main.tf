@@ -3,7 +3,7 @@
 #########################################
 
 terraform {
-  required_version = ">= 1.11.4"
+  required_version = ">= 1.11.3"
 
   required_providers {
     azurerm = {
@@ -17,6 +17,10 @@ terraform {
     helm = {
       source  = "hashicorp/helm"
       version = "~> 2.11.0"
+    }
+    kubectl = {
+      source  = "gavinbunney/kubectl"
+      version = "~> 1.19.0"
     }
   }
 }
@@ -44,6 +48,14 @@ provider "helm" {
     client_key             = base64decode(azurerm_kubernetes_cluster.aks.kube_config.0.client_key)
     cluster_ca_certificate = base64decode(azurerm_kubernetes_cluster.aks.kube_config.0.cluster_ca_certificate)
   }
+}
+
+provider "kubectl" {
+  host                   = azurerm_kubernetes_cluster.aks.kube_config.0.host
+  client_certificate     = base64decode(azurerm_kubernetes_cluster.aks.kube_config.0.client_certificate)
+  client_key             = base64decode(azurerm_kubernetes_cluster.aks.kube_config.0.client_key)
+  cluster_ca_certificate = base64decode(azurerm_kubernetes_cluster.aks.kube_config.0.cluster_ca_certificate)
+  load_config_file       = false
 }
 
 #############################
@@ -136,15 +148,15 @@ resource "local_file" "kubeconfig" {
 #############################
 
 # Apply the KubeVirt operator
-resource "kubernetes_manifest" "kubevirt_operator" {
-  manifest = yamldecode(file("${path.module}/kubevirt/kubevirt-operator.yaml"))
+resource "kubectl_manifest" "kubevirt_operator" {
+  yaml_body = file("${path.module}/kubevirt/kubevirt-operator.yaml")
 }
 
 # Apply the KubeVirt CR
 resource "kubernetes_manifest" "kubevirt_cr" {
   manifest = yamldecode(file("${path.module}/kubevirt/kubevirt-cr.yaml"))
 
-  depends_on = [kubernetes_manifest.kubevirt_operator]
+  depends_on = [kubectl_manifest.kubevirt_operator]
 }
 
 #############################
@@ -166,15 +178,14 @@ EOF
 
   # Base64-encode the cloud-init script.
   user_data_base64 = base64encode(local.user_data)
+  
+  # Prepare the VM manifest with the replaced cloud-init data
+  vm_yaml = replace(file("${path.module}/kubevirt/vm.yaml"), "${user_data_base64}", local.user_data_base64)
 }
 
-# Manage the KubeVirt VirtualMachine resource natively via the Kubernetes provider.
-resource "kubernetes_manifest" "vm_manifest" {
-  manifest = yamldecode(replace(
-    file("${path.module}/kubevirt/vm.yaml"),
-    "${user_data_base64}",
-    local.user_data_base64
-  ))
+# Manage the KubeVirt VirtualMachine resource using kubectl_manifest
+resource "kubectl_manifest" "vm_manifest" {
+  yaml_body = local.vm_yaml
 
-  depends_on = [kubernetes_manifest.kubevirt_cr]
+  depends_on = [kubectl_manifest.kubevirt_cr]
 }
