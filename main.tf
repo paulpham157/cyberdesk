@@ -84,15 +84,6 @@ resource "azurerm_subnet" "aks" {
   address_prefixes     = ["10.0.1.0/24"]
 }
 
-# Create a Log Analytics workspace for monitoring
-resource "azurerm_log_analytics_workspace" "law" {
-  name                = "law-${var.aks_cluster_name}"
-  location            = azurerm_resource_group.rg.location
-  resource_group_name = azurerm_resource_group.rg.name
-  sku                 = "PerGB2018"
-  retention_in_days   = 30
-}
-
 # Provision an AKS cluster with networking pointing to the subnet.
 resource "azurerm_kubernetes_cluster" "aks" {
   name                = var.aks_cluster_name
@@ -120,10 +111,6 @@ resource "azurerm_kubernetes_cluster" "aks" {
     service_cidr       = "10.2.0.0/16"
     dns_service_ip     = "10.2.0.10"
   }
-
-  oms_agent {
-    log_analytics_workspace_id = azurerm_log_analytics_workspace.law.id
-  }
 }
 
 # Grant the AKS managed identity "Network Contributor" role on the subnet.
@@ -133,60 +120,57 @@ resource "azurerm_role_assignment" "aks_subnet_role" {
   principal_id         = azurerm_kubernetes_cluster.aks.identity[0].principal_id
 }
 
-#############################
-# Kubeconfig Output for Local Use
-#############################
+# #############################
+# # Kubeconfig Output for Local Use
+# #############################
 
-# This writes out the cluster's kubeconfig to a local file.
-resource "local_file" "kubeconfig" {
-  content  = azurerm_kubernetes_cluster.aks.kube_config_raw
-  filename = "${path.module}/kubeconfig.yaml"
-}
+# # This writes out the cluster's kubeconfig to a local file.
+# resource "local_file" "kubeconfig" {
+#   content  = azurerm_kubernetes_cluster.aks.kube_config_raw
+#   filename = "${path.module}/kubeconfig.yaml"
+# }
 
-#############################
-# Deploy KubeVirt via Kubernetes Manifests
-#############################
+# #############################
+# # Deploy KubeVirt via Kubernetes Manifests
+# #############################
 
-# Apply the KubeVirt operator
-resource "kubectl_manifest" "kubevirt_operator" {
-  yaml_body = file("${path.module}/kubevirt/kubevirt-operator.yaml")
-}
+# # Apply the KubeVirt operator
+# resource "kubectl_manifest" "kubevirt_operator" {
+#   yaml_body = file("${path.module}/kubevirt/kubevirt-operator.yaml")
+# }
 
-# Apply the KubeVirt CR
-resource "kubernetes_manifest" "kubevirt_cr" {
-  manifest = yamldecode(file("${path.module}/kubevirt/kubevirt-cr.yaml"))
+# # Apply the KubeVirt CR
+# resource "kubectl_manifest" "kubevirt_cr" {
+#   yaml_body = file("${path.module}/kubevirt/kubevirt-cr.yaml")
 
-  depends_on = [kubectl_manifest.kubevirt_operator]
-}
+#   depends_on = [kubectl_manifest.kubevirt_operator]
+# }
 
-#############################
-# VirtualMachine Resource via Kubernetes Manifest
-#############################
+# #############################
+# # VirtualMachine Resource via Kubernetes Manifest
+# #############################
 
-# Prepare cloud-init and base64 encoding using local values.
-locals {
-  # The cloud-init configuration to set up the VM.
-  user_data = <<EOF
-#cloud-config
-users:
-  - name: ${var.username}
-    lock_passwd: false
-    passwd: ${var.password}
-    shell: /bin/bash
-ssh_pwauth: true
-EOF
+# # Prepare cloud-init and base64 encoding using local values.
+# locals {
+#   # The cloud-init configuration to set up the VM.
+#   user_data = <<EOF
+# #cloud-config
+# users:
+#   - name: ${var.username}
+#     lock_passwd: false
+#     passwd: ${var.password}
+#     shell: /bin/bash
+# ssh_pwauth: true
+# EOF
 
-  # Base64-encode the cloud-init script.
-  user_data_base64 = base64encode(local.user_data)
-}
+#   # Base64-encode the cloud-init script.
+#   user_data_base64 = base64encode(local.user_data)
+# }
 
-# Manage the KubeVirt VirtualMachine resource natively via the Kubernetes provider.
-resource "kubernetes_manifest" "vm_manifest" {
-  manifest = yamldecode(replace(
-    file("${path.module}/kubevirt/vm.yaml"),
-    "<<USER_DATA_BASE64>>",
-    local.user_data_base64
-  ))
+# resource "kubectl_manifest" "vm_manifest" {
+#   yaml_body = templatefile("${path.module}/kubevirt/vm.yaml", {
+#     user_data_base64 = local.user_data_base64
+#   })
 
-  depends_on = [kubernetes_manifest.kubevirt_cr]
-}
+#   depends_on = [kubectl_manifest.kubevirt_cr]
+# }

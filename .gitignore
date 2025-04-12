@@ -29,3 +29,6 @@ kubeconfig.yaml
 # Ignore testing-do-not-push
 testing-do-not-push/*
 
+user-data.yaml
+user-data-base64.txt
+

@@ -1,0 +1,9 @@
+#cloud-config. Copy and replace with our values for usage in vm.yaml.
+users:
+  - name: kubevirt-admin
+    lock_passwd: true
+    ssh_authorized_keys:
+      - SSH_PUBLIC_KEY_HERE
+    shell: /bin/bash
+    sudo: ['ALL=(ALL) NOPASSWD:ALL']
+ssh_pwauth: false

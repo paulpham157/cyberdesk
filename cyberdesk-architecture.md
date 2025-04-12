@@ -35,7 +35,7 @@ This document outlines the architecture for a scalable cloud desktop platform th
 - **Gateway Service**
   - Single entry point into the cluster
   - CRUD endpoints for CyberdeskInstance K8s resources
-  - Endpoint to route files / commands to running VMs
+  - Endpoint to route commands to running VMs
   - Exposed for public access from the FastAPI backend, via K8s External Service
 
 - **Instance Operator**

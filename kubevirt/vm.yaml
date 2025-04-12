@@ -21,9 +21,15 @@ spec:
             - disk:
                 bus: virtio
               name: cloudinitdisk
+          interfaces:
+          - name: default
+            masquerade: {}  # TODO: Add specific ports
         resources:
           requests:
             memory: 2Gi
+      networks:
+        - name: default
+          pod: {}  # use pod network (default CNI)
       volumes:
         - name: containerdisk
           containerDisk:
