@@ -65,7 +65,7 @@ This document outlines the architecture for a scalable cloud desktop platform th
 ### 2. CyberdeskInstance K8s Custom Resource Definition
 
 #### Implementation
-- YAML file that defines a desktop instance and it's parameters (such as timeoutMs, userId, templateId, etc)
+- YAML file that defines a desktop instance and it's parameters
 - Instances of this custom resource are listened to by Instance Operator
 
 ### 3. JS / Python SDKs

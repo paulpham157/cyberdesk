@@ -1,0 +1,6 @@
+apiVersion: cyberdesk.io/v1alpha1
+kind: CyberdeskInstance
+metadata:
+  name: sample-instance
+spec:
+  timeoutMs: 3600000  # 1 hour timeout

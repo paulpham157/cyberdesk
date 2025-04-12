@@ -1,0 +1,59 @@
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: cyberdeskinstances.cyberdesk.io
+spec:
+  group: cyberdesk.io
+  names:
+    kind: CyberdeskInstance
+    plural: cyberdeskinstances
+    singular: cyberdeskinstance
+    shortNames:
+      - cdi
+  scope: Namespaced
+  versions:
+    - name: v1alpha1
+      served: true
+      storage: true
+      schema:
+        openAPIV3Schema:
+          type: object
+          properties:
+            spec:
+              type: object
+              properties:
+                timeoutMs:
+                  type: integer
+                  description: "Timeout in milliseconds after which the instance will be terminated"
+                  minimum: 1000  # Minimum 1 second timeout
+              required:
+                - timeoutMs
+            status:
+              type: object
+              properties:
+                virtualMachineRef:
+                  type: string
+                  description: "Name of the associated KubeVirt VirtualMachineInstance"
+                startTime:
+                  type: string
+                  format: date-time
+                  description: "Time when the instance was started"
+                expiryTime:
+                  type: string
+                  format: date-time
+                  description: "Time when the instance will expire based on timeout"
+      additionalPrinterColumns:
+        - name: VMI
+          type: string
+          jsonPath: .status.virtualMachineRef
+        - name: Timeout(ms)
+          type: integer
+          jsonPath: .spec.timeoutMs
+        - name: Expiry
+          type: date
+          jsonPath: .status.expiryTime
+        - name: Age
+          type: date
+          jsonPath: .metadata.creationTimestamp
+      subresources:
+        status: {} 

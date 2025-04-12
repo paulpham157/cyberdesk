@@ -121,7 +121,56 @@ cd ./kubevirt
    Get-Content ./vm.yaml | ForEach-Object { $_ -replace '\$\{user_data_base64\}', $USER_DATA_BASE64 } | kubectl apply -f -
    ```
 
-### 5. Optional Gut Check:Manage the Virtual Machine
+### 5. Register the CyberdeskInstance Custom Resource Definition
+
+Apply the CyberdeskInstance CRD to your cluster:
+
+```bash
+kubectl apply -f ./cyberdesk-instance-crd.yaml
+```
+
+Verify that the CRD was registered successfully:
+
+```bash
+kubectl get crd cyberdeskinstances.cyberdesk.io
+```
+
+## Verification
+
+To verify your deployment, you can check the status of KubeVirt components:
+
+```bash
+kubectl get pods -n kubevirt
+```
+
+You can also verify that the CyberdeskInstance CRD is ready:
+
+```bash
+kubectl api-resources | grep cyberdesk
+```
+
+## Initial Testing (Optional)
+
+You can test the CRD by creating a sample CyberdeskInstance:
+
+```bash
+kubectl apply -f kubevirt/cyberdesk-instance-cr.yaml
+kubectl get cyberdeskinstances
+```
+
+## Cleanup
+
+To delete all resources created by this deployment:
+
+```bash
+terraform destroy -auto-approve
+```
+
+## Gut Check (Optional)
+
+Use these steps to manually verify that VMs can be provisioned and accessed correctly.
+
+### 1. Manage the Virtual Machine
 
 Start, stop, or check your virtual machine:
 
@@ -133,7 +182,7 @@ virtctl start testvm
 virtctl stop testvm
 ```
 
-### 6. Optional Gut Check: SSH Into the Virtual Machine
+### 2. SSH Into the Virtual Machine
 
 Apply the LoadBalancer External Service
 ```bash
@@ -160,7 +209,7 @@ ssh -i "$env:USERPROFILE\.ssh\cyberdesk_mvp_3_id_rsa" kubevirt-admin@EXTERNAL-IP
 
 Note: Replace `EXTERNAL-IP` with the external IP address shown in the output of the `kubectl get svc` command.
 
-### 7. Cleaning Up After Gut Check
+### 3. Cleaning Up After Gut Check
 
 To delete the test virtual machine and service after verification:
 
@@ -177,29 +226,4 @@ Delete user-data.yaml and user-data-base64.txt:
 ```bash
 rm ./user-data.yaml
 rm ./user-data-base64.txt
-```
-
-For a fresh start.
-
-## Verification
-
-To verify your deployment, you can check the status of KubeVirt components:
-
-```bash
-kubectl get pods -n kubevirt
-```
-
-To check your virtual machine status:
-
-```bash
-kubectl get vm
-kubectl get vmi
-```
-
-## Cleanup
-
-To delete all resources created by this deployment:
-
-```bash
-terraform destroy -auto-approve
 ```
