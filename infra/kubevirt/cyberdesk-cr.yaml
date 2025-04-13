@@ -1,5 +1,5 @@
 apiVersion: cyberdesk.io/v1alpha1
-kind: CyberdeskInstance
+kind: Cyberdesk
 metadata:
   name: sample-instance
 spec:

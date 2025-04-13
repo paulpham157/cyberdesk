@@ -1,0 +1,27 @@
+# CRD for the trigger resource - needed for local KopfRunner tests
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  # Note: The name MUST match the one the operator expects: startcyberdeskoperators.cyberdesk.io
+  name: startcyberdeskoperators.cyberdesk.io 
+spec:
+  group: cyberdesk.io
+  names:
+    kind: StartCyberdeskOperator
+    plural: startcyberdeskoperators
+    singular: startcyberdeskoperator
+    shortNames:
+      - sco
+  scope: Namespaced # Keeping it namespaced as requested for minimal scope
+  versions:
+    - name: v1alpha1
+      served: true
+      storage: true
+      schema:
+        openAPIV3Schema:
+          type: object
+          properties:
+            spec:
+              type: object
+              description: "Specification for triggering the Cyberdesk operator setup. Currently holds no fields."
+              # No specific fields needed for now, just the presence triggers the action 

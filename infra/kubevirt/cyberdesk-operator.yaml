@@ -1,0 +1,212 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: cyberdesk-system
+  labels:
+    app.kubernetes.io/name: cyberdesk-system
+    app.kubernetes.io/part-of: cyberdesk
+    app.kubernetes.io/component: operator
+  annotations:
+    description: "Dedicated namespace for the Cyberdesk Operator and related resources" 
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: cyberdesk-operator
+  namespace: cyberdesk-system
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: cyberdesk-operator
+rules:
+# Kopf framework requires these permissions
+- apiGroups: [""]
+  resources: ["events"]
+  verbs: ["create", "patch", "update"]
+- apiGroups: ["", "coordination.k8s.io"]
+  resources: ["configmaps", "leases"]
+  verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+
+# Access to the trigger CRD
+- apiGroups: ["cyberdesk.io"]
+  resources: ["startcyberdeskoperators"]
+  verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+
+# Access to Cyberdesk CRDs
+- apiGroups: ["cyberdesk.io"]
+  resources: ["cyberdesks", "cyberdesks/status"]
+  verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+
+# Access to KubeVirt resources
+- apiGroups: ["kubevirt.io"]
+  resources: ["virtualmachines", "virtualmachineinstances"]
+  verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+
+# Permission to manage CRDs
+- apiGroups: ["apiextensions.k8s.io"]
+  resources: ["customresourcedefinitions"]
+  verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: cyberdesk-operator
+subjects:
+- kind: ServiceAccount
+  name: cyberdesk-operator
+  namespace: cyberdesk-system
+roleRef:
+  kind: ClusterRole
+  name: cyberdesk-operator
+  apiGroup: rbac.authorization.k8s.io 
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cyberdesk-operator
+  namespace: cyberdesk-system
+  labels:
+    app: cyberdesk-operator
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: cyberdesk-operator
+  template:
+    metadata:
+      labels:
+        app: cyberdesk-operator
+    spec:
+      serviceAccountName: cyberdesk-operator
+      containers:
+      - name: operator
+        image: cyberdesk-operator:v0.0.0
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 8080
+          name: health
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: health
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /healthz
+            port: health
+          initialDelaySeconds: 5
+          periodSeconds: 10
+        resources:
+          limits:
+            cpu: "500m"
+            memory: "512Mi"
+          requests:
+            cpu: "200m"
+            memory: "256Mi"
+        env:
+        - name: KOPF_NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+        - name: LOG_LEVEL
+          value: "INFO"
+        volumeMounts:
+        - name: kubevirt-vm-cr
+          mountPath: /app/kubevirt-vm-cr.yaml
+          subPath: kubevirt-vm-cr.yaml
+      volumes:
+      - name: kubevirt-vm-cr
+        configMap:
+          name: kubevirt-vm-cr
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: kubevirt-vm-cr
+  namespace: cyberdesk-system
+data:
+  kubevirt-vm-cr.yaml: |
+    apiVersion: kubevirt.io/v1
+    kind: VirtualMachine
+    metadata:
+      name: ${vm_name}
+      namespace: ${namespace}
+      labels:
+        app: cyberdesk
+        cyberdesk-instance: ${cyberdesk_name}
+        managed-by: ${managed_by}
+    spec:
+      running: true
+      template:
+        metadata:
+          labels:
+            app: cyberdesk
+            cyberdesk-instance: ${cyberdesk_name}
+            managed-by: ${managed_by}
+            kubevirt.io/domain: ${vm_name}
+        spec:
+          domain:
+            cpu:
+              cores: 1
+            devices:
+              disks:
+                - disk:
+                    bus: virtio
+                  name: containerdisk
+                - disk:
+                    bus: virtio
+                  name: cloudinitdisk
+              interfaces:
+              - name: default
+                masquerade: {} # TODO: Add specific ports
+            resources:
+              requests:
+                memory: 2Gi
+          networks:
+            - name: default
+              pod: {}
+          volumes:
+            - name: containerdisk
+              containerDisk:
+                image: quay.io/containerdisks/ubuntu:22.04
+            - name: cloudinitdisk
+              cloudInitNoCloud:
+                userData: |
+                  #cloud-config
+                  users:
+                    - name: kubevirt-admin
+                      passwd: sgtwompwomp 
+                      lock_passwd: false 
+                      shell: /bin/bash
+                      groups: sudo
+                      sudo: ALL=(ALL) NOPASSWD:ALL 
+                  ssh_pwauth: True # Allow password authentication over SSH (consider security implications)
+---
+# CRD for the trigger resource
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: startcyberdeskoperators.cyberdesk.io
+spec:
+  group: cyberdesk.io
+  names:
+    kind: StartCyberdeskOperator
+    plural: startcyberdeskoperators
+    singular: startcyberdeskoperator
+    shortNames:
+      - sco
+  scope: Namespaced # Keeping it namespaced as requested for minimal scope
+  versions:
+    - name: v1alpha1
+      served: true
+      storage: true
+      schema:
+        openAPIV3Schema:
+          type: object
+          properties:
+            spec:
+              type: object
+              description: "Specification for triggering the Cyberdesk operator setup. Currently holds no fields."
+              # No specific fields needed for now, just the presence triggers the action

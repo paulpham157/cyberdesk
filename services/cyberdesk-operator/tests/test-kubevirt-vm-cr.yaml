@@ -1,0 +1,55 @@
+apiVersion: kubevirt.io/v1
+kind: VirtualMachine
+metadata:
+  name: ${vm_name}
+  namespace: ${namespace}
+  labels:
+    app: cyberdesk
+    cyberdesk-instance: ${cyberdesk_name}
+    managed-by: ${managed_by}
+spec:
+  running: true
+  template:
+    metadata:
+      labels:
+        app: cyberdesk
+        cyberdesk-instance: ${cyberdesk_name}
+        managed-by: ${managed_by}
+        kubevirt.io/domain: ${vm_name}
+    spec:
+      domain:
+        cpu:
+          cores: 1
+        devices:
+          disks:
+            - disk:
+                bus: virtio
+              name: containerdisk
+            - disk:
+                bus: virtio
+              name: cloudinitdisk
+          interfaces:
+          - name: default
+            masquerade: {} # TODO: Add specific ports
+        resources:
+          requests:
+            memory: 2Gi
+      networks:
+        - name: default
+          pod: {}
+      volumes:
+        - name: containerdisk
+          containerDisk:
+            image: quay.io/containerdisks/ubuntu:22.04
+        - name: cloudinitdisk
+          cloudInitNoCloud:
+            userData: |
+              #cloud-config
+              users:
+                - name: kubevirt-admin
+                  passwd: sgtwompwomp 
+                  lock_passwd: false 
+                  shell: /bin/bash
+                  groups: sudo
+                  sudo: ALL=(ALL) NOPASSWD:ALL 
+              ssh_pwauth: True # Allow password authentication over SSH (consider security implications) 
