@@ -1,0 +1,7 @@
+apiVersion: cyberdesk.io/v1alpha1
+kind: StartCyberdeskOperator
+metadata:
+  name: bootstrap-cyberdesk-setup 
+  namespace: cyberdesk-system
+spec:
+  {} 

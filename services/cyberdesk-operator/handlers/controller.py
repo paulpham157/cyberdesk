@@ -10,12 +10,17 @@ from typing import Dict, Any
 from pathlib import Path
 
 # Configure the Kubernetes client
-kubernetes.config.load_incluster_config()
-# Fallback to kubeconfig for local development
+# Prioritize kubeconfig for local development, then fall back to incluster config
 try:
     kubernetes.config.load_kube_config()
+    logging.info("Loaded Kubernetes configuration from kubeconfig.")
 except kubernetes.config.config_exception.ConfigException:
-    pass
+    try:
+        kubernetes.config.load_incluster_config()
+        logging.info("Loaded Kubernetes configuration from in-cluster config.")
+    except kubernetes.config.config_exception.ConfigException as e:
+        logging.critical(f"Could not load Kubernetes configuration from kubeconfig or in-cluster config: {e}")
+        raise kopf.PermanentError("Failed to load Kubernetes configuration.")
 
 # Define API clients
 core_v1_api = kubernetes.client.CoreV1Api()
@@ -29,6 +34,7 @@ CYBERDESK_PLURAL = "cyberdesks"
 
 KUBEVIRT_GROUP = "kubevirt.io"
 KUBEVIRT_VERSION = "v1"
+KUBEVIRT_NAMESPACE = "kubevirt"
 KUBEVIRT_VM_PLURAL = "virtualmachines"
 KUBEVIRT_VMI_PLURAL = "virtualmachineinstances"
 
@@ -37,6 +43,7 @@ START_OPERATOR_PLURAL = "startcyberdeskoperators"
 
 # Constants
 MANAGED_BY = "cyberdesk-operator"
+CYBERDESK_NAMESPACE = "cyberdesk-system"
 
 # Helper function for idempotency checks
 def is_handler_already_processed(meta, handler_id, resource_version=None):
@@ -268,7 +275,6 @@ def create_vm_from_cyberdesk(spec, meta, status, **kwargs):
     logging.info(f"Creating VM for Cyberdesk {cyberdesk_name} in namespace {namespace}")
     
     # Extract necessary info from the Cyberdesk spec
-    vm_name = f"cyberdesk-{cyberdesk_name}"
     timeout_ms = spec.get('timeoutMs', 3600000)  # Default to 1 hour
     
     # Check if VM already exists to ensure idempotency
@@ -276,12 +282,12 @@ def create_vm_from_cyberdesk(spec, meta, status, **kwargs):
         custom_objects_api.get_namespaced_custom_object(
             group=KUBEVIRT_GROUP,
             version=KUBEVIRT_VERSION,
-            namespace=namespace,
+            namespace=KUBEVIRT_NAMESPACE,
             plural=KUBEVIRT_VM_PLURAL,
-            name=vm_name
+            name=cyberdesk_name
         )
         # VM already exists, mark as processed and return current status
-        logging.info(f"VM {vm_name} already exists for Cyberdesk {cyberdesk_name}")
+        logging.info(f"VM {cyberdesk_name} already exists for Cyberdesk with name: {cyberdesk_name}")
         
         # Get the current Cyberdesk to access its status
         try:
@@ -306,22 +312,21 @@ def create_vm_from_cyberdesk(spec, meta, status, **kwargs):
         
         # Otherwise return a basic status
         return {
-            'virtualMachineRef': vm_name,
+            'virtualMachineRef': cyberdesk_name,
             'message': 'VM already exists'
         }
         
     except kubernetes.client.rest.ApiException as e:
         if e.status != 404:
             # Unexpected error, let Kopf handle the retry
-            logging.error(f"Error checking if VM {vm_name} exists: {e}")
+            logging.error(f"Error checking if VM {cyberdesk_name} exists: {e}")
             raise kopf.TemporaryError(f"Failed to check VM existence: {e}", delay=10)
     
     # Load and render the VM template
     template = load_vm_template()
     template = string.Template(template)
     rendered_template = template.substitute(
-        vm_name=vm_name,
-        namespace=namespace,
+        vm_name=cyberdesk_name,
         cyberdesk_name=cyberdesk_name,
         managed_by=MANAGED_BY,
         user_data_base64="",  # Empty by default, would be populated in a real scenario
@@ -339,7 +344,7 @@ def create_vm_from_cyberdesk(spec, meta, status, **kwargs):
         custom_objects_api.create_namespaced_custom_object(
             group=KUBEVIRT_GROUP,
             version=KUBEVIRT_VERSION,
-            namespace=namespace,
+            namespace=KUBEVIRT_NAMESPACE,
             plural=KUBEVIRT_VM_PLURAL,
             body=vm_manifest
         )
@@ -348,7 +353,7 @@ def create_vm_from_cyberdesk(spec, meta, status, **kwargs):
         now = datetime.now()
         expiry = now + timedelta(milliseconds=timeout_ms)
         
-        logging.info(f"VM {vm_name} created successfully in namespace {namespace}, will expire at {expiry.isoformat()}")
+        logging.info(f"VM {cyberdesk_name} created successfully in namespace {namespace}, will expire at {expiry.isoformat()}")
         
         # Get the updated Cyberdesk to mark it as processed
         try:
@@ -369,7 +374,7 @@ def create_vm_from_cyberdesk(spec, meta, status, **kwargs):
         
         # Update the Cyberdesk status
         return {
-            'virtualMachineRef': vm_name,
+            'virtualMachineRef': cyberdesk_name,
             'startTime': now.isoformat(),
             'expiryTime': expiry.isoformat(),
             'message': 'VM created successfully and is starting'
@@ -530,7 +535,7 @@ def delete_vm_for_cyberdesk(spec, meta, status, **kwargs):
 
 
 # Cluster-wide timer to check Cyberdesks that have exceeded their timeout.
-@kopf.on.timer(interval=60.0)  # Runs every 60 seconds for the operator process
+@kopf.on.timer(CYBERDESK_GROUP, CYBERDESK_VERSION, CYBERDESK_PLURAL, interval=60.0)  # Runs every 60 seconds for the operator process
 def check_all_cyberdesk_timeouts(**kwargs):
     """
     Periodically check all Cyberdesks across the cluster for VMs that have exceeded their timeout.

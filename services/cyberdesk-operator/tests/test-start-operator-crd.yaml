@@ -12,7 +12,7 @@ spec:
     singular: startcyberdeskoperator
     shortNames:
       - sco
-  scope: Namespaced # Keeping it namespaced as requested for minimal scope
+  scope: Namespaced
   versions:
     - name: v1alpha1
       served: true

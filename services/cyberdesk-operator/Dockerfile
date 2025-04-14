@@ -41,5 +41,6 @@ ENV PYTHONHASHSEED=random \
     PYTHONDONTWRITEBYTECODE=1
 
 # Run kopf as the entrypoint with proper arguments for leader election
+# TODO: Fix this. This is supposed to run operator.py, not main.py
 ENTRYPOINT ["kopf", "run"]
 CMD ["--all-namespaces", "--liveness=http://0.0.0.0:8080/healthz", "--peering=cyberdesk-operator", "main.py"] 

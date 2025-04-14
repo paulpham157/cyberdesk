@@ -132,7 +132,7 @@ data:
     kind: VirtualMachine
     metadata:
       name: ${vm_name}
-      namespace: ${namespace}
+      namespace: kubevirt
       labels:
         app: cyberdesk
         cyberdesk-instance: ${cyberdesk_name}
