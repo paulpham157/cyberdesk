@@ -27,6 +27,23 @@ core_v1_api = kubernetes.client.CoreV1Api()
 custom_objects_api = kubernetes.client.CustomObjectsApi()
 apiextensions_v1_api = kubernetes.client.ApiextensionsV1Api()
 
+# --- Dummy DB Functions (Add these near the top or where appropriate) ---
+_dummy_db = {} # Simple in-memory dictionary for demonstration
+
+def getInstanceStatusById(instance_id: str) -> str | None:
+    """Dummy function to get instance status from a 'DB'."""
+    logging.debug(f"DB Query: Get status for instance '{instance_id}'")
+    status = _dummy_db.get(instance_id)
+    logging.debug(f"DB Result: Status for '{instance_id}' is '{status}'")
+    return status
+
+def updateInstanceStatus(instance_id: str, status: str):
+    """Dummy function to update instance status in a 'DB'."""
+    logging.info(f"DB Update: Setting status for instance '{instance_id}' to '{status}'")
+    _dummy_db[instance_id] = status
+    # In a real scenario, handle DB errors, transactions etc.
+# --- End Dummy DB Functions ---
+
 # Resource definitions
 CYBERDESK_GROUP = "cyberdesk.io"
 CYBERDESK_VERSION = "v1alpha1"
@@ -44,101 +61,6 @@ START_OPERATOR_PLURAL = "startcyberdeskoperators"
 # Constants
 MANAGED_BY = "cyberdesk-operator"
 CYBERDESK_NAMESPACE = "cyberdesk-system"
-
-# Helper function for idempotency checks
-def is_handler_already_processed(meta, handler_id, resource_version=None):
-    """
-    Check if a handler has already processed this resource version.
-    This helps ensure idempotency by avoiding duplicate operations.
-    
-    Args:
-        meta: Resource metadata
-        handler_id: String identifier for the handler
-        resource_version: Optional specific resource version to check
-        
-    Returns:
-        bool: True if already processed, False otherwise
-    """
-    annotations = meta.get('annotations', {})
-    processed_by = annotations.get(f'{CYBERDESK_GROUP}/processed-by', '')
-    processed_versions = annotations.get(f'{CYBERDESK_GROUP}/processed-versions', '')
-    
-    # If no resource version specified, check if handler is in the processed-by list
-    if not resource_version:
-        return handler_id in processed_by.split(',') if processed_by else False
-    
-    # If resource version specified, check if handler+version is in the processed-versions list
-    handler_version = f"{handler_id}:{resource_version}"
-    return handler_version in processed_versions.split(',') if processed_versions else False
-
-def mark_handler_processed(api_instance, resource, handler_id, resource_version=None):
-    """
-    Mark that a handler has processed this resource version.
-    
-    Args:
-        api_instance: Kubernetes API instance
-        resource: Resource dict with metadata
-        handler_id: String identifier for the handler
-        resource_version: Optional specific resource version that was processed
-    """
-    meta = resource.get('metadata', {})
-    if not meta:
-        logging.warning(f"Resource missing metadata, cannot mark handler {handler_id}. Resource: {resource}")
-        return
-
-    annotations = meta.get('annotations', {})
-    original_annotations = meta.get('annotations', {}).copy()
-
-    # Mark the handler as having processed this resource
-    processed_by = annotations.get(f'{CYBERDESK_GROUP}/processed-by', '')
-    handlers = processed_by.split(',') if processed_by else []
-    if handler_id not in handlers:
-        handlers.append(handler_id)
-        annotations[f'{CYBERDESK_GROUP}/processed-by'] = ','.join(handlers)
-    
-    # If resource version provided, mark the handler+version as processed
-    if resource_version:
-        processed_versions = annotations.get(f'{CYBERDESK_GROUP}/processed-versions', '')
-        handler_versions = processed_versions.split(',') if processed_versions else []
-        handler_version = f"{handler_id}:{resource_version}"
-        if handler_version not in handler_versions:
-            handler_versions.append(handler_version)
-            annotations[f'{CYBERDESK_GROUP}/processed-versions'] = ','.join(handler_versions)
-    
-    # Only patch if annotations actually changed
-    if annotations != original_annotations:
-        # Apply the annotation update
-        api_version = resource.get('apiVersion')
-        kind = resource.get('kind')
-        if not api_version or not kind:
-            logging.warning(f"Resource missing apiVersion or kind, cannot patch handler {handler_id}. Resource: {resource}")
-            return
-
-        try:
-            group, version = api_version.split('/')
-        except ValueError:
-            logging.warning(f"Invalid apiVersion format '{api_version}', cannot patch handler {handler_id}. Resource: {resource}")
-            return
-            
-        plural = kind.lower() + 's'  # Simple pluralization
-
-        namespace = meta.get('namespace')
-        name = meta.get('name')
-        if not namespace or not name:
-            logging.warning(f"Resource missing namespace or name in metadata, cannot patch handler {handler_id}. Metadata: {meta}")
-            return
-
-        try:
-            api_instance.patch_namespaced_custom_object(
-                group=group,
-                version=version,
-                namespace=namespace,
-                plural=plural,
-                name=name,
-                body={"metadata": {"annotations": annotations}}
-            )
-        except Exception as e:
-            logging.warning(f"Failed to mark handler {handler_id} as processed for {name} in {namespace}: {e}")
 
 # Path to VM template
 # Check different locations based on running environment (container vs dev)
@@ -205,6 +127,7 @@ CYBERDESK_CRD_MANIFEST = {
                             },
                             "status": {
                                 "type": "object",
+                                "x-kubernetes-preserve-unknown-fields": True,
                                 "properties": {
                                     "virtualMachineRef": {"type": "string", "description": "Name of the associated KubeVirt VirtualMachine"},
                                     "startTime": {"type": "string", "format": "date-time", "description": "Time when the instance was started"},
@@ -244,21 +167,29 @@ def setup_cyberdesk_operator(spec, meta, **kwargs):
         apiextensions_v1_api.create_custom_resource_definition(body=CYBERDESK_CRD_MANIFEST)
         logging.info(f"Successfully applied Cyberdesk CRD.")
     except kubernetes.client.rest.ApiException as e:
-        logging.error(f"Failed to apply Cyberdesk CRD: {e}")
-        raise kopf.PermanentError(f"Failed to apply Cyberdesk CRD: {e}")
+        logging.error(f"Failed to apply Cyberdesk CRD: {e.status} {e.reason}")
+        # If the error is temporary (like 429), retry later.
+        if e.status == 429:
+             logging.warning(f"API server returned 429 (Too Many Requests), will retry CRD creation. Message: {e.body}")
+             raise kopf.TemporaryError(f"API server busy, retrying CRD creation: {e.reason}", delay=10) # Retry after 10s
+        else:
+             # For other API errors (e.g., 403 Forbidden, 409 Conflict), treat as permanent for this resource.
+             raise kopf.PermanentError(f"Failed to apply Cyberdesk CRD: {e.status} {e.reason}")
+    except Exception as e:
+         # Catch unexpected errors during CRD creation
+         logging.exception(f"Unexpected error applying Cyberdesk CRD: {e}") # Use logging.exception to include traceback
+         raise kopf.PermanentError(f"Unexpected error applying Cyberdesk CRD: {e}")
 
 @kopf.on.create(CYBERDESK_GROUP, CYBERDESK_VERSION, CYBERDESK_PLURAL)
 def create_vm_from_cyberdesk(spec, meta, status, **kwargs):
     """
     Handle creation of a new Cyberdesk resource.
-    Creates a corresponding KubeVirt VirtualMachine resource.
+    Creates a corresponding KubeVirt VirtualMachine resource using desired state reconciliation.
     """
     start_time = time.time()
     cyberdesk_name = meta.get('name')
-    namespace = meta.get('namespace')
-    resource_version = meta.get('resourceVersion')
-    handler_id = 'create_vm'
-    
+    namespace = meta.get('namespace') # Namespace where Cyberdesk CR lives
+
     # Added checks for essential metadata
     if not cyberdesk_name:
         logging.error("Cyberdesk resource is missing name in metadata.")
@@ -266,72 +197,60 @@ def create_vm_from_cyberdesk(spec, meta, status, **kwargs):
     if not namespace:
         logging.error(f"Cyberdesk resource '{cyberdesk_name}' is missing namespace in metadata.")
         raise kopf.PermanentError(f"Missing namespace in metadata for '{cyberdesk_name}'")
-    
-    # Check if we've already processed this resource version
-    if is_handler_already_processed(meta, handler_id, resource_version):
-        logging.info(f"Skipping VM creation for Cyberdesk {cyberdesk_name} as it was already processed")
-        return
-    
-    logging.info(f"Creating VM for Cyberdesk {cyberdesk_name} in namespace {namespace}")
-    
+
+    logging.info(f"Reconciling VM for Cyberdesk {cyberdesk_name} in namespace {namespace}") # Log Cyberdesk namespace
+
     # Extract necessary info from the Cyberdesk spec
     timeout_ms = spec.get('timeoutMs', 3600000)  # Default to 1 hour
-    
-    # Check if VM already exists to ensure idempotency
+
+    # Check if VM already exists (Desired State Check)
+    # Assume VM lives in KUBEVIRT_NAMESPACE (often 'kubevirt' or dedicated ns)
+    vm_namespace = KUBEVIRT_NAMESPACE # Define where VMs should live
     try:
-        custom_objects_api.get_namespaced_custom_object(
+        existing_vm = custom_objects_api.get_namespaced_custom_object(
             group=KUBEVIRT_GROUP,
             version=KUBEVIRT_VERSION,
-            namespace=KUBEVIRT_NAMESPACE,
+            namespace=vm_namespace, # Check in the VM namespace
             plural=KUBEVIRT_VM_PLURAL,
             name=cyberdesk_name
         )
-        # VM already exists, mark as processed and return current status
-        logging.info(f"VM {cyberdesk_name} already exists for Cyberdesk with name: {cyberdesk_name}")
-        
-        # Get the current Cyberdesk to access its status
-        try:
-            cyberdesk = custom_objects_api.get_namespaced_custom_object(
-                group=CYBERDESK_GROUP,
-                version=CYBERDESK_VERSION,
-                namespace=namespace,
-                plural=CYBERDESK_PLURAL,
-                name=cyberdesk_name
-            )
-        except kubernetes.client.rest.ApiException as e:
-            logging.error(f"Failed to fetch existing Cyberdesk {cyberdesk_name}: {e}")
-            raise kopf.TemporaryError(f"Failed to fetch Cyberdesk: {e}")
+        # VM already exists, ensure status reflects this
+        logging.info(f"VM {cyberdesk_name} already exists in {vm_namespace} for Cyberdesk {cyberdesk_name}. Ensuring status is up-to-date.")
 
-        # Mark as processed
-        mark_handler_processed(custom_objects_api, cyberdesk, handler_id, resource_version)
-        
-        # Return current status if it exists
-        current_status = cyberdesk.get('status')
-        if current_status:
-            return current_status
-        
-        # Otherwise return a basic status
-        return {
-            'virtualMachineRef': cyberdesk_name,
-            'message': 'VM already exists'
-        }
-        
+        # Fetch current Cyberdesk status if needed, or return existing status
+        current_status = status # Use the status passed by Kopf initially
+        if not current_status or current_status.get('virtualMachineRef') != cyberdesk_name:
+             # If Kopf's status is empty or incorrect, build a basic one
+             return {
+                 'virtualMachineRef': cyberdesk_name,
+                 'message': f'VM already exists in {vm_namespace}, reconciling status.'
+                 # Consider fetching start/expiry time from existing_vm annotations/labels if needed
+             }
+        else:
+             # Status already seems correct, just return it
+             # Removed call to mark_handler_processed
+             return current_status # Return Kopf's view of the status
+
+
     except kubernetes.client.rest.ApiException as e:
         if e.status != 404:
             # Unexpected error, let Kopf handle the retry
-            logging.error(f"Error checking if VM {cyberdesk_name} exists: {e}")
+            logging.error(f"Error checking if VM {cyberdesk_name} exists in {vm_namespace}: {e}")
             raise kopf.TemporaryError(f"Failed to check VM existence: {e}", delay=10)
-    
+        # If status is 404, VM does not exist, proceed with creation.
+        logging.info(f"VM {cyberdesk_name} does not exist in {vm_namespace}. Proceeding with creation.")
+
+
     # Load and render the VM template
     template = load_vm_template()
     template = string.Template(template)
     rendered_template = template.substitute(
         vm_name=cyberdesk_name,
-        cyberdesk_name=cyberdesk_name,
+        cyberdesk_name=cyberdesk_name, # Pass Cyberdesk name for labels/annotations in template
         managed_by=MANAGED_BY,
         user_data_base64="",  # Empty by default, would be populated in a real scenario
     )
-    
+
     # Parse the YAML into a dictionary
     vm_manifest = yaml.safe_load(rendered_template)
 
@@ -341,103 +260,116 @@ def create_vm_from_cyberdesk(spec, meta, status, **kwargs):
     
     # Create a new VM
     try:
+        # Create the VM in the designated KUBEVIRT_NAMESPACE
         custom_objects_api.create_namespaced_custom_object(
             group=KUBEVIRT_GROUP,
             version=KUBEVIRT_VERSION,
-            namespace=KUBEVIRT_NAMESPACE,
+            namespace=vm_namespace, # Create in the VM namespace
             plural=KUBEVIRT_VM_PLURAL,
             body=vm_manifest
         )
-        
+
         # Get the current time and calculate expiry
         now = datetime.now()
         expiry = now + timedelta(milliseconds=timeout_ms)
-        
-        logging.info(f"VM {cyberdesk_name} created successfully in namespace {namespace}, will expire at {expiry.isoformat()}")
-        
-        # Get the updated Cyberdesk to mark it as processed
-        try:
-            cyberdesk = custom_objects_api.get_namespaced_custom_object(
-                group=CYBERDESK_GROUP,
-                version=CYBERDESK_VERSION,
-                namespace=namespace,
-                plural=CYBERDESK_PLURAL,
-                name=cyberdesk_name
-            )
-        except kubernetes.client.rest.ApiException as e:
-            logging.error(f"Failed to fetch Cyberdesk {cyberdesk_name} after VM creation: {e}")
-            # Continue without marking processed, might lead to reprocessing but better than failing
-            cyberdesk = None
 
-        if cyberdesk:
-            mark_handler_processed(custom_objects_api, cyberdesk, handler_id, resource_version)
-        
-        # Update the Cyberdesk status
+        logging.info(f"VM {cyberdesk_name} created successfully in namespace {vm_namespace}, will expire at {expiry.isoformat()}") # Log correct namespace
+
+        # Removed fetching Cyberdesk and marking handler processed
+
+        # Update the Cyberdesk status (which lives in 'namespace')
         return {
-            'virtualMachineRef': cyberdesk_name,
+            'virtualMachineRef': cyberdesk_name, # Refers to the VM name
             'startTime': now.isoformat(),
             'expiryTime': expiry.isoformat(),
-            'message': 'VM created successfully and is starting'
+            'message': f'VM created successfully in {vm_namespace} and is starting'
         }
+    except kubernetes.client.rest.ApiException as e:
+         logging.error(f"Failed to create VM {cyberdesk_name} in namespace {vm_namespace}: {e.status} {e.reason}")
+         # Check for common specific errors if needed (e.g., 409 Conflict if race condition)
+         # Update DB "instance" to be in "error" state.
+         raise kopf.TemporaryError(f"Failed to create VM: {e.reason}")
     except Exception as e:
-        logging.error(f"Failed to create VM for Cyberdesk {cyberdesk_name} in namespace {namespace}: {e}")
-        raise kopf.PermanentError(f"Failed to create VM: {e}")
+        logging.error(f"Unexpected error creating VM {cyberdesk_name} in namespace {vm_namespace}: {e}")
+        # Update DB "instance" to be in "error" state.
+        raise kopf.TemporaryError(f"Unexpected error creating VM: {e}")
 
 
 @kopf.on.update(KUBEVIRT_GROUP, KUBEVIRT_VERSION, KUBEVIRT_VMI_PLURAL)
-def react_to_vmi_updates(spec, meta, status, old, new, **kwargs):
+def react_to_vmi_updates(spec, meta, status, old, new, diff, **dkwargs):
     """
-    Watch for VirtualMachineInstance updates and performs various actions:
-    - Updates DB "instance" status with VMI status (use dummy DB for now)
-    - Tracks error states and reports them
+    Watch for VirtualMachineInstance updates. If the phase changes,
+    update the corresponding instance status in the DB if it doesn't match.
     """
-    # Check if this VMI is related to a Cyberdesk
+    # --- Input Validation and Extraction ---
+    vmi_name = meta.get('name', 'unknown-vmi')
+    namespace = meta.get('namespace') # Namespace where VMI lives (e.g., KUBEVIRT_NAMESPACE)
+    if not namespace:
+        # This shouldn't happen for namespaced resources, but safeguard anyway
+        logging.error(f"VMI update event for '{vmi_name}' is missing namespace in metadata.")
+        return # Cannot proceed
+
+    # Check if this VMI is managed by our operator via labels
     labels = meta.get('labels', {})
     if labels.get('app') != 'cyberdesk':
+        # Not managed by us, ignore. Add debug log if needed.
+        # logging.debug(f"Ignoring VMI {vmi_name} update in {namespace}: Not labeled 'app=cyberdesk'.")
         return
-        
+
     cyberdesk_name = labels.get('cyberdesk-instance')
     if not cyberdesk_name:
-        # Log a warning if the label is missing, but don't stop processing
-        logging.warning(f"VMI {meta.get('name', 'unknown')} is missing 'cyberdesk-instance' label.")
-        return # Exit if the crucial label is missing
-    
-    namespace = meta.get('namespace')
-    vmi_name = meta.get('name', 'unknown') # Added default for logging
-    if not namespace:
-        logging.error(f"VMI '{vmi_name}' is missing namespace in metadata.")
-        # Cannot proceed without namespace
-        return
+        logging.warning(f"VMI {vmi_name} in {namespace} is labeled 'app=cyberdesk' but missing 'cyberdesk-instance' label. Cannot link to DB.")
+        return # Cannot link to DB instance without the ID
 
-    # Get the current VMI status
-    vmi_status = status.get('phase', 'Unknown')
-    
-    logging.info(f"Updating DB instance with name = {cyberdesk_name} in namespace {namespace} based on VMI {vmi_name} status: {vmi_status}")
-    
-    # Get the resource version to ensure idempotency
-    resource_version = meta.get('resourceVersion')
-    
-    # Ensure idempotency (passing meta, which is now handled safely)
-    # Need to pass the VMI object itself to mark_handler_processed, not just meta
-    vmi_object = new # Use the 'new' object state passed by Kopf for patching
-    if is_handler_already_processed(meta, 'react_to_vmi_updates', resource_version):
-        logging.info(f"Skipping VMI update for {cyberdesk_name} (VMI: {vmi_name}) as it was already processed")
-        return
-    
-    # Update DB "instance" status with VMI status (use dummy DB for now)
-    # TODO: Implement actual DB update
-    logging.info(f"Updated DB status for Cyberdesk {cyberdesk_name} in namespace {namespace} with VMI status: {vmi_status}")
-    
-    # Mark the handler as processed using the VMI object
-    mark_handler_processed(custom_objects_api, vmi_object, 'react_to_vmi_updates', resource_version)
+    # Safely extract phases from old and new status
+    # 'old' can be None on first processing after operator restart
+    old_status = old.get('status', {}) if old else {}
+    new_status = new.get('status', {}) if new else {} # 'new' should contain status in an update event
 
-    # Track error states and report them
-    if vmi_status in ['Failed', 'Unknown']:
-        logging.error(f"VMI {vmi_name} in namespace {namespace} is in error state: {vmi_status}")
-        # TODO: Implement actual error reporting
+    old_phase = old_status.get('phase')
+    new_phase = new_status.get('phase')
 
-    # Probably more to do here.
+    logging.debug(f"Reacting to VMI update: {vmi_name} (Cyberdesk: {cyberdesk_name}) in {namespace}. Old phase: '{old_phase}', New phase: '{new_phase}'.")
 
+    # --- Core Logic: Update DB on Meaningful Phase Change ---
+    # Only proceed if the phase actually changed and the new phase is known
+    if new_phase is not None and old_phase != new_phase:
+        logging.info(f"Phase changed for VMI {vmi_name} (Cyberdesk: {cyberdesk_name}) from '{old_phase}' to '{new_phase}'. Checking DB.")
+
+        try:
+            # Get the status currently recorded in our dummy DB
+            current_db_status = getInstanceStatusById(cyberdesk_name)
+
+            # Update DB only if its state doesn't already match the new VMI phase
+            if current_db_status != new_phase:
+                logging.info(f"DB status ('{current_db_status}') differs from new VMI phase ('{new_phase}') for {cyberdesk_name}. Updating DB.")
+                updateInstanceStatus(cyberdesk_name, new_phase)
+                # Potentially add further actions here based on the new_phase
+                # e.g., if new_phase == 'Running', notify user?
+                # e.g., if new_phase == 'Failed', log details from VMI conditions?
+                if new_phase in ['Failed', 'Error']: # KubeVirt might use 'Error' too
+                     vmi_conditions = new_status.get('conditions', [])
+                     logging.error(f"VMI {vmi_name} (Cyberdesk: {cyberdesk_name}) entered phase '{new_phase}'. Conditions: {vmi_conditions}")
+
+            else:
+                # DB already reflects the current VMI phase
+                logging.info(f"DB status ('{current_db_status}') already matches new VMI phase ('{new_phase}') for {cyberdesk_name}. No DB update needed.")
+
+        except Exception as e:
+            # Catch potential errors during DB interaction (even dummy ones)
+            logging.error(f"Error interacting with dummy DB for instance {cyberdesk_name} during VMI update processing: {e}")
+            # Retry the handler later in case the DB issue is transient
+            raise kopf.TemporaryError(f"DB interaction failed for {cyberdesk_name}: {e}", delay=30)
+
+    else:
+        # Phase did not change, or new phase is None. No action needed based on phase change.
+        if new_phase is None:
+             logging.warning(f"VMI {vmi_name} update received, but 'status.phase' is missing in the 'new' object.")
+        else:
+             logging.debug(f"No phase change detected for VMI {vmi_name} (Cyberdesk: {cyberdesk_name}). Phase remains '{new_phase}'.")
+
+    # No return value needed as we are not patching the Cyberdesk status here.
+    # Kopf handles checkpointing automatically unless errors are raised.
 
 
 @kopf.on.delete(CYBERDESK_GROUP, CYBERDESK_VERSION, CYBERDESK_PLURAL)
@@ -448,90 +380,69 @@ def delete_vm_for_cyberdesk(spec, meta, status, **kwargs):
     """
     start_time = time.time()
     cyberdesk_name = meta.get('name')
-    namespace = meta.get('namespace')
+    namespace = meta.get('namespace') # Namespace where Cyberdesk CR lives
+    vm_namespace = KUBEVIRT_NAMESPACE # Namespace where VM/VMI should live
 
     # Added checks for essential metadata
     if not cyberdesk_name:
         logging.warning("Handling deletion for Cyberdesk resource missing name in metadata.")
         # Cannot proceed without a name
-        return 
+        return
     if not namespace:
         logging.warning(f"Handling deletion for Cyberdesk resource '{cyberdesk_name}' missing namespace in metadata.")
         # Cannot proceed without namespace
         return
 
     logging.info(f"Handling deletion of Cyberdesk {cyberdesk_name} in namespace {namespace}")
-    
+
     vm_name = status.get('virtualMachineRef') if status else None
     if not vm_name:
         logging.info(f"No VM reference found in status for Cyberdesk {cyberdesk_name} in namespace {namespace}, nothing to delete.")
         return
-        
+
     try:
-        # First check if VM exists
-        custom_objects_api.get_namespaced_custom_object(
-            group=KUBEVIRT_GROUP,
-            version=KUBEVIRT_VERSION,
-            namespace=namespace,
-            plural=KUBEVIRT_VM_PLURAL,
-            name=vm_name    
-        )
+        # First check if VM exists in the correct namespace
+        try:
+            custom_objects_api.get_namespaced_custom_object(
+                group=KUBEVIRT_GROUP,
+                version=KUBEVIRT_VERSION,
+                namespace=vm_namespace, # Use VM namespace
+                plural=KUBEVIRT_VM_PLURAL,
+                name=vm_name
+            )
+        except kubernetes.client.rest.ApiException as e:
+            if e.status == 404:
+                logging.info(f"VM {vm_name} in namespace {vm_namespace} already deleted")
+                return
+        except Exception as e:
+            logging.error(f"Unexpected error checking if VM {vm_name} in namespace {vm_namespace} exists: {e}")
+            raise kopf.TemporaryError(f"Unexpected error checking VM existence: {e}", delay=15)
+
 
         # TODO: Possibly return to warm pool. Reboot and set as "warm_pool" status.
-        
-        # Proceed with full deletion
+
+        # Proceed with full deletion in the correct namespace
         custom_objects_api.delete_namespaced_custom_object(
             group=KUBEVIRT_GROUP,
             version=KUBEVIRT_VERSION,
-            namespace=namespace,
+            namespace=vm_namespace, # Use VM namespace
             plural=KUBEVIRT_VM_PLURAL,
             name=vm_name
         )
 
         # TODO: Update DB "instance" to be completed.
-        
-        logging.info(f"Successfully deleted VM {vm_name} in namespace {namespace}")
-        
-        # Cleanup any other resources associated with this VM
-        try:
-            # Check for any associated VMIs and delete them
-            vmi_list = custom_objects_api.list_namespaced_custom_object(
-                group=KUBEVIRT_GROUP,
-                version=KUBEVIRT_VERSION,
-                namespace=namespace,
-                plural=KUBEVIRT_VMI_PLURAL,
-                label_selector=f"app=cyberdesk,cyberdesk-instance={cyberdesk_name}"
-            )
-            
-            for vmi in vmi_list.get('items', []):
-                vmi_meta = vmi.get('metadata', {})
-                vmi_name = vmi_meta.get('name')
-                if not vmi_name:
-                    logging.warning(f"Found associated VMI for {cyberdesk_name} but it is missing a name.")
-                    continue # Skip this VMI
 
-                try:
-                    custom_objects_api.delete_namespaced_custom_object(
-                        group=KUBEVIRT_GROUP,
-                        version=KUBEVIRT_VERSION,
-                        namespace=namespace,
-                        plural=KUBEVIRT_VMI_PLURAL,
-                        name=vmi_name
-                    )
-                    logging.info(f"Deleted associated VMI {vmi_name} in namespace {namespace}")
-                except kubernetes.client.rest.ApiException as e:
-                    if e.status != 404:
-                        logging.warning(f"Failed to delete associated VMI {vmi_name}: {e}")
-        
-        except Exception as e:
-            logging.warning(f"Error while cleaning up resources for {cyberdesk_name}: {e}")
-
+        logging.info(f"Successfully deleted VM {vm_name} in namespace {vm_namespace}")
     except kubernetes.client.rest.ApiException as e:
         if e.status == 404:
-            logging.info(f"VM {vm_name} in namespace {namespace} already deleted")
+            logging.info(f"VM {vm_name} in namespace {vm_namespace} already deleted")
         else:
-            logging.error(f"Failed to delete VM {vm_name} in namespace {namespace}: {e}")
-            raise kopf.PermanentError(f"Failed to delete VM: {e}")
+            logging.error(f"Failed to delete VM {vm_name} in namespace {vm_namespace}: {e}")
+            # Use TemporaryError to retry if deletion fails transiently
+            raise kopf.TemporaryError(f"Failed to delete VM {vm_name} in {vm_namespace}: {e.reason}", delay=15)
+    except Exception as e: # Catch unexpected errors during deletion logic
+        logging.exception(f"Unexpected error during deletion handling for Cyberdesk {cyberdesk_name}: {e}")
+        raise kopf.TemporaryError(f"Unexpected error during deletion for {cyberdesk_name}: {e}", delay=30)
 
 
 # Cluster-wide timer to check Cyberdesks that have exceeded their timeout.
@@ -599,6 +510,8 @@ def check_all_cyberdesk_timeouts(**kwargs):
                     plural=CYBERDESK_PLURAL,
                     name=cyberdesk_name
                 )
+
+                # TODO: Update DB "instance" to be completed in some way.
             except kubernetes.client.rest.ApiException as e:
                 if e.status == 404:
                     logging.info(f"Cyberdesk {cyberdesk_name} in namespace {namespace} already deleted.")
