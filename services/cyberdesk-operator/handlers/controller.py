@@ -295,46 +295,42 @@ def create_vm_from_cyberdesk(spec, meta, status, **kwargs):
         raise kopf.TemporaryError(f"Unexpected error creating VM: {e}")
 
 
-@kopf.on.update(KUBEVIRT_GROUP, KUBEVIRT_VERSION, KUBEVIRT_VMI_PLURAL)
-def react_to_vmi_updates(spec, meta, status, old, new, diff, **dkwargs):
+@kopf.on.field(KUBEVIRT_GROUP, KUBEVIRT_VERSION, KUBEVIRT_VMI_PLURAL, field='status.phase')
+def react_to_vmi_phase_change(old, new, meta, status, logger, **kwargs):
     """
-    Watch for VirtualMachineInstance updates. If the phase changes,
-    update the corresponding instance status in the DB if it doesn't match.
+    Watch for VirtualMachineInstance phase changes.
+    Update the corresponding instance status in the DB if it doesn't match.
+    Only triggered when `status.phase` changes.
     """
     # --- Input Validation and Extraction ---
     vmi_name = meta.get('name', 'unknown-vmi')
     namespace = meta.get('namespace') # Namespace where VMI lives (e.g., KUBEVIRT_NAMESPACE)
     if not namespace:
         # This shouldn't happen for namespaced resources, but safeguard anyway
-        logging.error(f"VMI update event for '{vmi_name}' is missing namespace in metadata.")
+        logger.error(f"VMI update event for '{vmi_name}' is missing namespace in metadata.")
         return # Cannot proceed
 
     # Check if this VMI is managed by our operator via labels
     labels = meta.get('labels', {})
     if labels.get('app') != 'cyberdesk':
-        # Not managed by us, ignore. Add debug log if needed.
-        # logging.debug(f"Ignoring VMI {vmi_name} update in {namespace}: Not labeled 'app=cyberdesk'.")
+        # Not managed by us, ignore.
+        # logger.debug(f"Ignoring VMI {vmi_name} phase change in {namespace}: Not labeled 'app=cyberdesk'.")
         return
 
     cyberdesk_name = labels.get('cyberdesk-instance')
     if not cyberdesk_name:
-        logging.warning(f"VMI {vmi_name} in {namespace} is labeled 'app=cyberdesk' but missing 'cyberdesk-instance' label. Cannot link to DB.")
+        logger.warning(f"VMI {vmi_name} in {namespace} is labeled 'app=cyberdesk' but missing 'cyberdesk-instance' label. Cannot link to DB.")
         return # Cannot link to DB instance without the ID
 
-    # Safely extract phases from old and new status
-    # 'old' can be None on first processing after operator restart
-    old_status = old.get('status', {}) if old else {}
-    new_status = new.get('status', {}) if new else {} # 'new' should contain status in an update event
+    old_phase = old # The old value of status.phase
+    new_phase = new # The new value of status.phase
 
-    old_phase = old_status.get('phase')
-    new_phase = new_status.get('phase')
-
-    logging.debug(f"Reacting to VMI update: {vmi_name} (Cyberdesk: {cyberdesk_name}) in {namespace}. Old phase: '{old_phase}', New phase: '{new_phase}'.")
+    logger.debug(f"Reacting to VMI phase change: {vmi_name} (Cyberdesk: {cyberdesk_name}) in {namespace}. Old phase: '{old_phase}', New phase: '{new_phase}'.")
 
     # --- Core Logic: Update DB on Meaningful Phase Change ---
-    # Only proceed if the phase actually changed and the new phase is known
-    if new_phase is not None and old_phase != new_phase:
-        logging.info(f"Phase changed for VMI {vmi_name} (Cyberdesk: {cyberdesk_name}) from '{old_phase}' to '{new_phase}'. Checking DB.")
+    # The handler only runs if the phase changes, so we primarily care about the new phase.
+    if new_phase is not None:
+        logger.info(f"Phase changed for VMI {vmi_name} (Cyberdesk: {cyberdesk_name}) from '{old_phase}' to '{new_phase}'. Checking DB.")
 
         try:
             # Get the status currently recorded in our dummy DB
@@ -342,31 +338,29 @@ def react_to_vmi_updates(spec, meta, status, old, new, diff, **dkwargs):
 
             # Update DB only if its state doesn't already match the new VMI phase
             if current_db_status != new_phase:
-                logging.info(f"DB status ('{current_db_status}') differs from new VMI phase ('{new_phase}') for {cyberdesk_name}. Updating DB.")
+                logger.info(f"DB status ('{current_db_status}') differs from new VMI phase ('{new_phase}') for {cyberdesk_name}. Updating DB.")
                 updateInstanceStatus(cyberdesk_name, new_phase)
                 # Potentially add further actions here based on the new_phase
                 # e.g., if new_phase == 'Running', notify user?
                 # e.g., if new_phase == 'Failed', log details from VMI conditions?
                 if new_phase in ['Failed', 'Error']: # KubeVirt might use 'Error' too
-                     vmi_conditions = new_status.get('conditions', [])
-                     logging.error(f"VMI {vmi_name} (Cyberdesk: {cyberdesk_name}) entered phase '{new_phase}'. Conditions: {vmi_conditions}")
+                     # Access the full status object passed by Kopf
+                     vmi_conditions = status.get('conditions', [])
+                     logger.error(f"VMI {vmi_name} (Cyberdesk: {cyberdesk_name}) entered phase '{new_phase}'. Conditions: {vmi_conditions}")
 
             else:
                 # DB already reflects the current VMI phase
-                logging.info(f"DB status ('{current_db_status}') already matches new VMI phase ('{new_phase}') for {cyberdesk_name}. No DB update needed.")
+                logger.info(f"DB status ('{current_db_status}') already matches new VMI phase ('{new_phase}') for {cyberdesk_name}. No DB update needed.")
 
         except Exception as e:
             # Catch potential errors during DB interaction (even dummy ones)
-            logging.error(f"Error interacting with dummy DB for instance {cyberdesk_name} during VMI update processing: {e}")
+            logger.error(f"Error interacting with dummy DB for instance {cyberdesk_name} during VMI update processing: {e}")
             # Retry the handler later in case the DB issue is transient
             raise kopf.TemporaryError(f"DB interaction failed for {cyberdesk_name}: {e}", delay=30)
 
     else:
-        # Phase did not change, or new phase is None. No action needed based on phase change.
-        if new_phase is None:
-             logging.warning(f"VMI {vmi_name} update received, but 'status.phase' is missing in the 'new' object.")
-        else:
-             logging.debug(f"No phase change detected for VMI {vmi_name} (Cyberdesk: {cyberdesk_name}). Phase remains '{new_phase}'.")
+        # This case might occur if the phase field is explicitly set to null or removed.
+        logger.warning(f"VMI {vmi_name} (Cyberdesk: {cyberdesk_name}) phase changed, but the new phase is None. Old phase was '{old_phase}'.")
 
     # No return value needed as we are not patching the Cyberdesk status here.
     # Kopf handles checkpointing automatically unless errors are raised.
@@ -378,6 +372,8 @@ def delete_vm_for_cyberdesk(spec, meta, status, **kwargs):
     Handle deletion of a Cyberdesk resource.
     Deletes the corresponding KubeVirt VirtualMachine, or returns to warm pool.
     """
+
+    return
     start_time = time.time()
     cyberdesk_name = meta.get('name')
     namespace = meta.get('namespace') # Namespace where Cyberdesk CR lives
