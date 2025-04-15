@@ -373,7 +373,6 @@ def delete_vm_for_cyberdesk(spec, meta, status, **kwargs):
     Deletes the corresponding KubeVirt VirtualMachine, or returns to warm pool.
     """
 
-    return
     start_time = time.time()
     cyberdesk_name = meta.get('name')
     namespace = meta.get('namespace') # Namespace where Cyberdesk CR lives
@@ -391,9 +390,13 @@ def delete_vm_for_cyberdesk(spec, meta, status, **kwargs):
 
     logging.info(f"Handling deletion of Cyberdesk {cyberdesk_name} in namespace {namespace}")
 
-    vm_name = status.get('virtualMachineRef') if status else None
+    # Access the nested status correctly
+    create_status = status.get('create_vm_from_cyberdesk', {}) if status else {}
+    vm_name = create_status.get('virtualMachineRef')
+    # vm_name = status.get('virtualMachineRef') if status else None # Old incorrect line
+
     if not vm_name:
-        logging.info(f"No VM reference found in status for Cyberdesk {cyberdesk_name} in namespace {namespace}, nothing to delete.")
+        logging.info(f"No VM reference found in status.create_vm_from_cyberdesk for Cyberdesk {cyberdesk_name} in namespace {namespace}, nothing to delete.")
         return
 
     try:
@@ -480,7 +483,9 @@ def check_all_cyberdesk_timeouts(**kwargs):
             logging.warning(f"Skipping Cyberdesk resource with missing name or namespace in metadata: {meta}")
             continue
             
-        expiry_time_str = status.get('expiryTime')
+        # Access the nested status correctly
+        create_status = status.get('create_vm_from_cyberdesk', {})
+        expiry_time_str = create_status.get('expiryTime')
         if not expiry_time_str:
             # Skip resources without an expiry time set in their status
             continue
