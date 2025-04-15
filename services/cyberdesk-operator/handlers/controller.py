@@ -127,23 +127,11 @@ CYBERDESK_CRD_MANIFEST = {
                             },
                             "status": {
                                 "type": "object",
-                                "x-kubernetes-preserve-unknown-fields": True,
-                                "properties": {
-                                    "virtualMachineRef": {"type": "string", "description": "Name of the associated KubeVirt VirtualMachine"},
-                                    "startTime": {"type": "string", "format": "date-time", "description": "Time when the instance was started"},
-                                    "expiryTime": {"type": "string", "format": "date-time", "description": "Time when the instance will expire based on timeout"},
-                                    "message": {"type": "string", "description": "Informational message about the VM state"}
-                                }
+                                "x-kubernetes-preserve-unknown-fields": True
                             }
                         }
                     }
                 },
-                "additionalPrinterColumns": [
-                    {"name": "VMI", "type": "string", "jsonPath": ".status.virtualMachineRef"},
-                    {"name": "Timeout(ms)", "type": "integer", "jsonPath": ".spec.timeoutMs"},
-                    {"name": "Expiry", "type": "date", "jsonPath": ".status.expiryTime"},
-                    {"name": "Age", "type": "date", "jsonPath": ".metadata.creationTimestamp"}
-                ],
                 "subresources": {"status": {}}
             }
         ]
@@ -223,7 +211,6 @@ def create_vm_from_cyberdesk(spec, meta, status, **kwargs):
              # If Kopf's status is empty or incorrect, build a basic one
              return {
                  'virtualMachineRef': cyberdesk_name,
-                 'message': f'VM already exists in {vm_namespace}, reconciling status.'
                  # Consider fetching start/expiry time from existing_vm annotations/labels if needed
              }
         else:
@@ -281,8 +268,7 @@ def create_vm_from_cyberdesk(spec, meta, status, **kwargs):
         return {
             'virtualMachineRef': cyberdesk_name, # Refers to the VM name
             'startTime': now.isoformat(),
-            'expiryTime': expiry.isoformat(),
-            'message': f'VM created successfully in {vm_namespace} and is starting'
+            'expiryTime': expiry.isoformat()
         }
     except kubernetes.client.rest.ApiException as e:
          logging.error(f"Failed to create VM {cyberdesk_name} in namespace {vm_namespace}: {e.status} {e.reason}")
