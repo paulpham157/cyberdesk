@@ -60,20 +60,28 @@ kubectl apply -f ../kubevirt/kubevirt-cr.yaml
 If you have made changes to the operator code, you need to rebuild and push the image with a **unique, specific tag** (e.g., using Semantic Versioning like `v1.2.3` or a Git commit SHA like `a1b2c3d4`). **Avoid using the `:latest` tag**, as it can lead to unpredictable behavior with Kubernetes image caching (`imagePullPolicy: IfNotPresent`).
 
 ```bash
-# Define your unique tag
-export IMAGE_TAG="v0.1.0" # Or use something like $(git rev-parse --short HEAD)
-
 # Navigate to the operator directory
 cd ../services/cyberdesk-operator
 
-# Build the docker image with the specific tag (ensure Docker daemon is running)
-docker build -t cyberdesk-operator:${IMAGE_TAG} .
+# Build the docker image with a specific tag (ensure Docker daemon is running)
+docker build -t cyberdesk/cyberdesk-operator:NEW_VERSION_TAG_HERE .
 
-# If using a private container registry, tag for the registry and push
-# export REGISTRY_HOST="your-registry.io"
-# Ensure you are logged into your registry (e.g., docker login ${REGISTRY_HOST})
-# docker tag cyberdesk-operator:${IMAGE_TAG} ${REGISTRY_HOST}/cyberdesk-operator:${IMAGE_TAG}
-# docker push ${REGISTRY_HOST}/cyberdesk-operator:${IMAGE_TAG}
+# Push the image to Docker Hub
+docker push cyberdesk/cyberdesk-operator:NEW_VERSION_TAG_HERE
+
+```
+
+**PowerShell:**
+```powershell
+# Navigate to the operator directory
+cd ../services/cyberdesk-operator
+
+# Build the docker image with a specific tag (ensure Docker daemon is running)
+docker build -t "cyberdesk/cyberdesk-operator:NEW_VERSION_TAG_HERE" .
+
+# Push the image to Docker Hub
+docker push cyberdesk/cyberdesk-operator:NEW_VERSION_TAG_HERE
+
 ```
 
 **Important:** After building and pushing, you **must update** the `image:` field in `../infra/kubevirt/cyberdesk-operator.yaml` to reference the **specific tag** you just used (e.g., `image: cyberdesk-operator:v0.1.0` or `image: your-registry.io/cyberdesk-operator:v0.1.0`).

@@ -135,6 +135,50 @@ Verify that the CRD was registered successfully:
 kubectl get crd cyberdeskinstances.cyberdesk.io
 ```
 
+## Building and Pushing the Cyberdesk Operator Image
+
+Before deploying the operator, you need to build the Docker image and push it to a container registry like Docker Hub.
+
+**Prerequisite:** Ensure you are logged into Docker Desktop with the account `dev@cyberdesk.io` (using Sign in with Google), which should have push access to the `cyberdesk` Docker Hub repository.
+
+**Important:** The commands below assume your Docker Hub username/organization is `cyberdesk`.
+
+### 1. Build the Image
+
+**MacOS/Linux:**
+```bash
+# Navigate to the operator's directory if you aren't already there
+# cd path/to/cyberdesk-operator 
+
+export IMAGE_TAG=v0.1.0
+export DOCKERHUB_USERNAME=cyberdesk # Using 'cyberdesk' username/org
+
+docker build -t $DOCKERHUB_USERNAME/cyberdesk-operator:$IMAGE_TAG .
+```
+
+**Windows PowerShell:**
+```powershell
+# Navigate to the operator's directory if you aren't already there
+# cd path/to/cyberdesk-operator
+
+$env:IMAGE_TAG="v0.1.0"
+$env:DOCKERHUB_USERNAME="cyberdesk" # Using 'cyberdesk' username/org
+
+docker build -t "$env:DOCKERHUB_USERNAME/cyberdesk-operator:$env:IMAGE_TAG" .
+```
+
+### 2. Push the Image
+
+**MacOS/Linux:**
+```bash
+docker push $DOCKERHUB_USERNAME/cyberdesk-operator:$IMAGE_TAG
+```
+
+**Windows PowerShell:**
+```powershell
+docker push "$env:DOCKERHUB_USERNAME/cyberdesk-operator:$env:IMAGE_TAG"
+```
+
 ## Verification
 
 To verify your deployment, you can check the status of KubeVirt components:

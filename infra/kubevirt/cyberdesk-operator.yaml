@@ -81,7 +81,7 @@ spec:
       serviceAccountName: cyberdesk-operator
       containers:
       - name: operator
-        image: cyberdesk-operator:v0.0.0
+        image: cyberdesk/cyberdesk-operator:v0.1.3
         imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 8080
@@ -90,14 +90,8 @@ spec:
           httpGet:
             path: /healthz
             port: health
-          initialDelaySeconds: 30
-          periodSeconds: 10
-        readinessProbe:
-          httpGet:
-            path: /healthz
-            port: health
-          initialDelaySeconds: 5
-          periodSeconds: 10
+          initialDelaySeconds: 15
+          periodSeconds: 30
         resources:
           limits:
             cpu: "500m"

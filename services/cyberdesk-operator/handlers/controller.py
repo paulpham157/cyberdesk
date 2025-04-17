@@ -66,7 +66,7 @@ CYBERDESK_NAMESPACE = "cyberdesk-system"
 # Check different locations based on running environment (container vs dev)
 VM_TEMPLATE_PATHS = [
     '/app/kubevirt-vm-cr.yaml',  # Mounted in container via ConfigMap
-    os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'tests', 'test-kubevirt-vm-cr.yaml')), # For local testing via KopfRunner
+    # os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'tests', 'test-kubevirt-vm-cr.yaml')), # For local testing via KopfRunner
 ]
 
 def load_vm_template():
