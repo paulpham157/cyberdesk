@@ -8,6 +8,26 @@ import time
 from datetime import datetime, timedelta
 from typing import Dict, Any
 from pathlib import Path
+from enum import Enum
+from supabase import create_client, Client
+from dotenv import load_dotenv
+
+# --- Supabase Client Setup ---
+load_dotenv()
+try:
+    supabase_url: str = os.environ.get("SUPABASE_URL")
+    supabase_key: str = os.environ.get("SUPABASE_KEY")
+    if not supabase_url or not supabase_key:
+        logging.critical("SUPABASE_URL or SUPABASE_KEY environment variables not set.")
+        # Raise error to stop operator startup if credentials are vital
+        raise kopf.PermanentError("Supabase credentials not configured.")
+    supabase: Client = create_client(supabase_url, supabase_key)
+    logging.info("Successfully initialized Supabase client.")
+except Exception as e:
+    logging.critical(f"Failed to initialize Supabase client: {e}")
+    # Raise error to stop operator startup
+    raise kopf.PermanentError(f"Failed to initialize Supabase client: {e}")
+# --- End Supabase Client Setup ---
 
 # Configure the Kubernetes client
 # Prioritize kubeconfig for local development, then fall back to incluster config
@@ -26,23 +46,6 @@ except kubernetes.config.config_exception.ConfigException:
 core_v1_api = kubernetes.client.CoreV1Api()
 custom_objects_api = kubernetes.client.CustomObjectsApi()
 apiextensions_v1_api = kubernetes.client.ApiextensionsV1Api()
-
-# --- Dummy DB Functions (Add these near the top or where appropriate) ---
-_dummy_db = {} # Simple in-memory dictionary for demonstration
-
-def getInstanceStatusById(instance_id: str) -> str | None:
-    """Dummy function to get instance status from a 'DB'."""
-    logging.debug(f"DB Query: Get status for instance '{instance_id}'")
-    status = _dummy_db.get(instance_id)
-    logging.debug(f"DB Result: Status for '{instance_id}' is '{status}'")
-    return status
-
-def updateInstanceStatus(instance_id: str, status: str):
-    """Dummy function to update instance status in a 'DB'."""
-    logging.info(f"DB Update: Setting status for instance '{instance_id}' to '{status}'")
-    _dummy_db[instance_id] = status
-    # In a real scenario, handle DB errors, transactions etc.
-# --- End Dummy DB Functions ---
 
 # Resource definitions
 CYBERDESK_GROUP = "cyberdesk.io"
@@ -66,8 +69,90 @@ CYBERDESK_NAMESPACE = "cyberdesk-system"
 # Check different locations based on running environment (container vs dev)
 VM_TEMPLATE_PATHS = [
     '/app/kubevirt-vm-cr.yaml',  # Mounted in container via ConfigMap
-    # os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'tests', 'test-kubevirt-vm-cr.yaml')), # For local testing via KopfRunner
+    os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'tests', 'test-kubevirt-vm-cr.yaml')), # For local testing via KopfRunner
 ]
+
+# --- Enums and Mappings (Moved from helpers) ---
+class KubeVirtVMIPhase(Enum):
+    PENDING = "Pending"
+    SCHEDULING = "Scheduling"
+    SCHEDULED = "Scheduled"
+    RUNNING = "Running"
+    SUCCEEDED = "Succeeded" # Represents completed successfully
+    FAILED = "Failed"     # Represents failed state
+    UNKNOWN = "Unknown"   # Represents an unknown or error state
+
+class SupabaseInstanceStatus(Enum):
+    PENDING = "pending"     # Initial state or waiting for scheduling
+    RUNNING = "running"     # VM is operational
+    COMPLETED = "completed" # VM finished successfully (maps from Succeeded)
+    ERROR = "error"         # VM failed or is in an unknown state
+
+# Mapping from KubeVirt VMI Phase to Supabase Status
+VMI_PHASE_TO_SUPABASE_STATUS: Dict[KubeVirtVMIPhase, SupabaseInstanceStatus] = {
+    KubeVirtVMIPhase.PENDING: SupabaseInstanceStatus.PENDING,
+    KubeVirtVMIPhase.SCHEDULING: SupabaseInstanceStatus.PENDING,
+    KubeVirtVMIPhase.SCHEDULED: SupabaseInstanceStatus.PENDING, # Still pending until actually Running
+    KubeVirtVMIPhase.RUNNING: SupabaseInstanceStatus.RUNNING,
+    KubeVirtVMIPhase.SUCCEEDED: SupabaseInstanceStatus.COMPLETED,
+    KubeVirtVMIPhase.FAILED: SupabaseInstanceStatus.ERROR,
+    KubeVirtVMIPhase.UNKNOWN: SupabaseInstanceStatus.ERROR,
+}
+# --- End Enums and Mappings ---
+
+# --- Helper Functions (Moved from helpers) ---
+def getInstanceStatusById(instance_id: str) -> str | None:
+    """Get instance status from the Supabase 'cyberdesk_instances' table."""
+    try:
+        logging.debug(f"DB Query: Get status for instance '{instance_id}' from Supabase.")
+        response = supabase.table('cyberdesk_instances').select("status").eq("id", instance_id).limit(1).execute()
+        logging.debug(f"Supabase Response (getInstanceStatusById): {response.data}")
+        if response.data:
+            status = response.data[0].get('status')
+            logging.debug(f"DB Result: Status for '{instance_id}' is '{status}'")
+            return status
+        else:
+            logging.debug(f"DB Result: Instance '{instance_id}' not found.")
+            return None
+    except Exception as e:
+        logging.error(f"Supabase error in getInstanceStatusById for instance '{instance_id}': {e}")
+        # Optional: Raise temporary error for Kopf to retry if it's a transient Supabase issue
+        # raise kopf.TemporaryError(f"Supabase query failed: {e}", delay=15)
+        return None # Return None on error to avoid incorrect state logic
+
+def updateInstanceStatus(instance_id: str, vmi_phase_str: str):
+    """
+    Update instance status in the Supabase 'cyberdesk_instances' table
+    after translating the KubeVirt VMI phase.
+    """
+    # Attempt to map the incoming VMI phase string to our enum
+    try:
+        vmi_phase = KubeVirtVMIPhase(vmi_phase_str)
+    except ValueError:
+        logging.error(f"Received unknown or unhandled VMI phase '{vmi_phase_str}' for instance '{instance_id}'. Mapping to '{SupabaseInstanceStatus.ERROR.value}'.")
+        target_status = SupabaseInstanceStatus.ERROR
+    else:
+        # Get the corresponding Supabase status from the mapping
+        target_status = VMI_PHASE_TO_SUPABASE_STATUS.get(vmi_phase, SupabaseInstanceStatus.ERROR)
+        if target_status == SupabaseInstanceStatus.ERROR and vmi_phase not in [KubeVirtVMIPhase.FAILED, KubeVirtVMIPhase.UNKNOWN]:
+             # Log if a known phase unexpectedly maps to ERROR (indicates mapping issue)
+             logging.warning(f"VMI phase '{vmi_phase.value}' mapped to '{SupabaseInstanceStatus.ERROR.value}' unexpectedly for instance '{instance_id}'. Review VMI_PHASE_TO_SUPABASE_STATUS mapping.")
+
+
+    target_status_str = target_status.value # Get the string value for DB update
+
+    try:
+        logging.info(f"DB Update: Translating VMI phase '{vmi_phase_str}' to Supabase status '{target_status_str}' for instance '{instance_id}'.")
+        response = supabase.table('cyberdesk_instances').update({"status": target_status_str}).eq("id", instance_id).execute()
+        logging.debug(f"Supabase Response (updateInstanceStatus): {response.data}")
+        if not response.data:
+             logging.warning(f"Supabase update for instance '{instance_id}' might not have found the row or failed.")
+    except Exception as e:
+        logging.error(f"Supabase error in updateInstanceStatus for instance '{instance_id}' (status: {target_status_str}): {e}")
+        # Optional: Raise temporary error for Kopf to retry
+        # raise kopf.TemporaryError(f"Supabase update failed: {e}", delay=15)
+
+# --- End Helper Functions ---
 
 def load_vm_template():
     """Load VM template from file"""
@@ -319,24 +404,36 @@ def react_to_vmi_phase_change(old, new, meta, status, logger, **kwargs):
         logger.info(f"Phase changed for VMI {vmi_name} (Cyberdesk: {cyberdesk_name}) from '{old_phase}' to '{new_phase}'. Checking DB.")
 
         try:
-            # Get the status currently recorded in our dummy DB
+            # Get the status currently recorded in our DB
             current_db_status = getInstanceStatusById(cyberdesk_name)
 
-            # Update DB only if its state doesn't already match the new VMI phase
-            if current_db_status != new_phase:
-                logger.info(f"DB status ('{current_db_status}') differs from new VMI phase ('{new_phase}') for {cyberdesk_name}. Updating DB.")
-                updateInstanceStatus(cyberdesk_name, new_phase)
+            # Translate the *new* VMI phase to the target Supabase status string
+            try:
+                new_vmi_phase_enum = KubeVirtVMIPhase(new_phase)
+                target_supabase_status = VMI_PHASE_TO_SUPABASE_STATUS.get(new_vmi_phase_enum, SupabaseInstanceStatus.ERROR)
+                target_supabase_status_str = target_supabase_status.value
+            except ValueError:
+                 logging.error(f"Received unknown VMI phase '{new_phase}' during check for {cyberdesk_name}. Will attempt to update DB to '{SupabaseInstanceStatus.ERROR.value}'.")
+                 target_supabase_status_str = SupabaseInstanceStatus.ERROR.value
+
+
+            # Update DB only if its state doesn't already match the *target* Supabase status
+            if current_db_status != target_supabase_status_str:
+                logger.info(f"DB status ('{current_db_status}') differs from target Supabase status ('{target_supabase_status_str}' translated from VMI phase '{new_phase}') for {cyberdesk_name}. Updating DB.")
+                # Call updateInstanceStatus with the raw new_phase string; translation happens inside
+                updateInstanceStatus(cyberdesk_name, new_phase) # Pass the string phase
+
                 # Potentially add further actions here based on the new_phase
                 # e.g., if new_phase == 'Running', notify user?
                 # e.g., if new_phase == 'Failed', log details from VMI conditions?
-                if new_phase in ['Failed', 'Error']: # KubeVirt might use 'Error' too
+                if new_phase in ['Failed', 'Error', KubeVirtVMIPhase.UNKNOWN.value]: # Check against string values
                      # Access the full status object passed by Kopf
                      vmi_conditions = status.get('conditions', [])
-                     logger.error(f"VMI {vmi_name} (Cyberdesk: {cyberdesk_name}) entered phase '{new_phase}'. Conditions: {vmi_conditions}")
+                     logger.error(f"VMI {vmi_name} (Cyberdesk: {cyberdesk_name}) entered phase '{new_phase}' (maps to '{target_supabase_status_str}'). Conditions: {vmi_conditions}")
 
             else:
                 # DB already reflects the current VMI phase
-                logger.info(f"DB status ('{current_db_status}') already matches new VMI phase ('{new_phase}') for {cyberdesk_name}. No DB update needed.")
+                logger.info(f"DB status ('{current_db_status}') already matches target Supabase status ('{target_supabase_status_str}' from VMI phase '{new_phase}') for {cyberdesk_name}. No DB update needed.")
 
         except Exception as e:
             # Catch potential errors during DB interaction (even dummy ones)
@@ -414,8 +511,6 @@ def delete_vm_for_cyberdesk(spec, meta, status, **kwargs):
             plural=KUBEVIRT_VM_PLURAL,
             name=vm_name
         )
-
-        # TODO: Update DB "instance" to be completed.
 
         logging.info(f"Successfully deleted VM {vm_name} in namespace {vm_namespace}")
     except kubernetes.client.rest.ApiException as e:

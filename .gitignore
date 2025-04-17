@@ -32,3 +32,9 @@ testing-do-not-push/*
 user-data.yaml
 user-data-base64.txt
 
+# Kubernetes secrets - DO NOT COMMIT REAL CREDENTIALS
+infra/kubevirt/supabase-secret.yaml
+
+# Local development environment variables
+.env
+

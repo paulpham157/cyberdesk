@@ -99,6 +99,9 @@ spec:
           requests:
             cpu: "200m"
             memory: "256Mi"
+        envFrom:
+        - secretRef:
+            name: supabase-credentials
         env:
         - name: KOPF_NAMESPACE
           valueFrom:

@@ -91,11 +91,25 @@ docker push cyberdesk/cyberdesk-operator:NEW_VERSION_TAG_HERE
 cd ../../infra
 ```
 
-#### 4.2 Deploy the Operator and Core Resources
+#### 4.2 Apply the Supabase Secret (Manual Step)
 
-This single manifest contains the Namespace, ServiceAccount, RBAC rules, the Deployment for the operator, the ConfigMap for the VM template, and the trigger CRD (`StartCyberdeskOperator`).
+Before deploying the operator, you **must** apply the Kubernetes Secret containing the Supabase credentials. This secret is intentionally kept in a separate file (`infra/kubevirt/supabase-secret.yaml`) and excluded via `.gitignore` to prevent committing sensitive data to version control.
 
-Make sure the `image:` tag in this file matches the image you built and pushed in the previous step.
+**1. Edit the Secret File:**
+   Open `infra/kubevirt/supabase-secret.yaml` and replace the placeholder values `<your-supabase-url>` and `<your-supabase-key>` with your actual Supabase credentials.
+
+**2. Apply the Secret:**
+```bash
+kubectl apply -f ./kubevirt/supabase-secret.yaml
+```
+
+This command creates the `supabase-credentials` Secret object in the `cyberdesk-system` namespace, which the operator deployment requires.
+
+#### 4.3 Deploy the Operator and Core Resources
+
+Now that the secret exists in the cluster, deploy the main operator manifest. This single manifest contains the Namespace, ServiceAccount, RBAC rules, the Deployment for the operator, the ConfigMap for the VM template, and the trigger CRD (`StartCyberdeskOperator`).
+
+Make sure the `image:` tag in this file matches the image you built and pushed (if applicable).
 
 ```bash
 kubectl apply -f ./kubevirt/cyberdesk-operator.yaml
@@ -109,7 +123,7 @@ kubectl get deployment -n cyberdesk-system cyberdesk-operator
 kubectl get pods -n cyberdesk-system -l app=cyberdesk-operator
 ```
 
-#### 4.3 Trigger Operator Setup
+#### 4.4 Trigger Operator Setup
 
 Apply the `StartCyberdeskOperator` custom resource. This signals the running operator to perform its initial setup, primarily creating the `Cyberdesk` CRD.
 
@@ -194,20 +208,29 @@ kubectl delete -f ./kubevirt/start-cyberdesk-operator-cr.yaml
 kubectl delete -f ./kubevirt/cyberdesk-operator.yaml
 ```
 
-4. Delete the dynamically created Cyberdesk CRD:
+4. Delete the Supabase Secret:
+
+```bash
+# Note: If you applied the secret manually, delete it manually too.
+kubectl delete secret supabase-credentials -n cyberdesk-system
+# Alternatively, if you applied it from the file:
+# kubectl delete -f ./kubevirt/supabase-secret.yaml 
+```
+
+5. Delete the dynamically created Cyberdesk CRD:
 
 ```bash
 kubectl delete crd cyberdesks.cyberdesk.io
 ```
 
-5. Delete KubeVirt resources:
+6. Delete KubeVirt resources:
 
 ```bash
 kubectl delete -f ./kubevirt/kubevirt-cr.yaml
 kubectl delete -f ./kubevirt/kubevirt-operator.yaml
 ```
 
-6. Destroy the infrastructure:
+7. Destroy the infrastructure:
 
 ```bash
 cd ./terraform

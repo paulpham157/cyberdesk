@@ -47,26 +47,36 @@ kubectl apply -f infra/kubevirt/cyberdesk-rbac.yaml
 kubectl apply -f infra/kubevirt/cyberdesk-deployment.yaml
 ```
 
-## Development Setup
+## Local Development Setup
 
-1. Create a virtual environment:
+To run the operator locally for development (e.g., using `kopf run`), you need to provide the Supabase credentials via environment variables.
 
-```bash
-python -m venv .venv
-source .venv/bin/activate  # On Windows: .venv\Scripts\activate
-```
+1.  **Create a Virtual Environment (Recommended):**
+    ```bash
+    # Navigate to this directory (services/cyberdesk-operator)
+    python -m venv .venv
+    source .venv/bin/activate  # On Windows: .venv\Scripts\activate
+    ```
 
-2. Install dependencies:
+2.  **Install Dependencies:** Ensure you have the necessary Python packages installed (including `python-dotenv`):
+    ```bash
+    pip install -r requirements.txt
+    ```
 
-```bash
-pip install -r requirements.txt
-```
+3.  **Create a `.env` file:** Copy the example file:
+    ```bash
+    cp .env.example .env
+    ```
 
-3. Run locally:
+4.  **Edit `.env`:** Open the newly created `.env` file and replace the placeholder values for `SUPABASE_URL` and `SUPABASE_KEY` with your actual Supabase credentials. You might also adjust `KOPF_NAMESPACE` if needed for local testing against a specific namespace.
 
-```bash
-python main.py
-```
+5.  **Run with Kopf:** You can now run the operator locally. It will load the credentials from your `.env` file.
+    ```bash
+    # Make sure your virtual environment is active
+    # Example using kopf run:
+    kopf run ./handlers/controller.py --standalone --verbose
+    ```
+    *(Remember to configure your local `kubectl` context to point to the desired cluster if interacting with Kubernetes resources during local runs)*
 
 ## Building the Container
 
