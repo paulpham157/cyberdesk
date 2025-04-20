@@ -319,8 +319,7 @@ def create_vm_from_cyberdesk(spec, meta, status, **kwargs):
     rendered_template = template.substitute(
         vm_name=cyberdesk_name,
         cyberdesk_name=cyberdesk_name, # Pass Cyberdesk name for labels/annotations in template
-        managed_by=MANAGED_BY,
-        user_data_base64="",  # Empty by default, would be populated in a real scenario
+        managed_by=MANAGED_BY
     )
 
     # Parse the YAML into a dictionary
@@ -450,79 +449,49 @@ def react_to_vmi_phase_change(old, new, meta, status, logger, **kwargs):
 
 
 @kopf.on.delete(CYBERDESK_GROUP, CYBERDESK_VERSION, CYBERDESK_PLURAL)
-def delete_vm_for_cyberdesk(spec, meta, status, **kwargs):
+def delete_vm_for_cyberdesk(
+    spec: dict,
+    meta: dict,
+    body: dict,
+    logger: logging.Logger,
+    **kwargs
+):
     """
-    Handle deletion of a Cyberdesk resource.
-    Deletes the corresponding KubeVirt VirtualMachine, or returns to warm pool.
+    Handle deletion of a Cyberdesk resource by tearing down the matching KubeVirt VM,
+    then letting Kopf remove its finalizer so Kubernetes can garbage‑collect the CR.
     """
+    name = meta.get('name')
+    ns   = meta.get('namespace')
+    # Always log the full status you received:
+    logger.info(f"[delete] CR={name!r} in {ns!r}, raw status: {body.get('status')!r}")
 
-    start_time = time.time()
-    cyberdesk_name = meta.get('name')
-    namespace = meta.get('namespace') # Namespace where Cyberdesk CR lives
-    vm_namespace = KUBEVIRT_NAMESPACE # Namespace where VM/VMI should live
-
-    # Added checks for essential metadata
-    if not cyberdesk_name:
-        logging.warning("Handling deletion for Cyberdesk resource missing name in metadata.")
-        # Cannot proceed without a name
-        return
-    if not namespace:
-        logging.warning(f"Handling deletion for Cyberdesk resource '{cyberdesk_name}' missing namespace in metadata.")
-        # Cannot proceed without namespace
-        return
-
-    logging.info(f"Handling deletion of Cyberdesk {cyberdesk_name} in namespace {namespace}")
-
-    # Access the nested status correctly
-    create_status = status.get('create_vm_from_cyberdesk', {}) if status else {}
-    vm_name = create_status.get('virtualMachineRef')
-    # vm_name = status.get('virtualMachineRef') if status else None # Old incorrect line
-
+    # Safely extract the VM name from the nested status that Kopf writes:
+    vm_name = (
+        body
+        .get('status', {})
+        .get('create_vm_from_cyberdesk', {})
+        .get('virtualMachineRef')
+    )
     if not vm_name:
-        logging.info(f"No VM reference found in status.create_vm_from_cyberdesk for Cyberdesk {cyberdesk_name} in namespace {namespace}, nothing to delete.")
+        logger.error(f"[delete] No virtualMachineRef in status for CR={name!r}; skipping VM deletion.")
         return
 
+    # Proceed to delete the VM via the KubeVirt CRD API:
     try:
-        # First check if VM exists in the correct namespace
-        try:
-            custom_objects_api.get_namespaced_custom_object(
-                group=KUBEVIRT_GROUP,
-                version=KUBEVIRT_VERSION,
-                namespace=vm_namespace, # Use VM namespace
-                plural=KUBEVIRT_VM_PLURAL,
-                name=vm_name
-            )
-        except kubernetes.client.rest.ApiException as e:
-            if e.status == 404:
-                logging.info(f"VM {vm_name} in namespace {vm_namespace} already deleted")
-                return
-        except Exception as e:
-            logging.error(f"Unexpected error checking if VM {vm_name} in namespace {vm_namespace} exists: {e}")
-            raise kopf.TemporaryError(f"Unexpected error checking VM existence: {e}", delay=15)
-
-
-        # TODO: Possibly return to warm pool. Reboot and set as "warm_pool" status.
-
-        # Proceed with full deletion in the correct namespace
-        custom_objects_api.delete_namespaced_custom_object(
+        kubernetes.client.CustomObjectsApi().delete_namespaced_custom_object(
             group=KUBEVIRT_GROUP,
             version=KUBEVIRT_VERSION,
-            namespace=vm_namespace, # Use VM namespace
+            namespace=KUBEVIRT_NAMESPACE,
             plural=KUBEVIRT_VM_PLURAL,
-            name=vm_name
+            name=vm_name,
         )
-
-        logging.info(f"Successfully deleted VM {vm_name} in namespace {vm_namespace}")
+        logger.info(f"[delete] Deleted VM {vm_name!r} in namespace {KUBEVIRT_NAMESPACE!r}.")
     except kubernetes.client.rest.ApiException as e:
         if e.status == 404:
-            logging.info(f"VM {vm_name} in namespace {vm_namespace} already deleted")
+            logger.info(f"[delete] VM {vm_name!r} already gone; nothing to do.")
         else:
-            logging.error(f"Failed to delete VM {vm_name} in namespace {vm_namespace}: {e}")
-            # Use TemporaryError to retry if deletion fails transiently
-            raise kopf.TemporaryError(f"Failed to delete VM {vm_name} in {vm_namespace}: {e.reason}", delay=15)
-    except Exception as e: # Catch unexpected errors during deletion logic
-        logging.exception(f"Unexpected error during deletion handling for Cyberdesk {cyberdesk_name}: {e}")
-        raise kopf.TemporaryError(f"Unexpected error during deletion for {cyberdesk_name}: {e}", delay=30)
+            logger.exception(f"[delete] Failed deleting VM {vm_name!r}: {e}")
+            raise kopf.TemporaryError(f"Could not delete VM {vm_name}: {e}", delay=15)
 
 
 # Cluster-wide timer to check Cyberdesks that have exceeded their timeout.

@@ -48,6 +48,34 @@ resource "azurerm_subnet" "aks" {
   address_prefixes     = ["10.0.1.0/24"]
 }
 
+# Create a Network Security Group for the AKS subnet.
+resource "azurerm_network_security_group" "aks_nsg" {
+  name                = "nsg-aks-subnet"
+  location            = azurerm_resource_group.rg.location
+  resource_group_name = azurerm_resource_group.rg.name
+}
+
+# Add a rule to allow outbound internet traffic.
+resource "azurerm_network_security_rule" "allow_outbound" {
+  name                        = "AllowOutboundInternet"
+  priority                    = 100 # Lower number = higher priority
+  direction                   = "Outbound"
+  access                      = "Allow"
+  protocol                    = "*" # Allows TCP, UDP, ICMP etc.
+  source_port_range           = "*"
+  destination_port_range      = "*"
+  source_address_prefix       = "VirtualNetwork" # Traffic originating from within the VNet
+  destination_address_prefix  = "Internet"       # Destination is the public internet
+  resource_group_name         = azurerm_resource_group.rg.name
+  network_security_group_name = azurerm_network_security_group.aks_nsg.name
+}
+
+# Associate the NSG with the AKS subnet.
+resource "azurerm_subnet_network_security_group_association" "aks_nsg_assoc" {
+  subnet_id                 = azurerm_subnet.aks.id
+  network_security_group_id = azurerm_network_security_group.aks_nsg.id
+}
+
 # Provision an AKS cluster with networking pointing to the subnet.
 resource "azurerm_kubernetes_cluster" "aks" {
   name                = var.aks_cluster_name

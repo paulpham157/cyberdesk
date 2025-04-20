@@ -33,7 +33,7 @@ user-data.yaml
 user-data-base64.txt
 
 # Kubernetes secrets - DO NOT COMMIT REAL CREDENTIALS
-infra/kubevirt/supabase-secret.yaml
+infra/kubevirt/cyberdesk-secret.yaml
 
 # Local development environment variables
 .env

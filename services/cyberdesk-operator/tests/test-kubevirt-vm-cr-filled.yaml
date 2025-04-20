@@ -1,7 +1,7 @@
 apiVersion: kubevirt.io/v1
 kind: VirtualMachine
 metadata:
-  name: ${vm_name}
+  name: test-vm
   namespace: kubevirt
 spec:
   running: true
@@ -22,9 +22,9 @@ spec:
     metadata:
       labels:
         app: cyberdesk
-        cyberdesk-instance: ${cyberdesk_name}
-        managed-by: ${managed_by}
-        kubevirt.io/domain: ${vm_name}
+        cyberdesk-instance: test-instance
+        managed-by: operator
+        kubevirt.io/domain: test-vm
     spec:
       domain:
         cpu:

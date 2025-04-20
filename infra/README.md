@@ -53,6 +53,44 @@ Apply the KubeVirt custom resource:
 kubectl apply -f ../kubevirt/kubevirt-cr.yaml
 ```
 
+### 3.5 Deploy Containerized Data Importer (CDI)
+
+CDI is required to use KubeVirt features like cloning PersistentVolumeClaims (PVCs) or importing disk images into PVCs. This is the recommended way to create VM root disks with specific sizes.
+
+**Bash (Linux/macOS):**
+
+```bash
+# Get the latest CDI version
+export VERSION=$(curl -s https://api.github.com/repos/kubevirt/containerized-data-importer/releases/latest | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/')
+
+# Deploy CDI Operator
+kubectl create -f https://github.com/kubevirt/containerized-data-importer/releases/download/$VERSION/cdi-operator.yaml
+
+# Deploy CDI Custom Resource
+kubectl create -f https://github.com/kubevirt/containerized-data-importer/releases/download/$VERSION/cdi-cr.yaml
+
+# Wait for CDI pods to be ready (optional check)
+kubectl wait --for=condition=Ready pod -l app.kubernetes.io/component=cdi-operator -n cdi --timeout=300s
+kubectl wait --for=condition=Ready pod -l cdi.kubevirt.io -n cdi --timeout=300s
+```
+
+**PowerShell (Windows):**
+
+```powershell
+# Get the latest CDI version
+$VERSION = (Invoke-RestMethod -Uri "https://api.github.com/repos/kubevirt/containerized-data-importer/releases/latest").tag_name
+
+# Deploy CDI Operator
+kubectl create -f "https://github.com/kubevirt/containerized-data-importer/releases/download/$VERSION/cdi-operator.yaml"
+
+# Deploy CDI Custom Resource
+kubectl create -f "https://github.com/kubevirt/containerized-data-importer/releases/download/$VERSION/cdi-cr.yaml"
+
+# Wait for CDI pods to be ready (optional check)
+kubectl wait --for=condition=Ready pod -l app.kubernetes.io/component=cdi-operator -n cdi --timeout=300s
+kubectl wait --for=condition=Ready pod -l cdi.kubevirt.io -n cdi --timeout=300s
+```
+
 ### 4. Deploy the Cyberdesk Operator
 
 #### 4.1 Build and Push the Operator Image (If necessary)
@@ -93,14 +131,14 @@ cd ../../infra
 
 #### 4.2 Apply the Supabase Secret (Manual Step)
 
-Before deploying the operator, you **must** apply the Kubernetes Secret containing the Supabase credentials. This secret is intentionally kept in a separate file (`infra/kubevirt/supabase-secret.yaml`) and excluded via `.gitignore` to prevent committing sensitive data to version control.
+Before deploying the operator, you **must** apply the Kubernetes Secret containing the Supabase credentials. This secret is intentionally kept in a separate file (`infra/kubevirt/cyberdesk-secret.yaml`) and excluded via `.gitignore` to prevent committing sensitive data to version control. Ask a team member for the file.
 
 **1. Edit the Secret File:**
-   Open `infra/kubevirt/supabase-secret.yaml` and replace the placeholder values `<your-supabase-url>` and `<your-supabase-key>` with your actual Supabase credentials.
+   Create / open `infra/kubevirt/cyberdesk-secret.yaml` and replace the placeholder values `<your-supabase-url>` and `<your-supabase-key>` with your actual Supabase credentials.
 
-**2. Apply the Secret:**
+**2. Apply the Secret (and the relevant Namespace):**
 ```bash
-kubectl apply -f ./kubevirt/supabase-secret.yaml
+kubectl apply -f ./kubevirt/cyberdesk-secret.yaml
 ```
 
 This command creates the `supabase-credentials` Secret object in the `cyberdesk-system` namespace, which the operator deployment requires.
@@ -214,7 +252,7 @@ kubectl delete -f ./kubevirt/cyberdesk-operator.yaml
 # Note: If you applied the secret manually, delete it manually too.
 kubectl delete secret supabase-credentials -n cyberdesk-system
 # Alternatively, if you applied it from the file:
-# kubectl delete -f ./kubevirt/supabase-secret.yaml 
+# kubectl delete -f ./kubevirt/cyberdesk-secret.yaml 
 ```
 
 5. Delete the dynamically created Cyberdesk CRD:
@@ -235,72 +273,4 @@ kubectl delete -f ./kubevirt/kubevirt-operator.yaml
 ```bash
 cd ./terraform
 terraform destroy -auto-approve
-```
-
-## Gut Check (Optional)
-
-First, ensure you're in the `/infra` directory:
-
-```bash
-cd /path/to/project/infra
-```
-
-Use these steps to manually verify that VMs can be provisioned and accessed correctly.
-
-### 1. Manage the Virtual Machine
-
-Start, stop, or check your virtual machine:
-
-```bash
-# Start VM
-virtctl start testvm
-
-# Stop VM
-virtctl stop testvm
-```
-
-### 2. SSH Into the Virtual Machine
-
-Apply the LoadBalancer External Service
-```bash
-kubectl apply -f ./kubevirt/testvm-service.yaml
-```
-
-Get the external IP of the LoadBalancer service (this may take a minute to provision):
-
-```bash
-kubectl get svc testvm-service
-```
-
-SSH into the VM using the private key:
-
-**MacOS/Linux:**
-```bash
-ssh -i ~/.ssh/cyberdesk_mvp_3_id_rsa kubevirt-admin@EXTERNAL-IP
-```
-
-**Windows PowerShell:**
-```powershell
-ssh -i "$env:USERPROFILE\.ssh\cyberdesk_mvp_3_id_rsa" kubevirt-admin@EXTERNAL-IP
-```
-
-Note: Replace `EXTERNAL-IP` with the external IP address shown in the output of the `kubectl get svc` command.
-
-### 3. Cleaning Up After Gut Check
-
-To delete the test virtual machine and service after verification:
-
-```bash
-# Delete the VM service
-kubectl delete svc testvm-service
-
-# Delete the VM
-kubectl delete vm testvm
-```
-
-Delete user-data.yaml and user-data-base64.txt:
-
-```bash
-rm ./kubevirt/user-data.yaml
-rm ./kubevirt/user-data-base64.txt
 ```
