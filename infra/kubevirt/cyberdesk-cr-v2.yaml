@@ -1,0 +1,7 @@
+apiVersion: cyberdesk.io/v1alpha1
+kind: Cyberdesk
+metadata:
+  name: 3840362a-cbc5-4f35-ab21-cccfa9275ce4
+  namespace: cyberdesk-system
+spec:
+  timeoutMs: 86400000  # 24 hour timeout@

@@ -17,14 +17,3 @@ variable "aks_cluster_name" {
   description = "The name to use for the AKS cluster."
   type        = string
 }
-
-variable "username" {
-  description = "Username for the VM's cloud-init configuration"
-  type        = string
-}
-
-variable "password" {
-  description = "Password for the VM (should be provided via environment variable or secure secret management)"
-  type        = string
-  sensitive   = true
-} 
