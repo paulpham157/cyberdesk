@@ -4,7 +4,7 @@ metadata:
   name: test-vm
   namespace: kubevirt
 spec:
-  running: true
+  runStrategy: Always
   dataVolumeTemplates:
   - metadata:
       name: rootdisk
@@ -30,6 +30,7 @@ spec:
         cpu:
           cores: 1
         devices:
+          autoattachGraphicsDevice: true
           disks:
             # the root disk populated directly by CDI
             - name: rootdisk
