@@ -17,6 +17,7 @@ load_dotenv()
 try:
     supabase_url: str = os.environ.get("SUPABASE_URL")
     supabase_key: str = os.environ.get("SUPABASE_KEY")
+  
     if not supabase_url or not supabase_key:
         logging.critical("SUPABASE_URL or SUPABASE_KEY environment variables not set.")
         # Raise error to stop operator startup if credentials are vital
@@ -28,6 +29,13 @@ except Exception as e:
     # Raise error to stop operator startup
     raise kopf.PermanentError(f"Failed to initialize Supabase client: {e}")
 # --- End Supabase Client Setup ---
+
+# --- Template Variables ---
+USER_DATA_TEMPLATE: str = os.environ.get("USER_DATA_TEMPLATE")
+if not USER_DATA_TEMPLATE:
+    logging.critical("USER_DATA_TEMPLATE environment variable not set.")
+    raise kopf.PermanentError("USER_DATA_TEMPLATE not configured.")
+# --- End Template Variables ---
 
 # Configure the Kubernetes client
 # Prioritize kubeconfig for local development, then fall back to incluster config
@@ -56,6 +64,7 @@ KUBEVIRT_GROUP = "kubevirt.io"
 KUBEVIRT_VERSION = "v1"
 KUBEVIRT_NAMESPACE = "kubevirt"
 KUBEVIRT_VM_PLURAL = "virtualmachines"
+KUBEVIRT_SECRET_PLURAL = "secrets"
 KUBEVIRT_VMI_PLURAL = "virtualmachineinstances"
 
 # Trigger Resource Definition
@@ -98,6 +107,7 @@ VMI_PHASE_TO_SUPABASE_STATUS: Dict[KubeVirtVMIPhase, SupabaseInstanceStatus] = {
     KubeVirtVMIPhase.FAILED: SupabaseInstanceStatus.ERROR,
     KubeVirtVMIPhase.UNKNOWN: SupabaseInstanceStatus.ERROR,
 }
+
 # --- End Enums and Mappings ---
 
 # --- Helper Functions (Moved from helpers) ---
@@ -151,6 +161,49 @@ def updateInstanceStatus(instance_id: str, vmi_phase_str: str):
         logging.error(f"Supabase error in updateInstanceStatus for instance '{instance_id}' (status: {target_status_str}): {e}")
         # Optional: Raise temporary error for Kopf to retry
         # raise kopf.TemporaryError(f"Supabase update failed: {e}", delay=15)
+
+def create_cloudinit_secret(meta, namespace, logger, **kwargs):
+    """
+    Handler to create a per‑VM cloud‑init Secret when a VirtualMachine is created.
+    
+    This Secret contains both userData (your full cloud‑init) and metaData 
+    (instance-id & hostname), and has an ownerReference back to the VM so that
+    it's automatically deleted when the VM is deleted.
+    """
+    try:
+        vm_name = meta['name']
+        vm_uid = meta['uid']
+        secret_name = f"cloud-init-{vm_name}"
+
+        # Build the Secret object
+        secret = kubernetes.client.V1Secret(
+            metadata=kubernetes.client.V1ObjectMeta(
+                name=secret_name,
+                namespace=namespace
+            ),
+            string_data={
+                'userData': USER_DATA_TEMPLATE,
+                # .format(vm_name=vm_name, cyberdesk_name=vm_name, managed_by=MANAGED_BY),
+            },
+        )
+
+        # Use the CoreV1 API to create the Secret in‑cluster
+        api = kubernetes.client.CoreV1Api()
+        try:
+            api.create_namespaced_secret(namespace=namespace, body=secret)
+            logger.info(f"Created cloud-init Secret {secret_name} for VM {vm_name} in namespace {namespace}")
+        except kubernetes.client.rest.ApiException as e:
+            if e.status == 409:
+                logger.info(f"Secret {secret_name} already exists; skipping")
+            else:
+                logger.error(f"API error creating cloud-init Secret {secret_name}: {e.status} {e.reason}")
+                raise
+    except KeyError as e:
+        logger.error(f"Missing required metadata field: {e}")
+        raise ValueError(f"Missing required metadata field: {e}")
+    except Exception as e:
+        logger.error(f"Unexpected error creating cloud-init Secret: {e}")
+        raise
 
 # --- End Helper Functions ---
 
@@ -329,8 +382,17 @@ def create_vm_from_cyberdesk(spec, meta, status, **kwargs):
     # If found, update DB "instance" with this available VM and return normally
     # If not found, proceed with creation.
     
+    # Create cloud-init secret with proper error handling
+    try:
+        create_cloudinit_secret(meta, KUBEVIRT_NAMESPACE, logging)
+        logging.info(f"Successfully created cloud-init secret for Cyberdesk {cyberdesk_name}")
+    except Exception as e:
+        logging.error(f"Failed to create cloud-init secret for Cyberdesk {cyberdesk_name}: {e}")
+        # Raise a temporary error to allow retry, as this could be a transient issue
+        raise kopf.TemporaryError(f"Failed to create cloud-init secret: {e}", delay=10)
     # Create a new VM
     try:
+        
         # Create the VM in the designated KUBEVIRT_NAMESPACE
         custom_objects_api.create_namespaced_custom_object(
             group=KUBEVIRT_GROUP,
@@ -345,6 +407,7 @@ def create_vm_from_cyberdesk(spec, meta, status, **kwargs):
         expiry = now + timedelta(milliseconds=timeout_ms)
 
         logging.info(f"VM {cyberdesk_name} created successfully in namespace {vm_namespace}, will expire at {expiry.isoformat()}") # Log correct namespace
+
 
         # Removed fetching Cyberdesk and marking handler processed
 
@@ -363,7 +426,6 @@ def create_vm_from_cyberdesk(spec, meta, status, **kwargs):
         logging.error(f"Unexpected error creating VM {cyberdesk_name} in namespace {vm_namespace}: {e}")
         # Update DB "instance" to be in "error" state.
         raise kopf.TemporaryError(f"Unexpected error creating VM: {e}")
-
 
 @kopf.on.field(KUBEVIRT_GROUP, KUBEVIRT_VERSION, KUBEVIRT_VMI_PLURAL, field='status.phase')
 def react_to_vmi_phase_change(old, new, meta, status, logger, **kwargs):
@@ -447,7 +509,6 @@ def react_to_vmi_phase_change(old, new, meta, status, logger, **kwargs):
     # No return value needed as we are not patching the Cyberdesk status here.
     # Kopf handles checkpointing automatically unless errors are raised.
 
-
 @kopf.on.delete(CYBERDESK_GROUP, CYBERDESK_VERSION, CYBERDESK_PLURAL)
 def delete_vm_for_cyberdesk(
     spec: dict,
@@ -492,6 +553,23 @@ def delete_vm_for_cyberdesk(
         else:
             logger.exception(f"[delete] Failed deleting VM {vm_name!r}: {e}")
             raise kopf.TemporaryError(f"Could not delete VM {vm_name}: {e}", delay=15)
+     # Proceed to delete the Secret (using CoreV1Api)
+    secret_name = f"cloud-init-{vm_name}" # Correct name
+    try:
+        core_v1_api.delete_namespaced_secret(
+            name=secret_name,
+            namespace=KUBEVIRT_NAMESPACE, # Assuming it was created here
+        )
+        logger.info(f"[delete] Deleted Secret {secret_name!r} in namespace {KUBEVIRT_NAMESPACE!r}.")
+    except kubernetes.client.rest.ApiException as e:
+        if e.status == 404:
+            logger.info(f"[delete] Secret {secret_name!r} already gone; nothing to do.")
+        else:
+            # Log the error but maybe don't raise here,
+            # as the main resource (VM) might be gone.
+            # Kopf will remove finalizer if no exception is raised from the handler.
+            logger.exception(f"[delete] Failed deleting Secret {secret_name!r}: {e}")
+            # Optionally raise: raise kopf.TemporaryError(f"Could not delete Secret {secret_name}: {e}", delay=15)
 
 
 # Cluster-wide timer to check Cyberdesks that have exceeded their timeout.

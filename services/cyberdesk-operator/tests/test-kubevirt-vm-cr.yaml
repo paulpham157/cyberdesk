@@ -7,7 +7,7 @@ spec:
   running: true
   dataVolumeTemplates:
   - metadata:
-      name: rootdisk
+      name: rootdisk-${vm_name}
     spec:
       source:
         http:
@@ -51,8 +51,8 @@ spec:
       volumes:
         - name: rootdisk
           dataVolume:
-            name: rootdisk
+            name: rootdisk-${vm_name}
         - name: cloudinitdisk
           cloudInitNoCloud:
             secretRef:
-              name: default-vm-cloud-init
+              name: cloud-init-${vm_name}
