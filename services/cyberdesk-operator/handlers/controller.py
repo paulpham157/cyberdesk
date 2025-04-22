@@ -11,6 +11,7 @@ from pathlib import Path
 from enum import Enum
 from supabase import create_client, Client
 from dotenv import load_dotenv
+from kopf import OperatorSettings # Import OperatorSettings
 
 TEST_USER_DATA_PATH = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'tests', 'test-user-data.yaml'))
 
@@ -218,6 +219,15 @@ def create_cloudinit_secret(meta, namespace, logger, **kwargs):
         raise
 
 # --- End Helper Functions ---
+
+@kopf.on.startup()
+def configure_kopf(settings: OperatorSettings, **_):
+    """Configure Kopf settings on startup."""
+    # Set a server timeout for watchers to potentially mitigate
+    # issues where connections drop after long idle periods.
+    # Value based on https://github.com/nolar/kopf/issues/1210
+    settings.watching.server_timeout = 210
+    logging.info(f"Set kopf watching server_timeout to {settings.watching.server_timeout} seconds.")
 
 def load_vm_template():
     """Load VM template from file"""
