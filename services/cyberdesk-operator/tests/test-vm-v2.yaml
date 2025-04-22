@@ -1,13 +1,13 @@
 apiVersion: kubevirt.io/v1
 kind: VirtualMachine
 metadata:
-  name: test-vm
+  name: test-vm-2
   namespace: kubevirt
 spec:
   runStrategy: Always
   dataVolumeTemplates:
   - metadata:
-      name: rootdisk-test-vm
+      name: rootdisk-test-vm-2
     spec:
       source:
         http:
@@ -24,9 +24,9 @@ spec:
         app: cyberdesk
         cyberdesk-instance: test-instance
         managed-by: operator
-        kubevirt.io/domain: test-vm
+        kubevirt.io/domain: test-vm-2
     spec:
-      hostname: test-vm
+      hostname: test-vm-2
       subdomain: kubevirt-vm-headless
       domain:
         cpu:
@@ -54,7 +54,7 @@ spec:
       volumes:
         - name: rootdisk
           dataVolume:
-            name: rootdisk-test-vm
+            name: rootdisk-test-vm-2
         - name: cloudinitdisk
           cloudInitNoCloud:
             secretRef:
