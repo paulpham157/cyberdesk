@@ -49,52 +49,6 @@ if not USER_DATA_TEMPLATE:
          raise kopf.PermanentError(f"Failed to read test user data: {e}")
 # --- End Template Variables ---
 
-# USER_DATA_TEMPLATE = """
-# #cloud-config
-# users:
-# - name: ubuntu
-#     sudo: ['ALL=(ALL) NOPASSWD:ALL']
-#     shell: /bin/bash
-#     lock_passwd: false
-
-# chpasswd:
-# list: |
-#     ubuntu:ubuntu
-# expire: false
-
-# package_update: true
-# packages:
-# - xfce4
-# - xfce4-goodies
-# - xorg
-# - xserver-xorg-video-all
-# - lightdm
-# - lightdm-gtk-greeter
-# - firefox
-# - xdotool
-# - scrot
-
-# # Add autologin configuration for lightdm
-# write_files:
-# - path: /etc/lightdm/lightdm.conf.d/60-autologin.conf
-#     permissions: '0644'
-#     content: |
-#     [Seat:*]
-#     greeter-session=lightdm-gtk-greeter
-#     user-session=xfce
-#     autologin-user=ubuntu
-#     autologin-user-timeout=1
-#     autologin-session=xfce
-
-# runcmd:
-# - groupadd -r autologin || true
-# - groupadd -r nopasswdlogin || true
-# - usermod -aG autologin,nopasswdlogin ubuntu
-# - systemctl enable --now lightdm.service
-# - update-alternatives --set x-www-browser /usr/bin/firefox
-# - xdg-settings set default-web-browser firefox.desktop 
-# """
-
 # Configure the Kubernetes client
 # Prioritize kubeconfig for local development, then fall back to incluster config
 try:
@@ -240,7 +194,7 @@ def create_cloudinit_secret(meta, namespace, logger, **kwargs):
             ),
             type='Opaque',
             string_data={
-                'userData': USER_DATA_TEMPLATE,
+                'userdata': USER_DATA_TEMPLATE,
                 # .format(vm_name=vm_name, cyberdesk_name=vm_name, managed_by=MANAGED_BY),
             },
         )

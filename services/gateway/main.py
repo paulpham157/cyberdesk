@@ -10,17 +10,17 @@ app = FastAPI()
 
 app.mount("/static", StaticFiles(directory="noVNC"), name="static")
 
-@app.get("/vnc/{namespace}/{vmid}")
-async def serve_novnc(namespace: str, vmid: str):
+@app.get("/vnc/{vmid}")
+async def serve_novnc(vmid: str):
     """
     Serve the noVNC HTML page. The JS in vnc.html will
-    connect back via WebSocket to /vnc/ws/{namespace}/{vmid}.
+    connect back via WebSocket to /vnc/ws/{vmid}.
     """
     return FileResponse("noVNC/vnc.html")
 
 
-@app.websocket("/vnc/ws/{namespace}/{vmid}")
-async def proxy_vnc(websocket: WebSocket, namespace: str, vmid: str):
+@app.websocket("/vnc/ws/{vmid}")
+async def proxy_vnc(websocket: WebSocket, vmid: str):
     """
     Proxy between the browser WebSocket and the KubeVirt VNC subresource.
 
@@ -35,6 +35,7 @@ async def proxy_vnc(websocket: WebSocket, namespace: str, vmid: str):
     # 3) Build the K8s VNC subresource endpoint URL
     api_host = os.getenv("KUBERNETES_SERVICE_HOST", "kubernetes.default.svc")
     api_port = os.getenv("KUBERNETES_SERVICE_PORT_HTTPS", "443")
+    namespace = "kubevirt"
     k8s_url = (
         f"wss://{api_host}:{api_port}/apis/"
         f"subresources.kubevirt.io/v1/namespaces/{namespace}/"

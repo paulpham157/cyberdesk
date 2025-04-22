@@ -43,7 +43,7 @@ spec:
       serviceAccountName: gateway
       containers:
       - name: gateway
-        image: cyberdesk/gateway:v0.1.3
+        image: cyberdesk/gateway:v0.1.5
         ports:
         - containerPort: 80
 ---

@@ -81,7 +81,7 @@ spec:
       serviceAccountName: cyberdesk-operator
       containers:
       - name: operator
-        image: cyberdesk/cyberdesk-operator:v0.1.5
+        image: cyberdesk/cyberdesk-operator:v0.1.6
         imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 8080
