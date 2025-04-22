@@ -12,6 +12,8 @@ from enum import Enum
 from supabase import create_client, Client
 from dotenv import load_dotenv
 
+TEST_USER_DATA_PATH = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'tests', 'test-user-data.yaml'))
+
 # --- Supabase Client Setup ---
 load_dotenv()
 try:
@@ -33,9 +35,65 @@ except Exception as e:
 # --- Template Variables ---
 USER_DATA_TEMPLATE: str = os.environ.get("USER_DATA_TEMPLATE")
 if not USER_DATA_TEMPLATE:
-    logging.critical("USER_DATA_TEMPLATE environment variable not set.")
-    raise kopf.PermanentError("USER_DATA_TEMPLATE not configured.")
+    logging.warning("USER_DATA_TEMPLATE environment variable not set. Attempting to load from local test path.")
+    try:
+        if os.path.exists(TEST_USER_DATA_PATH):
+            with open(TEST_USER_DATA_PATH, 'r') as f:
+                USER_DATA_TEMPLATE = f.read()
+            logging.info(f"Loaded test USER_DATA_TEMPLATE from {TEST_USER_DATA_PATH}")
+        else:
+            logging.critical(f"Test user data file not found at {TEST_USER_DATA_PATH}.")
+            raise kopf.PermanentError("USER_DATA_TEMPLATE not set and test file not found.")
+    except Exception as e:
+         logging.critical(f"Failed to read test user data file {TEST_USER_DATA_PATH}: {e}")
+         raise kopf.PermanentError(f"Failed to read test user data: {e}")
 # --- End Template Variables ---
+
+# USER_DATA_TEMPLATE = """
+# #cloud-config
+# users:
+# - name: ubuntu
+#     sudo: ['ALL=(ALL) NOPASSWD:ALL']
+#     shell: /bin/bash
+#     lock_passwd: false
+
+# chpasswd:
+# list: |
+#     ubuntu:ubuntu
+# expire: false
+
+# package_update: true
+# packages:
+# - xfce4
+# - xfce4-goodies
+# - xorg
+# - xserver-xorg-video-all
+# - lightdm
+# - lightdm-gtk-greeter
+# - firefox
+# - xdotool
+# - scrot
+
+# # Add autologin configuration for lightdm
+# write_files:
+# - path: /etc/lightdm/lightdm.conf.d/60-autologin.conf
+#     permissions: '0644'
+#     content: |
+#     [Seat:*]
+#     greeter-session=lightdm-gtk-greeter
+#     user-session=xfce
+#     autologin-user=ubuntu
+#     autologin-user-timeout=1
+#     autologin-session=xfce
+
+# runcmd:
+# - groupadd -r autologin || true
+# - groupadd -r nopasswdlogin || true
+# - usermod -aG autologin,nopasswdlogin ubuntu
+# - systemctl enable --now lightdm.service
+# - update-alternatives --set x-www-browser /usr/bin/firefox
+# - xdg-settings set default-web-browser firefox.desktop 
+# """
 
 # Configure the Kubernetes client
 # Prioritize kubeconfig for local development, then fall back to incluster config
@@ -78,7 +136,7 @@ CYBERDESK_NAMESPACE = "cyberdesk-system"
 # Check different locations based on running environment (container vs dev)
 VM_TEMPLATE_PATHS = [
     '/app/kubevirt-vm-cr.yaml',  # Mounted in container via ConfigMap
-    os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'tests', 'test-kubevirt-vm-cr.yaml')), # For local testing via KopfRunner
+    os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'tests', 'test-vm-template.yaml')), # For local testing via KopfRunner
 ]
 
 # --- Enums and Mappings (Moved from helpers) ---
@@ -172,7 +230,6 @@ def create_cloudinit_secret(meta, namespace, logger, **kwargs):
     """
     try:
         vm_name = meta['name']
-        vm_uid = meta['uid']
         secret_name = f"cloud-init-{vm_name}"
 
         # Build the Secret object
@@ -181,6 +238,7 @@ def create_cloudinit_secret(meta, namespace, logger, **kwargs):
                 name=secret_name,
                 namespace=namespace
             ),
+            type='Opaque',
             string_data={
                 'userData': USER_DATA_TEMPLATE,
                 # .format(vm_name=vm_name, cyberdesk_name=vm_name, managed_by=MANAGED_BY),
@@ -390,9 +448,38 @@ def create_vm_from_cyberdesk(spec, meta, status, **kwargs):
         logging.error(f"Failed to create cloud-init secret for Cyberdesk {cyberdesk_name}: {e}")
         # Raise a temporary error to allow retry, as this could be a transient issue
         raise kopf.TemporaryError(f"Failed to create cloud-init secret: {e}", delay=10)
+
+    # --- Wait for Secret to be available ---
+    secret_name = f"cloud-init-{cyberdesk_name}" # Match the name used in create_cloudinit_secret
+    secret_namespace = KUBEVIRT_NAMESPACE
+    max_retries = 5
+    retry_delay = 2 # seconds
+    secret_found = False
+    for attempt in range(max_retries):
+        try:
+            core_v1_api.read_namespaced_secret(name=secret_name, namespace=secret_namespace)
+            logging.info(f"Successfully verified Secret {secret_name} exists in namespace {secret_namespace}.")
+            secret_found = True
+            break # Exit loop if secret is found
+        except kubernetes.client.rest.ApiException as e:
+            if e.status == 404:
+                logging.warning(f"Secret {secret_name} not found yet in {secret_namespace} (Attempt {attempt + 1}/{max_retries}). Retrying in {retry_delay}s...")
+                time.sleep(retry_delay)
+            else:
+                logging.error(f"API error checking for Secret {secret_name} in {secret_namespace}: {e.status} {e.reason}")
+                raise kopf.TemporaryError(f"Failed to check for Secret {secret_name}: {e.reason}", delay=10)
+        except Exception as e:
+            logging.error(f"Unexpected error checking for Secret {secret_name} in {secret_namespace}: {e}")
+            raise kopf.TemporaryError(f"Unexpected error checking for Secret {secret_name}: {e}", delay=10)
+
+    if not secret_found:
+        logging.error(f"Secret {secret_name} in {secret_namespace} did not become available after {max_retries} attempts.")
+        # Update DB instance status to error?
+        raise kopf.TemporaryError(f"Cloud-init Secret {secret_name} not found after retries.", delay=30)
+    # --- End Wait for Secret ---
+
     # Create a new VM
     try:
-        
         # Create the VM in the designated KUBEVIRT_NAMESPACE
         custom_objects_api.create_namespaced_custom_object(
             group=KUBEVIRT_GROUP,

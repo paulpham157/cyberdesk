@@ -1,13 +1,13 @@
 apiVersion: kubevirt.io/v1
 kind: VirtualMachine
 metadata:
-  name: ${vm_name}
+  name: test-vm-2
   namespace: kubevirt
 spec:
-  running: true
+  runStrategy: Always
   dataVolumeTemplates:
   - metadata:
-      name: rootdisk-${vm_name}
+      name: rootdisk-test-vm-2
     spec:
       source:
         http:
@@ -22,14 +22,17 @@ spec:
     metadata:
       labels:
         app: cyberdesk
-        cyberdesk-instance: ${cyberdesk_name}
-        managed-by: ${managed_by}
-        kubevirt.io/domain: ${vm_name}
+        cyberdesk-instance: test-instance
+        managed-by: operator
+        kubevirt.io/domain: test-vm-2
     spec:
+      hostname: test-vm-2
+      subdomain: kubevirt-vm-headless
       domain:
         cpu:
           cores: 1
         devices:
+          autoattachGraphicsDevice: true
           disks:
             # the root disk populated directly by CDI
             - name: rootdisk
@@ -51,8 +54,8 @@ spec:
       volumes:
         - name: rootdisk
           dataVolume:
-            name: rootdisk-${vm_name}
+            name: rootdisk-test-vm-2
         - name: cloudinitdisk
           cloudInitNoCloud:
             secretRef:
-              name: cloud-init-${vm_name}
+              name: cloud-init-test-vm

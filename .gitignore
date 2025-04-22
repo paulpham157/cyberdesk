@@ -38,3 +38,4 @@ infra/kubevirt/cyberdesk-secret.yaml
 # Local development environment variables
 .env
 
+infra/kubevirt/test-secret.yaml

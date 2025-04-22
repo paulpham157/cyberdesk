@@ -1,0 +1,58 @@
+apiVersion: kubevirt.io/v1
+kind: VirtualMachine
+metadata:
+  name: ${vm_name}
+  namespace: kubevirt
+spec:
+  runStrategy: Always
+  dataVolumeTemplates:
+  - metadata:
+      name: rootdisk-${vm_name}
+    spec:
+      source:
+        http:
+          url: https://cloud-images.ubuntu.com/releases/22.04/release/ubuntu-22.04-server-cloudimg-amd64.img
+      pvc:
+        accessModes: [ReadWriteOnce]
+        volumeMode: Filesystem
+        resources:
+          requests:
+            storage: 20Gi
+  template:
+    metadata:
+      labels:
+        app: cyberdesk
+        cyberdesk-instance: ${cyberdesk_name}
+        managed-by: ${managed_by}
+        kubevirt.io/domain: ${vm_name}
+    spec:
+      domain:
+        cpu:
+          cores: 1
+        devices:
+          disks:
+            # the root disk populated directly by CDI
+            - name: rootdisk
+              disk:
+                bus: virtio
+            # your cloud-init ISO
+            - name: cloudinitdisk
+              disk:
+                bus: virtio
+          interfaces:
+            - name: default
+              masquerade: {}
+        resources:
+          requests:
+            memory: 2Gi
+      networks:
+        - name: default
+          pod: {}
+      volumes:
+        - name: rootdisk
+          dataVolume:
+            name: rootdisk-${vm_name}
+        - name: cloudinitdisk
+          cloudInitNoCloud:
+            secretRef:
+              name: cloud-init-${vm_name}

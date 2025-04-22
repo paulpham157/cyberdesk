@@ -70,6 +70,36 @@ resource "azurerm_network_security_rule" "allow_outbound" {
   network_security_group_name = azurerm_network_security_group.aks_nsg.name
 }
 
+# Add a rule to allow inbound HTTP traffic from the internet.
+resource "azurerm_network_security_rule" "allow_inbound_http" {
+  name                        = "AllowInboundHttp"
+  priority                    = 110 # Needs a different priority than the outbound rule
+  direction                   = "Inbound"
+  access                      = "Allow"
+  protocol                    = "Tcp"
+  source_port_range           = "*"
+  destination_port_range      = "80" # Allow traffic to port 80
+  source_address_prefix       = "Internet" # Allow traffic from any internet source
+  destination_address_prefix  = "*"       # Allow traffic to any destination within the NSG scope (our subnet)
+  resource_group_name         = azurerm_resource_group.rg.name
+  network_security_group_name = azurerm_network_security_group.aks_nsg.name
+}
+
+# Add a rule to allow inbound HTTPS traffic from the internet.
+resource "azurerm_network_security_rule" "allow_inbound_https" {
+  name                        = "AllowInboundHttps"
+  priority                    = 120 # Needs a different priority than the other rules
+  direction                   = "Inbound"
+  access                      = "Allow"
+  protocol                    = "Tcp"
+  source_port_range           = "*"
+  destination_port_range      = "443" # Allow traffic to port 443
+  source_address_prefix       = "Internet" # Allow traffic from any internet source
+  destination_address_prefix  = "*"       # Allow traffic to any destination within the NSG scope (our subnet)
+  resource_group_name         = azurerm_resource_group.rg.name
+  network_security_group_name = azurerm_network_security_group.aks_nsg.name
+}
+
 # Associate the NSG with the AKS subnet.
 resource "azurerm_subnet_network_security_group_association" "aks_nsg_assoc" {
   subnet_id                 = azurerm_subnet.aks.id

@@ -4,10 +4,10 @@ metadata:
   name: test-vm
   namespace: kubevirt
 spec:
-  running: true
+  runStrategy: Always
   dataVolumeTemplates:
   - metadata:
-      name: rootdisk
+      name: rootdisk-test-vm
     spec:
       source:
         http:
@@ -26,10 +26,13 @@ spec:
         managed-by: operator
         kubevirt.io/domain: test-vm
     spec:
+      hostname: test-vm
+      subdomain: kubevirt-vm-headless
       domain:
         cpu:
           cores: 1
         devices:
+          autoattachGraphicsDevice: true
           disks:
             # the root disk populated directly by CDI
             - name: rootdisk
@@ -51,8 +54,8 @@ spec:
       volumes:
         - name: rootdisk
           dataVolume:
-            name: rootdisk
+            name: rootdisk-test-vm
         - name: cloudinitdisk
           cloudInitNoCloud:
             secretRef:
-              name: default-vm-cloud-init
+              name: cloud-init-test-vm
