@@ -39,6 +39,7 @@ logs/
 
 # Default config files (should not be committed)
 tests/test-user-data.yaml
+tests/test-secret.yaml
 
 # Local Kubernetes configuration
 .kube/

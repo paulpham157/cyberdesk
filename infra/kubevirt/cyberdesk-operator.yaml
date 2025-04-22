@@ -135,7 +135,7 @@ data:
         cyberdesk-instance: ${cyberdesk_name}
         managed-by: ${managed_by}
     spec:
-      running: true
+      runStrategy: Always
       dataVolumeTemplates:
       - metadata:
           name: rootdisk-${vm_name}
