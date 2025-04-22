@@ -9,3 +9,5 @@ gateway-deploy.yaml
 
 Maybe add notes for after starting a VM, you can go to the url http://<external-ip>/vnc/<vm-id>
 
+
+Add docker build stuff for gateway: docker build -t "cyberdesk/gateway:v0.1.6" . and also docker push 
