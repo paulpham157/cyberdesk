@@ -12,6 +12,8 @@ from enum import Enum
 from supabase import create_client, Client
 from dotenv import load_dotenv
 
+TEST_USER_DATA_PATH = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'tests', 'test-user-data.yaml'))
+
 # --- Supabase Client Setup ---
 load_dotenv()
 try:
@@ -33,8 +35,18 @@ except Exception as e:
 # --- Template Variables ---
 USER_DATA_TEMPLATE: str = os.environ.get("USER_DATA_TEMPLATE")
 if not USER_DATA_TEMPLATE:
-    logging.critical("USER_DATA_TEMPLATE environment variable not set.")
-    raise kopf.PermanentError("USER_DATA_TEMPLATE not configured.")
+    logging.warning("USER_DATA_TEMPLATE environment variable not set. Attempting to load from local test path.")
+    try:
+        if os.path.exists(TEST_USER_DATA_PATH):
+            with open(TEST_USER_DATA_PATH, 'r') as f:
+                USER_DATA_TEMPLATE = f.read()
+            logging.info(f"Loaded test USER_DATA_TEMPLATE from {TEST_USER_DATA_PATH}")
+        else:
+            logging.critical(f"Test user data file not found at {TEST_USER_DATA_PATH}.")
+            raise kopf.PermanentError("USER_DATA_TEMPLATE not set and test file not found.")
+    except Exception as e:
+         logging.critical(f"Failed to read test user data file {TEST_USER_DATA_PATH}: {e}")
+         raise kopf.PermanentError(f"Failed to read test user data: {e}")
 # --- End Template Variables ---
 
 # Configure the Kubernetes client
@@ -172,7 +184,6 @@ def create_cloudinit_secret(meta, namespace, logger, **kwargs):
     """
     try:
         vm_name = meta['name']
-        vm_uid = meta['uid']
         secret_name = f"cloud-init-{vm_name}"
 
         # Build the Secret object
