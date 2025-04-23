@@ -46,6 +46,13 @@ spec:
         image: cyberdesk/gateway:v0.1.5
         ports:
         - containerPort: 80
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "100m"
+          limits:
+            memory: "256Mi"
+            cpu: "500m"
 ---
 apiVersion: v1
 kind: Service
