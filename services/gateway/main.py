@@ -91,7 +91,7 @@ K8S_CUSTOM_API = init_kube_client()
 
 
 class CyberdeskCreateRequest(BaseModel):
-    """Payload for POST /cyberdesk/{desk_id}"""
+    """Payload for POST /cyberdesk/{vm_id}"""
 
     timeout_ms: int = Field(
         default=DEFAULT_TIMEOUT_MS, alias="timeoutMs", ge=60_000
@@ -123,13 +123,13 @@ app.mount("/static", StaticFiles(directory=NOVNC_DIR), name="static")
 # --------------------------------------------------------------------------- #
 
 
-@app.get("/vnc/{vmid}", include_in_schema=False)
-async def serve_novnc(vmid: str) -> FileResponse:
+@app.get("/vnc/{vm_id}", include_in_schema=False)
+async def serve_novnc(vm_id: str) -> FileResponse:
     """
     Serve the main noVNC HTML page.
 
     The client-side JavaScript will subsequently establish a WebSocket
-    back to `/vnc/ws/{vmid}`.
+    back to `/vnc/ws/{vm_id}`.
     """
     return FileResponse(NOVNC_DIR / "vnc.html")
 
@@ -141,15 +141,15 @@ async def serve_novnc(vmid: str) -> FileResponse:
 PING_INTERVAL = 20  # seconds
 
 
-@app.websocket("/vnc/ws/{vmid}")
-async def proxy_vnc(websocket: WebSocket, vmid: str) -> None:
+@app.websocket("/vnc/ws/{vm_id}")
+async def proxy_vnc(websocket: WebSocket, vm_id: str) -> None:
     """
     Bidirectional proxy between browser and KubeVirt's VNC sub-resource.
 
     Life-cycle:
       1. Browser connects -> we accept instantly (FastAPI handshake).
       2. Dial KubeVirt sub-resource at
-         `wss://$KUBERNETES_SERVICE_HOST/apis/.../virtualmachineinstances/{vmid}/vnc`
+         `wss://$KUBERNETES_SERVICE_HOST/apis/.../virtualmachineinstances/{vm_id}/vnc`
          with sub-protocol `binary.kubevirt.io`.
       3. Spin up three tasks:
            * browser→k8s shuttle
@@ -164,7 +164,7 @@ async def proxy_vnc(websocket: WebSocket, vmid: str) -> None:
     k8s_url = (
         f"wss://{api_host}:{api_port}/apis/"
         f"subresources.kubevirt.io/v1/namespaces/{VMI_NAMESPACE}/"
-        f"virtualmachineinstances/{vmid}/vnc"
+        f"virtualmachineinstances/{vm_id}/vnc"
     )
 
     token_path = "/var/run/secrets/kubernetes.io/serviceaccount/token"
@@ -254,15 +254,15 @@ def require_k8s() -> CustomObjectsApi:
     return K8S_CUSTOM_API
 
 
-@app.post("/cyberdesk/{desk_id}", status_code=status.HTTP_201_CREATED)
-async def create_cyberdesk(desk_id: str, payload: CyberdeskCreateRequest):
+@app.post("/cyberdesk/{vm_id}", status_code=status.HTTP_201_CREATED)
+async def create_cyberdesk(vm_id: str, payload: CyberdeskCreateRequest):
     """Create a Cyberdesk CR in the cluster."""
     api = require_k8s()
 
     body = {
         "apiVersion": f"{CYBERDESK_GROUP}/{CYBERDESK_VERSION}",
         "kind": "Cyberdesk",
-        "metadata": {"name": desk_id, "namespace": CYBERDESK_NAMESPACE},
+        "metadata": {"name": vm_id, "namespace": CYBERDESK_NAMESPACE},
         "spec": {"timeoutMs": payload.timeout_ms},
     }
 
@@ -283,8 +283,8 @@ async def create_cyberdesk(desk_id: str, payload: CyberdeskCreateRequest):
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=exc.reason) from exc
 
 
-@app.patch("/cyberdesk/{desk_id}/stop", status_code=status.HTTP_200_OK)
-async def stop_cyberdesk(desk_id: str):
+@app.post("/cyberdesk/{vm_id}/stop", status_code=status.HTTP_200_OK)
+async def stop_cyberdesk(vm_id: str):
     """Delete a Cyberdesk CR from the cluster."""
     api = require_k8s()
 
@@ -295,10 +295,10 @@ async def stop_cyberdesk(desk_id: str):
             version=CYBERDESK_VERSION,
             namespace=CYBERDESK_NAMESPACE,
             plural=CYBERDESK_PLURAL,
-            name=desk_id,
+            name=vm_id,
             body=client.V1DeleteOptions(),
         )
-        return JSONResponse({"status": "success", "message": f"Deletion of '{desk_id}' initiated."})
+        return JSONResponse({"status": "success", "message": f"Deletion of '{vm_id}' initiated."})
     except ApiException as exc:
         LOG.error("Kubernetes API error: %s", exc, exc_info=False)
         if exc.status == 404:
