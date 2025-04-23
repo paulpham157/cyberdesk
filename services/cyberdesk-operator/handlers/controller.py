@@ -1,270 +1,265 @@
-import kopf
-import kubernetes
+"""
+cyberdesk_operator.py
+---------------------
+Kopf‑based Kubernetes operator that provisions and manages KubeVirt VMs for a custom
+`Cyberdesk` CRD.  Supabase is used as an external source of truth for instance state.
+
+Key responsibilities
+~~~~~~~~~~~~~~~~~~~~
+* Bootstrap the operator (load configuration, create Cyberdesk CRD if required).
+* Translate `Cyberdesk` resources into KubeVirt `VirtualMachine` objects and their
+  accompanying cloud‑init secrets.
+* Keep Supabase in sync with KubeVirt `VirtualMachineInstance` phase changes.
+* Tear everything down again when a `Cyberdesk` CR is deleted or expires.
+
+This single file keeps a clear top‑down structure:
+    1. Standard‑library / third‑party imports
+    2. Global configuration & logging
+    3. Constants & enums
+    4. Supabase and Kubernetes client bootstrap
+    5. Utility helpers (template loading, DB helpers, etc.)
+    6. Kopf event‑handlers (startup, create/update/delete, timers)
+
+All helpers are deliberately *side‑effect free* (raise on error, return data), making
+unit‑testing straightforward.
+"""
+from __future__ import annotations
+
 import logging
 import os
-import yaml
 import string
 import time
-from datetime import datetime, timedelta
-from typing import Dict, Any
-from pathlib import Path
+from datetime import UTC, datetime, timedelta
 from enum import Enum
-from supabase import create_client, Client
+from pathlib import Path
+from typing import Dict, Optional
+
+import kopf
+import kubernetes
+import yaml
 from dotenv import load_dotenv
-from kopf import OperatorSettings # Import OperatorSettings
+from kopf import OperatorSettings
+from kubernetes.client import (  # noqa: WPS433 — explicit import list for type checking
+    CoreV1Api,
+    CustomObjectsApi,
+    ApiextensionsV1Api,
+)
+from supabase import Client, create_client
 
-TEST_USER_DATA_PATH = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'tests', 'test-user-data.yaml'))
+# ---------------------------------------------------------------------------
+# Logging & basic config -----------------------------------------------------
+# ---------------------------------------------------------------------------
+logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
+logger = logging.getLogger(__name__)
 
-# --- Supabase Client Setup ---
+# Ensure ENV is loaded *early* so everything that relies on os.getenv works.
 load_dotenv()
-try:
-    supabase_url: str = os.environ.get("SUPABASE_URL")
-    supabase_key: str = os.environ.get("SUPABASE_KEY")
-  
-    if not supabase_url or not supabase_key:
-        logging.critical("SUPABASE_URL or SUPABASE_KEY environment variables not set.")
-        # Raise error to stop operator startup if credentials are vital
-        raise kopf.PermanentError("Supabase credentials not configured.")
-    supabase: Client = create_client(supabase_url, supabase_key)
-    logging.info("Successfully initialized Supabase client.")
-except Exception as e:
-    logging.critical(f"Failed to initialize Supabase client: {e}")
-    # Raise error to stop operator startup
-    raise kopf.PermanentError(f"Failed to initialize Supabase client: {e}")
-# --- End Supabase Client Setup ---
 
-# --- Template Variables ---
-USER_DATA_TEMPLATE: str = os.environ.get("USER_DATA_TEMPLATE")
-if not USER_DATA_TEMPLATE:
-    logging.warning("USER_DATA_TEMPLATE environment variable not set. Attempting to load from local test path.")
-    try:
-        if os.path.exists(TEST_USER_DATA_PATH):
-            with open(TEST_USER_DATA_PATH, 'r') as f:
-                USER_DATA_TEMPLATE = f.read()
-            logging.info(f"Loaded test USER_DATA_TEMPLATE from {TEST_USER_DATA_PATH}")
-        else:
-            logging.critical(f"Test user data file not found at {TEST_USER_DATA_PATH}.")
-            raise kopf.PermanentError("USER_DATA_TEMPLATE not set and test file not found.")
-    except Exception as e:
-         logging.critical(f"Failed to read test user data file {TEST_USER_DATA_PATH}: {e}")
-         raise kopf.PermanentError(f"Failed to read test user data: {e}")
-# --- End Template Variables ---
-
-# Configure the Kubernetes client
-# Prioritize kubeconfig for local development, then fall back to incluster config
-try:
-    kubernetes.config.load_kube_config()
-    logging.info("Loaded Kubernetes configuration from kubeconfig.")
-except kubernetes.config.config_exception.ConfigException:
-    try:
-        kubernetes.config.load_incluster_config()
-        logging.info("Loaded Kubernetes configuration from in-cluster config.")
-    except kubernetes.config.config_exception.ConfigException as e:
-        logging.critical(f"Could not load Kubernetes configuration from kubeconfig or in-cluster config: {e}")
-        raise kopf.PermanentError("Failed to load Kubernetes configuration.")
-
-# Define API clients
-core_v1_api = kubernetes.client.CoreV1Api()
-custom_objects_api = kubernetes.client.CustomObjectsApi()
-apiextensions_v1_api = kubernetes.client.ApiextensionsV1Api()
-
-# Resource definitions
+# ---------------------------------------------------------------------------
+# Constants -----------------------------------------------------------------
+# ---------------------------------------------------------------------------
 CYBERDESK_GROUP = "cyberdesk.io"
 CYBERDESK_VERSION = "v1alpha1"
 CYBERDESK_PLURAL = "cyberdesks"
+START_OPERATOR_PLURAL = "startcyberdeskoperators"
 
 KUBEVIRT_GROUP = "kubevirt.io"
 KUBEVIRT_VERSION = "v1"
-KUBEVIRT_NAMESPACE = "kubevirt"
+KUBEVIRT_NAMESPACE = os.getenv("KUBEVIRT_NAMESPACE", "kubevirt")
 KUBEVIRT_VM_PLURAL = "virtualmachines"
-KUBEVIRT_SECRET_PLURAL = "secrets"
 KUBEVIRT_VMI_PLURAL = "virtualmachineinstances"
 
-# Trigger Resource Definition
-START_OPERATOR_PLURAL = "startcyberdeskoperators"
-
-# Constants
 MANAGED_BY = "cyberdesk-operator"
-CYBERDESK_NAMESPACE = "cyberdesk-system"
+CYBERDESK_NAMESPACE = os.getenv("CYBERDESK_NAMESPACE", "cyberdesk-system")
 
-# Path to VM template
-# Check different locations based on running environment (container vs dev)
-VM_TEMPLATE_PATHS = [
-    '/app/kubevirt-vm-cr.yaml',  # Mounted in container via ConfigMap
-    os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'tests', 'test-vm-template.yaml')), # For local testing via KopfRunner
-]
+# Template search paths (first wins)
+VM_TEMPLATE_PATHS = (
+    Path("/app/kubevirt-vm-cr.yaml"),                                      # prod: mounted ConfigMap
+    Path(__file__).parent.parent / "tests" / "test-vm-template.yaml",  # dev / unit‑tests
+)
+USER_DATA_TEMPLATE_PATH = Path(__file__).parent.parent / "tests" / "test-user-data.yaml"
 
-# --- Enums and Mappings (Moved from helpers) ---
-class KubeVirtVMIPhase(Enum):
+# ---------------------------------------------------------------------------
+# Enums ----------------------------------------------------------------------
+# ---------------------------------------------------------------------------
+class KubeVirtVMIPhase(str, Enum):
+    """Supported phases as emitted by KubeVirt."""
+
     PENDING = "Pending"
     SCHEDULING = "Scheduling"
     SCHEDULED = "Scheduled"
     RUNNING = "Running"
-    SUCCEEDED = "Succeeded" # Represents completed successfully
-    FAILED = "Failed"     # Represents failed state
-    UNKNOWN = "Unknown"   # Represents an unknown or error state
+    SUCCEEDED = "Succeeded"
+    FAILED = "Failed"
+    UNKNOWN = "Unknown"
 
-class SupabaseInstanceStatus(Enum):
-    PENDING = "pending"     # Initial state or waiting for scheduling
-    RUNNING = "running"     # VM is operational
-    COMPLETED = "completed" # VM finished successfully (maps from Succeeded)
-    ERROR = "error"         # VM failed or is in an unknown state
 
-# Mapping from KubeVirt VMI Phase to Supabase Status
+class SupabaseInstanceStatus(str, Enum):
+    """Canonical states stored in Supabase."""
+
+    PENDING = "pending"
+    RUNNING = "running"
+    COMPLETED = "completed"
+    ERROR = "error"
+
+
+# Static mapping between the two state machines -----------------------------
 VMI_PHASE_TO_SUPABASE_STATUS: Dict[KubeVirtVMIPhase, SupabaseInstanceStatus] = {
     KubeVirtVMIPhase.PENDING: SupabaseInstanceStatus.PENDING,
     KubeVirtVMIPhase.SCHEDULING: SupabaseInstanceStatus.PENDING,
-    KubeVirtVMIPhase.SCHEDULED: SupabaseInstanceStatus.PENDING, # Still pending until actually Running
+    KubeVirtVMIPhase.SCHEDULED: SupabaseInstanceStatus.PENDING,
     KubeVirtVMIPhase.RUNNING: SupabaseInstanceStatus.RUNNING,
     KubeVirtVMIPhase.SUCCEEDED: SupabaseInstanceStatus.COMPLETED,
     KubeVirtVMIPhase.FAILED: SupabaseInstanceStatus.ERROR,
     KubeVirtVMIPhase.UNKNOWN: SupabaseInstanceStatus.ERROR,
 }
 
-# --- End Enums and Mappings ---
+# ---------------------------------------------------------------------------
+# Bootstrap helpers ----------------------------------------------------------
+# ---------------------------------------------------------------------------
 
-# --- Helper Functions (Moved from helpers) ---
-def getInstanceStatusById(instance_id: str) -> str | None:
-    """Get instance status from the Supabase 'cyberdesk_instances' table."""
-    try:
-        logging.debug(f"DB Query: Get status for instance '{instance_id}' from Supabase.")
-        response = supabase.table('cyberdesk_instances').select("status").eq("id", instance_id).limit(1).execute()
-        logging.debug(f"Supabase Response (getInstanceStatusById): {response.data}")
-        if response.data:
-            status = response.data[0].get('status')
-            logging.debug(f"DB Result: Status for '{instance_id}' is '{status}'")
-            return status
-        else:
-            logging.debug(f"DB Result: Instance '{instance_id}' not found.")
-            return None
-    except Exception as e:
-        logging.error(f"Supabase error in getInstanceStatusById for instance '{instance_id}': {e}")
-        # Optional: Raise temporary error for Kopf to retry if it's a transient Supabase issue
-        # raise kopf.TemporaryError(f"Supabase query failed: {e}", delay=15)
-        return None # Return None on error to avoid incorrect state logic
+def _init_supabase() -> Client:
+    """Create and return a Supabase client or raise ``kopf.PermanentError``."""
+    supabase_url = os.getenv("SUPABASE_URL")
+    supabase_key = os.getenv("SUPABASE_KEY")
 
-def updateInstanceStatus(instance_id: str, vmi_phase_str: str):
-    """
-    Update instance status in the Supabase 'cyberdesk_instances' table
-    after translating the KubeVirt VMI phase.
-    """
-    # Attempt to map the incoming VMI phase string to our enum
+    if not supabase_url or not supabase_key:
+        msg = "SUPABASE_URL / SUPABASE_KEY env vars must be set"
+        logger.critical(msg)
+        raise kopf.PermanentError(msg)
+
     try:
-        vmi_phase = KubeVirtVMIPhase(vmi_phase_str)
+        client = create_client(supabase_url, supabase_key)
+        logger.info("Supabase client initialised")
+        return client
+    except Exception as exc:  # noqa: BLE001 — log real error and abort
+        logger.critical("Failed to initialise Supabase: %s", exc)
+        raise kopf.PermanentError("Supabase init failed") from exc
+
+
+def _init_kubernetes_clients() -> tuple[CoreV1Api, CustomObjectsApi, ApiextensionsV1Api]:
+    """Return (core_v1, custom_objects, apiext) after loading config."""
+    try:
+        kubernetes.config.load_kube_config()
+        logger.info("Loaded kube‑config from local file")
+    except kubernetes.config.config_exception.ConfigException:
+        try:
+            kubernetes.config.load_incluster_config()
+            logger.info("Loaded in‑cluster kube‑config")
+        except kubernetes.config.config_exception.ConfigException as exc:
+            logger.critical("Failed to load Kubernetes configuration: %s", exc)
+            raise kopf.PermanentError("Cannot load Kubernetes config") from exc
+
+    return CoreV1Api(), CustomObjectsApi(), ApiextensionsV1Api()
+
+
+SUPABASE: Client = _init_supabase()
+CORE_V1_API, CUSTOM_OBJECTS_API, APIEXT_V1_API = _init_kubernetes_clients()
+
+# ---------------------------------------------------------------------------
+# Templating helpers ---------------------------------------------------------
+# ---------------------------------------------------------------------------
+
+def _load_first_existing(path_candidates: tuple[Path, ...]) -> str:
+    """Return content of the first existing file from *path_candidates*."""
+    for path in path_candidates:
+        try:
+            if path.exists():
+                content = path.read_text()
+                logger.info("Loaded template from %s", path)
+                return content
+        except Exception as exc:  # noqa: BLE001 — continue to next candidate
+            logger.warning("Reading %s failed: %s", path, exc)
+    raise kopf.PermanentError("No template file found in provided paths")
+
+
+USER_DATA_TEMPLATE: str = os.getenv("USER_DATA_TEMPLATE") or _load_first_existing((USER_DATA_TEMPLATE_PATH,))
+VM_TEMPLATE_RAW: str = _load_first_existing(VM_TEMPLATE_PATHS)
+
+# ---------------------------------------------------------------------------
+# Supabase helpers -----------------------------------------------------------
+# ---------------------------------------------------------------------------
+
+def get_instance_status(instance_id: str) -> Optional[str]:
+    """Return the current status for *instance_id* or ``None`` if missing/error."""
+    try:
+        logger.debug("Supabase query: status for %s", instance_id)
+        resp = SUPABASE.table("cyberdesk_instances").select("status").eq("id", instance_id).limit(1).execute()
+        return (resp.data[0]["status"] if resp.data else None)
+    except Exception as exc:  # noqa: BLE001
+        logger.error("Supabase error: %s", exc)
+        return None
+
+
+def update_instance_status(instance_id: str, vmi_phase: str) -> None:
+    """Translate *vmi_phase* → Supabase status and update row if needed."""
+    try:
+        phase_enum = KubeVirtVMIPhase(vmi_phase)
     except ValueError:
-        logging.error(f"Received unknown or unhandled VMI phase '{vmi_phase_str}' for instance '{instance_id}'. Mapping to '{SupabaseInstanceStatus.ERROR.value}'.")
-        target_status = SupabaseInstanceStatus.ERROR
+        logger.error("Unknown VMI phase '%s' → marking ERROR", vmi_phase)
+        target = SupabaseInstanceStatus.ERROR
     else:
-        # Get the corresponding Supabase status from the mapping
-        target_status = VMI_PHASE_TO_SUPABASE_STATUS.get(vmi_phase, SupabaseInstanceStatus.ERROR)
-        if target_status == SupabaseInstanceStatus.ERROR and vmi_phase not in [KubeVirtVMIPhase.FAILED, KubeVirtVMIPhase.UNKNOWN]:
-             # Log if a known phase unexpectedly maps to ERROR (indicates mapping issue)
-             logging.warning(f"VMI phase '{vmi_phase.value}' mapped to '{SupabaseInstanceStatus.ERROR.value}' unexpectedly for instance '{instance_id}'. Review VMI_PHASE_TO_SUPABASE_STATUS mapping.")
-
-
-    target_status_str = target_status.value # Get the string value for DB update
+        target = VMI_PHASE_TO_SUPABASE_STATUS.get(phase_enum, SupabaseInstanceStatus.ERROR)
 
     try:
-        logging.info(f"DB Update: Translating VMI phase '{vmi_phase_str}' to Supabase status '{target_status_str}' for instance '{instance_id}'.")
-        response = supabase.table('cyberdesk_instances').update({"status": target_status_str}).eq("id", instance_id).execute()
-        logging.debug(f"Supabase Response (updateInstanceStatus): {response.data}")
-        if not response.data:
-             logging.warning(f"Supabase update for instance '{instance_id}' might not have found the row or failed.")
-    except Exception as e:
-        logging.error(f"Supabase error in updateInstanceStatus for instance '{instance_id}' (status: {target_status_str}): {e}")
-        # Optional: Raise temporary error for Kopf to retry
-        # raise kopf.TemporaryError(f"Supabase update failed: {e}", delay=15)
+        SUPABASE.table("cyberdesk_instances").update({"status": target.value}).eq("id", instance_id).execute()
+        logger.info("Supabase status for %s set to %s", instance_id, target.value)
+    except Exception as exc:  # noqa: BLE001
+        logger.error("Supabase update failed for %s: %s", instance_id, exc)
 
-def create_cloudinit_secret(meta, namespace, logger, **kwargs):
-    """
-    Handler to create a per‑VM cloud‑init Secret when a VirtualMachine is created.
-    
-    This Secret contains both userData (your full cloud‑init) and metaData 
-    (instance-id & hostname), and has an ownerReference back to the VM so that
-    it's automatically deleted when the VM is deleted.
-    """
+# ---------------------------------------------------------------------------
+# Kubernetes helpers ---------------------------------------------------------
+# ---------------------------------------------------------------------------
+
+def create_cloudinit_secret(vm_name: str, namespace: str) -> None:
+    """Create or ensure a cloud‑init secret containing *USER_DATA_TEMPLATE*."""
+    secret_name = f"cloud-init-{vm_name}"
+
+    secret_body = kubernetes.client.V1Secret(
+        metadata=kubernetes.client.V1ObjectMeta(name=secret_name, namespace=namespace, labels={"managed-by": MANAGED_BY}),
+        type="Opaque",
+        string_data={"userdata": USER_DATA_TEMPLATE},
+    )
+
     try:
-        vm_name = meta['name']
-        secret_name = f"cloud-init-{vm_name}"
+        CORE_V1_API.create_namespaced_secret(namespace=namespace, body=secret_body)
+        logger.info("Created cloud‑init secret %s in %s", secret_name, namespace)
+    except kubernetes.client.rest.ApiException as exc:
+        if exc.status == 409:  # already exists
+            logger.debug("Secret %s already exists", secret_name)
+        else:
+            raise
 
-        # Build the Secret object
-        secret = kubernetes.client.V1Secret(
-            metadata=kubernetes.client.V1ObjectMeta(
-                name=secret_name,
-                namespace=namespace
-            ),
-            type='Opaque',
-            string_data={
-                'userdata': USER_DATA_TEMPLATE,
-                # .format(vm_name=vm_name, cyberdesk_name=vm_name, managed_by=MANAGED_BY),
-            },
-        )
 
-        # Use the CoreV1 API to create the Secret in‑cluster
-        api = kubernetes.client.CoreV1Api()
-        try:
-            api.create_namespaced_secret(namespace=namespace, body=secret)
-            logger.info(f"Created cloud-init Secret {secret_name} for VM {vm_name} in namespace {namespace}")
-        except kubernetes.client.rest.ApiException as e:
-            if e.status == 409:
-                logger.info(f"Secret {secret_name} already exists; skipping")
-            else:
-                logger.error(f"API error creating cloud-init Secret {secret_name}: {e.status} {e.reason}")
-                raise
-    except KeyError as e:
-        logger.error(f"Missing required metadata field: {e}")
-        raise ValueError(f"Missing required metadata field: {e}")
-    except Exception as e:
-        logger.error(f"Unexpected error creating cloud-init Secret: {e}")
-        raise
+# ---------------------------------------------------------------------------
+# VM template rendering ------------------------------------------------------
+# ---------------------------------------------------------------------------
 
-# --- End Helper Functions ---
+def render_vm_manifest(vm_name: str) -> dict:
+    """Return a KubeVirt VM manifest for *vm_name* based on ``VM_TEMPLATE_RAW``."""
+    rendered_yaml = string.Template(VM_TEMPLATE_RAW).substitute(
+        vm_name=vm_name,
+        cyberdesk_name=vm_name,
+        managed_by=MANAGED_BY,
+    )
+    return yaml.safe_load(rendered_yaml)
 
-@kopf.on.startup()
-def configure_kopf(settings: OperatorSettings, **_):
-    """Configure Kopf settings on startup."""
-    # Set a server timeout for watchers to potentially mitigate
-    # issues where connections drop after long idle periods.
-    # Value based on https://github.com/nolar/kopf/issues/1210
-    settings.watching.server_timeout = 210
-    logging.info(f"Set kopf watching server_timeout to {settings.watching.server_timeout} seconds.")
-
-def load_vm_template():
-    """Load VM template from file"""
-    template_found = False
-    template_content = None
-    
-    for template_path in VM_TEMPLATE_PATHS:
-        try:
-            if os.path.exists(template_path):
-                with open(template_path, 'r') as f:
-                    template_content = f.read()
-                    template_found = True
-                    logging.info(f"Loaded VM template from {template_path}")
-                    break
-        except Exception as e:
-            logging.warning(f"Failed to read template from {template_path}: {e}")
-    
-    if not template_found:
-        logging.critical("VM template file not found, exiting")
-        raise kopf.PermanentError("VM template file not found, exiting")
-    
-    return template_content
-
-# Define the Cyberdesk CRD manifest in code
-CYBERDESK_CRD_MANIFEST = {
+# ---------------------------------------------------------------------------
+# CRD definition -------------------------------------------------------------
+# ---------------------------------------------------------------------------
+CYBERDESK_CRD_MANIFEST: dict = {
     "apiVersion": "apiextensions.k8s.io/v1",
     "kind": "CustomResourceDefinition",
     "metadata": {"name": f"{CYBERDESK_PLURAL}.{CYBERDESK_GROUP}"},
     "spec": {
         "group": CYBERDESK_GROUP,
+        "scope": "Namespaced",
         "names": {
-            "kind": "Cyberdesk",
             "plural": CYBERDESK_PLURAL,
             "singular": "cyberdesk",
-            "shortNames": ["cd", "cds"]
+            "kind": "Cyberdesk",
+            "shortNames": ["cd", "cds"],
         },
-        "scope": "Namespaced",
         "versions": [
             {
                 "name": CYBERDESK_VERSION,
@@ -279,427 +274,128 @@ CYBERDESK_CRD_MANIFEST = {
                                 "properties": {
                                     "timeoutMs": {
                                         "type": "integer",
-                                        "description": "Timeout in milliseconds after which the instance will be terminated",
-                                        "minimum": 1000
+                                        "minimum": 1000,
+                                        "description": "Milliseconds until VM is terminated.",
                                     }
                                 },
-                                "required": ["timeoutMs"]
+                                "required": ["timeoutMs"],
                             },
                             "status": {
                                 "type": "object",
-                                "x-kubernetes-preserve-unknown-fields": True
-                            }
-                        }
+                                "x-kubernetes-preserve-unknown-fields": True,
+                            },
+                        },
                     }
                 },
-                "subresources": {"status": {}}
+                "subresources": {"status": {}},
             }
-        ]
-    }
+        ],
+    },
 }
 
+# ---------------------------------------------------------------------------
+# Kopf handlers --------------------------------------------------------------
+# ---------------------------------------------------------------------------
+
+@kopf.on.startup()
+def configure_kopf(settings: OperatorSettings, **_: Dict[str, object]) -> None:
+    """Tune watch timeouts to avoid idle disconnects seen in some clusters."""
+    settings.watching.server_timeout = 210  # seconds
+    logger.info("Kopf watch server_timeout set to %s", settings.watching.server_timeout)
+
+
 @kopf.on.create(CYBERDESK_GROUP, CYBERDESK_VERSION, START_OPERATOR_PLURAL)
-def setup_cyberdesk_operator(spec, meta, **kwargs):
-    """
-    On creation of the StartCyberdeskOperator resource, triggers installation of other
-    crucial Cyberdesk Operator resources, and allows for future configuration of the operator from
-    the StartCyberdeskOperator resource (none as of now).
-    """
-    trigger_name = meta.get('name')
-    namespace = meta.get('namespace')
-
-    logging.info(f"Received trigger {trigger_name} in {namespace}. Applying Cyberdesk CRD.")
-
-    # Apply the Cyberdesk CRD
+def crd_bootstrap(spec: dict, meta: dict, **_: Dict[str, object]) -> None:
+    """Ensure the Cyberdesk CRD exists once the *bootstrap* resource is created."""
     try:
-        apiextensions_v1_api.create_custom_resource_definition(body=CYBERDESK_CRD_MANIFEST)
-        logging.info(f"Successfully applied Cyberdesk CRD.")
-    except kubernetes.client.rest.ApiException as e:
-        logging.error(f"Failed to apply Cyberdesk CRD: {e.status} {e.reason}")
-        # If the error is temporary (like 429), retry later.
-        if e.status == 429:
-             logging.warning(f"API server returned 429 (Too Many Requests), will retry CRD creation. Message: {e.body}")
-             raise kopf.TemporaryError(f"API server busy, retrying CRD creation: {e.reason}", delay=10) # Retry after 10s
+        APIEXT_V1_API.create_custom_resource_definition(body=CYBERDESK_CRD_MANIFEST)
+        logger.info("Cyberdesk CRD applied")
+    except kubernetes.client.rest.ApiException as exc:
+        if exc.status == 409:  # already present
+            logger.debug("Cyberdesk CRD already present")
+        elif exc.status == 429:
+            raise kopf.TemporaryError("API busy, retrying", delay=10) from exc
         else:
-             # For other API errors (e.g., 403 Forbidden, 409 Conflict), treat as permanent for this resource.
-             raise kopf.PermanentError(f"Failed to apply Cyberdesk CRD: {e.status} {e.reason}")
-    except Exception as e:
-         # Catch unexpected errors during CRD creation
-         logging.exception(f"Unexpected error applying Cyberdesk CRD: {e}") # Use logging.exception to include traceback
-         raise kopf.PermanentError(f"Unexpected error applying Cyberdesk CRD: {e}")
+            raise kopf.PermanentError(f"CRD creation failed: {exc.status} {exc.reason}") from exc
+
 
 @kopf.on.create(CYBERDESK_GROUP, CYBERDESK_VERSION, CYBERDESK_PLURAL)
-def create_vm_from_cyberdesk(spec, meta, status, **kwargs):
-    """
-    Handle creation of a new Cyberdesk resource.
-    Creates a corresponding KubeVirt VirtualMachine resource using desired state reconciliation.
-    """
-    start_time = time.time()
-    cyberdesk_name = meta.get('name')
-    namespace = meta.get('namespace') # Namespace where Cyberdesk CR lives
+def cyberdesk_create(spec: dict, meta: dict, status: dict, **_: Dict[str, object]):  # noqa: WPS231 — complex but explicit
+    """Reconcile a new *Cyberdesk* → create VM & cloud‑init secret."""
+    vm_name = meta["name"]
+    timeout_ms = spec.get("timeoutMs", 3_600_000)  # default: 1h
 
-    # Added checks for essential metadata
-    if not cyberdesk_name:
-        logging.error("Cyberdesk resource is missing name in metadata.")
-        raise kopf.PermanentError("Missing name in metadata")
-    if not namespace:
-        logging.error(f"Cyberdesk resource '{cyberdesk_name}' is missing namespace in metadata.")
-        raise kopf.PermanentError(f"Missing namespace in metadata for '{cyberdesk_name}'")
-
-    logging.info(f"Reconciling VM for Cyberdesk {cyberdesk_name} in namespace {namespace}") # Log Cyberdesk namespace
-
-    # Extract necessary info from the Cyberdesk spec
-    timeout_ms = spec.get('timeoutMs', 3600000)  # Default to 1 hour
-
-    # Check if VM already exists (Desired State Check)
-    # Assume VM lives in KUBEVIRT_NAMESPACE (often 'kubevirt' or dedicated ns)
-    vm_namespace = KUBEVIRT_NAMESPACE # Define where VMs should live
+    # Idempotency: bail if VM exists already
     try:
-        existing_vm = custom_objects_api.get_namespaced_custom_object(
-            group=KUBEVIRT_GROUP,
-            version=KUBEVIRT_VERSION,
-            namespace=vm_namespace, # Check in the VM namespace
-            plural=KUBEVIRT_VM_PLURAL,
-            name=cyberdesk_name
+        CUSTOM_OBJECTS_API.get_namespaced_custom_object(
+            KUBEVIRT_GROUP, KUBEVIRT_VERSION, KUBEVIRT_NAMESPACE, KUBEVIRT_VM_PLURAL, vm_name
         )
-        # VM already exists, ensure status reflects this
-        logging.info(f"VM {cyberdesk_name} already exists in {vm_namespace} for Cyberdesk {cyberdesk_name}. Ensuring status is up-to-date.")
+        logger.info("VM %s already exists — skipping creation", vm_name)
+        return {"virtualMachineRef": vm_name}
+    except kubernetes.client.rest.ApiException as exc:
+        if exc.status != 404:
+            raise kopf.TemporaryError("VM existence check failed", delay=10) from exc
 
-        # Fetch current Cyberdesk status if needed, or return existing status
-        current_status = status # Use the status passed by Kopf initially
-        if not current_status or current_status.get('virtualMachineRef') != cyberdesk_name:
-             # If Kopf's status is empty or incorrect, build a basic one
-             return {
-                 'virtualMachineRef': cyberdesk_name,
-                 # Consider fetching start/expiry time from existing_vm annotations/labels if needed
-             }
-        else:
-             # Status already seems correct, just return it
-             # Removed call to mark_handler_processed
-             return current_status # Return Kopf's view of the status
+    # Ensure cloud‑init secret exists before creating the VM -----------------
+    create_cloudinit_secret(vm_name, KUBEVIRT_NAMESPACE)
 
-
-    except kubernetes.client.rest.ApiException as e:
-        if e.status != 404:
-            # Unexpected error, let Kopf handle the retry
-            logging.error(f"Error checking if VM {cyberdesk_name} exists in {vm_namespace}: {e}")
-            raise kopf.TemporaryError(f"Failed to check VM existence: {e}", delay=10)
-        # If status is 404, VM does not exist, proceed with creation.
-        logging.info(f"VM {cyberdesk_name} does not exist in {vm_namespace}. Proceeding with creation.")
-
-
-    # Load and render the VM template
-    template = load_vm_template()
-    template = string.Template(template)
-    rendered_template = template.substitute(
-        vm_name=cyberdesk_name,
-        cyberdesk_name=cyberdesk_name, # Pass Cyberdesk name for labels/annotations in template
-        managed_by=MANAGED_BY
+    vm_manifest = render_vm_manifest(vm_name)
+    CUSTOM_OBJECTS_API.create_namespaced_custom_object(
+        KUBEVIRT_GROUP, KUBEVIRT_VERSION, KUBEVIRT_NAMESPACE, KUBEVIRT_VM_PLURAL, vm_manifest
     )
 
-    # Parse the YAML into a dictionary
-    vm_manifest = yaml.safe_load(rendered_template)
+    now = datetime.now(UTC)
+    expiry = now + timedelta(milliseconds=timeout_ms)
+    logger.info("VM %s created, expires at %s", vm_name, expiry.isoformat())
 
-    # TODO: Check warm pool for available VM that matches the spec and is ready.
-    # If found, update DB "instance" with this available VM and return normally
-    # If not found, proceed with creation.
-    
-    # Create cloud-init secret with proper error handling
-    try:
-        create_cloudinit_secret(meta, KUBEVIRT_NAMESPACE, logging)
-        logging.info(f"Successfully created cloud-init secret for Cyberdesk {cyberdesk_name}")
-    except Exception as e:
-        logging.error(f"Failed to create cloud-init secret for Cyberdesk {cyberdesk_name}: {e}")
-        # Raise a temporary error to allow retry, as this could be a transient issue
-        raise kopf.TemporaryError(f"Failed to create cloud-init secret: {e}", delay=10)
-
-    # --- Wait for Secret to be available ---
-    secret_name = f"cloud-init-{cyberdesk_name}" # Match the name used in create_cloudinit_secret
-    secret_namespace = KUBEVIRT_NAMESPACE
-    max_retries = 5
-    retry_delay = 2 # seconds
-    secret_found = False
-    for attempt in range(max_retries):
-        try:
-            core_v1_api.read_namespaced_secret(name=secret_name, namespace=secret_namespace)
-            logging.info(f"Successfully verified Secret {secret_name} exists in namespace {secret_namespace}.")
-            secret_found = True
-            break # Exit loop if secret is found
-        except kubernetes.client.rest.ApiException as e:
-            if e.status == 404:
-                logging.warning(f"Secret {secret_name} not found yet in {secret_namespace} (Attempt {attempt + 1}/{max_retries}). Retrying in {retry_delay}s...")
-                time.sleep(retry_delay)
-            else:
-                logging.error(f"API error checking for Secret {secret_name} in {secret_namespace}: {e.status} {e.reason}")
-                raise kopf.TemporaryError(f"Failed to check for Secret {secret_name}: {e.reason}", delay=10)
-        except Exception as e:
-            logging.error(f"Unexpected error checking for Secret {secret_name} in {secret_namespace}: {e}")
-            raise kopf.TemporaryError(f"Unexpected error checking for Secret {secret_name}: {e}", delay=10)
-
-    if not secret_found:
-        logging.error(f"Secret {secret_name} in {secret_namespace} did not become available after {max_retries} attempts.")
-        # Update DB instance status to error?
-        raise kopf.TemporaryError(f"Cloud-init Secret {secret_name} not found after retries.", delay=30)
-    # --- End Wait for Secret ---
-
-    # Create a new VM
-    try:
-        # Create the VM in the designated KUBEVIRT_NAMESPACE
-        custom_objects_api.create_namespaced_custom_object(
-            group=KUBEVIRT_GROUP,
-            version=KUBEVIRT_VERSION,
-            namespace=vm_namespace, # Create in the VM namespace
-            plural=KUBEVIRT_VM_PLURAL,
-            body=vm_manifest
-        )
-
-        # Get the current time and calculate expiry
-        now = datetime.now()
-        expiry = now + timedelta(milliseconds=timeout_ms)
-
-        logging.info(f"VM {cyberdesk_name} created successfully in namespace {vm_namespace}, will expire at {expiry.isoformat()}") # Log correct namespace
+    return {"virtualMachineRef": vm_name, "startTime": now.isoformat(), "expiryTime": expiry.isoformat()}
 
 
-        # Removed fetching Cyberdesk and marking handler processed
+@kopf.on.field(KUBEVIRT_GROUP, KUBEVIRT_VERSION, KUBEVIRT_VMI_PLURAL, field="status.phase")
+def vmi_phase_change(old: str | None, new: str | None, meta: dict, status: dict, **_: Dict[str, object]):
+    """Sync Supabase when a VMI phase flips."""
+    if new is None:
+        return  # nothing to do
+    if meta.get("labels", {}).get("app") != "cyberdesk":
+        return  # not ours
 
-        # Update the Cyberdesk status (which lives in 'namespace')
-        return {
-            'virtualMachineRef': cyberdesk_name, # Refers to the VM name
-            'startTime': now.isoformat(),
-            'expiryTime': expiry.isoformat()
-        }
-    except kubernetes.client.rest.ApiException as e:
-         logging.error(f"Failed to create VM {cyberdesk_name} in namespace {vm_namespace}: {e.status} {e.reason}")
-         # Check for common specific errors if needed (e.g., 409 Conflict if race condition)
-         # Update DB "instance" to be in "error" state.
-         raise kopf.TemporaryError(f"Failed to create VM: {e.reason}")
-    except Exception as e:
-        logging.error(f"Unexpected error creating VM {cyberdesk_name} in namespace {vm_namespace}: {e}")
-        # Update DB "instance" to be in "error" state.
-        raise kopf.TemporaryError(f"Unexpected error creating VM: {e}")
-
-@kopf.on.field(KUBEVIRT_GROUP, KUBEVIRT_VERSION, KUBEVIRT_VMI_PLURAL, field='status.phase')
-def react_to_vmi_phase_change(old, new, meta, status, logger, **kwargs):
-    """
-    Watch for VirtualMachineInstance phase changes.
-    Update the corresponding instance status in the DB if it doesn't match.
-    Only triggered when `status.phase` changes.
-    """
-    # --- Input Validation and Extraction ---
-    vmi_name = meta.get('name', 'unknown-vmi')
-    namespace = meta.get('namespace') # Namespace where VMI lives (e.g., KUBEVIRT_NAMESPACE)
-    if not namespace:
-        # This shouldn't happen for namespaced resources, but safeguard anyway
-        logger.error(f"VMI update event for '{vmi_name}' is missing namespace in metadata.")
-        return # Cannot proceed
-
-    # Check if this VMI is managed by our operator via labels
-    labels = meta.get('labels', {})
-    if labels.get('app') != 'cyberdesk':
-        # Not managed by us, ignore.
-        # logger.debug(f"Ignoring VMI {vmi_name} phase change in {namespace}: Not labeled 'app=cyberdesk'.")
+    instance_id = meta["labels"].get("cyberdesk-instance")
+    if not instance_id:
+        logger.warning("VMI %s missing cyberdesk-instance label", meta.get("name"))
         return
 
-    cyberdesk_name = labels.get('cyberdesk-instance')
-    if not cyberdesk_name:
-        logger.warning(f"VMI {vmi_name} in {namespace} is labeled 'app=cyberdesk' but missing 'cyberdesk-instance' label. Cannot link to DB.")
-        return # Cannot link to DB instance without the ID
+    current_db = get_instance_status(instance_id)
+    desired = VMI_PHASE_TO_SUPABASE_STATUS.get(KubeVirtVMIPhase(new), SupabaseInstanceStatus.ERROR).value
 
-    old_phase = old # The old value of status.phase
-    new_phase = new # The new value of status.phase
+    if current_db != desired:
+        update_instance_status(instance_id, new)
 
-    logger.debug(f"Reacting to VMI phase change: {vmi_name} (Cyberdesk: {cyberdesk_name}) in {namespace}. Old phase: '{old_phase}', New phase: '{new_phase}'.")
-
-    # --- Core Logic: Update DB on Meaningful Phase Change ---
-    # The handler only runs if the phase changes, so we primarily care about the new phase.
-    if new_phase is not None:
-        logger.info(f"Phase changed for VMI {vmi_name} (Cyberdesk: {cyberdesk_name}) from '{old_phase}' to '{new_phase}'. Checking DB.")
-
-        try:
-            # Get the status currently recorded in our DB
-            current_db_status = getInstanceStatusById(cyberdesk_name)
-
-            # Translate the *new* VMI phase to the target Supabase status string
-            try:
-                new_vmi_phase_enum = KubeVirtVMIPhase(new_phase)
-                target_supabase_status = VMI_PHASE_TO_SUPABASE_STATUS.get(new_vmi_phase_enum, SupabaseInstanceStatus.ERROR)
-                target_supabase_status_str = target_supabase_status.value
-            except ValueError:
-                 logging.error(f"Received unknown VMI phase '{new_phase}' during check for {cyberdesk_name}. Will attempt to update DB to '{SupabaseInstanceStatus.ERROR.value}'.")
-                 target_supabase_status_str = SupabaseInstanceStatus.ERROR.value
-
-
-            # Update DB only if its state doesn't already match the *target* Supabase status
-            if current_db_status != target_supabase_status_str:
-                logger.info(f"DB status ('{current_db_status}') differs from target Supabase status ('{target_supabase_status_str}' translated from VMI phase '{new_phase}') for {cyberdesk_name}. Updating DB.")
-                # Call updateInstanceStatus with the raw new_phase string; translation happens inside
-                updateInstanceStatus(cyberdesk_name, new_phase) # Pass the string phase
-
-                # Potentially add further actions here based on the new_phase
-                # e.g., if new_phase == 'Running', notify user?
-                # e.g., if new_phase == 'Failed', log details from VMI conditions?
-                if new_phase in ['Failed', 'Error', KubeVirtVMIPhase.UNKNOWN.value]: # Check against string values
-                     # Access the full status object passed by Kopf
-                     vmi_conditions = status.get('conditions', [])
-                     logger.error(f"VMI {vmi_name} (Cyberdesk: {cyberdesk_name}) entered phase '{new_phase}' (maps to '{target_supabase_status_str}'). Conditions: {vmi_conditions}")
-
-            else:
-                # DB already reflects the current VMI phase
-                logger.info(f"DB status ('{current_db_status}') already matches target Supabase status ('{target_supabase_status_str}' from VMI phase '{new_phase}') for {cyberdesk_name}. No DB update needed.")
-
-        except Exception as e:
-            # Catch potential errors during DB interaction (even dummy ones)
-            logger.error(f"Error interacting with dummy DB for instance {cyberdesk_name} during VMI update processing: {e}")
-            # Retry the handler later in case the DB issue is transient
-            raise kopf.TemporaryError(f"DB interaction failed for {cyberdesk_name}: {e}", delay=30)
-
-    else:
-        # This case might occur if the phase field is explicitly set to null or removed.
-        logger.warning(f"VMI {vmi_name} (Cyberdesk: {cyberdesk_name}) phase changed, but the new phase is None. Old phase was '{old_phase}'.")
-
-    # No return value needed as we are not patching the Cyberdesk status here.
-    # Kopf handles checkpointing automatically unless errors are raised.
 
 @kopf.on.delete(CYBERDESK_GROUP, CYBERDESK_VERSION, CYBERDESK_PLURAL)
-def delete_vm_for_cyberdesk(
-    spec: dict,
-    meta: dict,
-    body: dict,
-    logger: logging.Logger,
-    **kwargs
-):
-    """
-    Handle deletion of a Cyberdesk resource by tearing down the matching KubeVirt VM,
-    then letting Kopf remove its finalizer so Kubernetes can garbage‑collect the CR.
-    """
-    name = meta.get('name')
-    ns   = meta.get('namespace')
-    # Always log the full status you received:
-    logger.info(f"[delete] CR={name!r} in {ns!r}, raw status: {body.get('status')!r}")
+def cyberdesk_delete(meta: dict, body: dict, **_: Dict[str, object]):
+    """Tear down VM and its secret when *Cyberdesk* is deleted."""
+    vm_name = body.get("status", {}).get("cyberdesk_create", {}).get("virtualMachineRef") or meta["name"]
 
-    # Safely extract the VM name from the nested status that Kopf writes:
-    vm_name = (
-        body
-        .get('status', {})
-        .get('create_vm_from_cyberdesk', {})
-        .get('virtualMachineRef')
-    )
-    if not vm_name:
-        logger.error(f"[delete] No virtualMachineRef in status for CR={name!r}; skipping VM deletion.")
+    try:
+        CUSTOM_OBJECTS_API.delete_namespaced_custom_object(
+            KUBEVIRT_GROUP, KUBEVIRT_VERSION, KUBEVIRT_NAMESPACE, KUBEVIRT_VM_PLURAL, vm_name
+        )
+        CORE_V1_API.delete_namespaced_secret(f"cloud-init-{vm_name}", KUBEVIRT_NAMESPACE)
+        logger.info("Deleted VM & secret for %s", vm_name)
+    except kubernetes.client.rest.ApiException as exc:
+        if exc.status not in (404, 410):
+            raise kopf.TemporaryError("Cleanup failed, will retry", delay=15) from exc
+
+
+@kopf.on.timer(CYBERDESK_GROUP, CYBERDESK_VERSION, CYBERDESK_PLURAL, interval=60)
+def cyberdesk_timeout_check(body: dict, **_: Dict[str, object]):
+    """Per‑resource timer: shut down VM once *expiryTime* passes."""
+    expiry_str = body.get("status", {}).get("cyberdesk_create", {}).get("expiryTime")
+    if not expiry_str:
         return
 
-    # Proceed to delete the VM via the KubeVirt CRD API:
-    try:
-        kubernetes.client.CustomObjectsApi().delete_namespaced_custom_object(
-            group=KUBEVIRT_GROUP,
-            version=KUBEVIRT_VERSION,
-            namespace=KUBEVIRT_NAMESPACE,
-            plural=KUBEVIRT_VM_PLURAL,
-            name=vm_name,
+    if datetime.now(UTC) >= datetime.fromisoformat(expiry_str):
+        logger.info("Cyberdesk %s expired — deleting", body["metadata"]["name"])
+        CUSTOM_OBJECTS_API.delete_namespaced_custom_object(
+            CYBERDESK_GROUP, CYBERDESK_VERSION, body["metadata"]["namespace"], CYBERDESK_PLURAL, body["metadata"]["name"]
         )
-        logger.info(f"[delete] Deleted VM {vm_name!r} in namespace {KUBEVIRT_NAMESPACE!r}.")
-    except kubernetes.client.rest.ApiException as e:
-        if e.status == 404:
-            logger.info(f"[delete] VM {vm_name!r} already gone; nothing to do.")
-        else:
-            logger.exception(f"[delete] Failed deleting VM {vm_name!r}: {e}")
-            raise kopf.TemporaryError(f"Could not delete VM {vm_name}: {e}", delay=15)
-     # Proceed to delete the Secret (using CoreV1Api)
-    secret_name = f"cloud-init-{vm_name}" # Correct name
-    try:
-        core_v1_api.delete_namespaced_secret(
-            name=secret_name,
-            namespace=KUBEVIRT_NAMESPACE, # Assuming it was created here
-        )
-        logger.info(f"[delete] Deleted Secret {secret_name!r} in namespace {KUBEVIRT_NAMESPACE!r}.")
-    except kubernetes.client.rest.ApiException as e:
-        if e.status == 404:
-            logger.info(f"[delete] Secret {secret_name!r} already gone; nothing to do.")
-        else:
-            # Log the error but maybe don't raise here,
-            # as the main resource (VM) might be gone.
-            # Kopf will remove finalizer if no exception is raised from the handler.
-            logger.exception(f"[delete] Failed deleting Secret {secret_name!r}: {e}")
-            # Optionally raise: raise kopf.TemporaryError(f"Could not delete Secret {secret_name}: {e}", delay=15)
-
-
-# Cluster-wide timer to check Cyberdesks that have exceeded their timeout.
-@kopf.on.timer(CYBERDESK_GROUP, CYBERDESK_VERSION, CYBERDESK_PLURAL, interval=60.0)  # Runs every 60 seconds for the operator process
-def check_all_cyberdesk_timeouts(**kwargs):
-    """
-    Periodically check all Cyberdesks across the cluster for VMs that have exceeded their timeout.
-    Shuts down the VM if it has exceeded the timeout.
-    Notifies the DB "instance" that the instance timed out.
-    """
-    logging.debug("Starting cluster-wide check for Cyberdesk timeouts...")
-    
-    try:
-        # List all Cyberdesk resources across all namespaces
-        cyberdesks = custom_objects_api.list_cluster_custom_object(
-            group=CYBERDESK_GROUP,
-            version=CYBERDESK_VERSION,
-            plural=CYBERDESK_PLURAL
-        )
-    except kubernetes.client.rest.ApiException as e:
-        logging.error(f"Failed to list Cyberdesk resources: {e}")
-        # Optional: Raise TemporaryError if listing fails often
-        # raise kopf.TemporaryError(f"Failed to list Cyberdesks: {e}", delay=30)
-        return
-    except Exception as e:
-        logging.error(f"Unexpected error listing Cyberdesk resources: {e}")
-        return
-
-    now = datetime.now()
-    
-    for cyberdesk in cyberdesks.get('items', []):
-        meta = cyberdesk.get('metadata', {})
-        status = cyberdesk.get('status', {})
-        
-        cyberdesk_name = meta.get('name')
-        namespace = meta.get('namespace')
-        
-        if not cyberdesk_name or not namespace:
-            logging.warning(f"Skipping Cyberdesk resource with missing name or namespace in metadata: {meta}")
-            continue
-            
-        # Access the nested status correctly
-        create_status = status.get('create_vm_from_cyberdesk', {})
-        expiry_time_str = create_status.get('expiryTime')
-        if not expiry_time_str:
-            # Skip resources without an expiry time set in their status
-            continue
-
-        # Parse the expiry time
-        try:
-            expiry_time = datetime.fromisoformat(expiry_time_str)
-        except (ValueError, TypeError) as e:
-            logging.error(f"Invalid or missing expiry time format for Cyberdesk {cyberdesk_name} in namespace {namespace}: {expiry_time_str}. Error: {e}")
-            continue # Skip this resource
-
-        # Check if the Cyberdesk has exceeded its timeout
-        if now > expiry_time:
-            logging.info(f"Cyberdesk {cyberdesk_name} in namespace {namespace} has exceeded its timeout ({expiry_time_str})")
-            
-            # Simply delete the Cyberdesk resource, which will trigger the delete_vm_for_cyberdesk handler.
-            # Add try-except around deletion for robustness
-            try:
-                custom_objects_api.delete_namespaced_custom_object(
-                    group=CYBERDESK_GROUP,
-                    version=CYBERDESK_VERSION,
-                    namespace=namespace,
-                    plural=CYBERDESK_PLURAL,
-                    name=cyberdesk_name
-                )
-
-                # TODO: Update DB "instance" to be completed in some way.
-            except kubernetes.client.rest.ApiException as e:
-                if e.status == 404:
-                    logging.info(f"Cyberdesk {cyberdesk_name} in namespace {namespace} already deleted.")
-                else:
-                    logging.error(f"Failed to delete timed-out Cyberdesk {cyberdesk_name} in {namespace}: {e}")
-            except Exception as e:
-                logging.error(f"Unexpected error deleting timed-out Cyberdesk {cyberdesk_name} in {namespace}: {e}")
-
-        # End of check for 'if now > expiry_time:'
-    # End of loop 'for cyberdesk in cyberdesks.get('items', []):'
-    logging.debug("Finished cluster-wide check for Cyberdesk timeouts.")
