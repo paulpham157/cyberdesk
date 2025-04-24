@@ -1,0 +1,261 @@
+---
+title: Quickstart
+description: Get started quickly with Cyberdesk
+---
+Get up and running with Cyberdesk in minutes.
+
+## Fastest Start: Cyberdesk Starter Assistant UI
+
+The quickest way to get started with Cyberdesk is to use our [Starter Assistant UI](https://github.com/cyberdesk-hq/cyberdesk-starter-assistant-ui) template. This ready-to-use Next.js application demonstrates how to build an AI assistant with virtual desktop control capabilities using the Cyberdesk API and Anthropic's Claude AI model.
+
+### Features
+
+- Interactive virtual desktop with streaming capabilities
+- AI assistant chat interface powered by Claude 3.7 Sonnet
+- Desktop control via AI (mouse clicks, keyboard input, screenshots)
+- Bash command execution in the virtual environment
+- Responsive design for both desktop and mobile devices
+
+### Quick Setup
+
+1. Clone the repository (alternatively, click "Use this template" on GitHub):
+
+```bash
+git clone https://github.com/cyberdesk-hq/cyberdesk-starter-assistant-ui.git
+cd cyberdesk-starter-assistant-ui
+```
+
+2. Install dependencies:
+
+```bash
+npm install
+```
+
+3. Create a `.env.local` file with your API keys:
+
+```
+CYBERDESK_API_KEY=your_cyberdesk_api_key_here
+ANTHROPIC_API_KEY=your_anthropic_api_key_here
+```
+
+4. Start the development server:
+
+```bash
+npm run dev
+```
+
+5. Open [http://localhost:3000](http://localhost:3000) in your browser
+
+This template provides a complete working example that you can customize for your specific use case. For more details, check out the [repository README](https://github.com/cyberdesk-hq/cyberdesk-starter-assistant-ui).
+
+## Prerequisites
+
+- An API key (obtain from your [Cyberdesk dashboard](https://cyberdesk.io/dashboard))
+- Basic knowledge of REST APIs
+- A tool for making HTTP requests (curl, Postman, or your preferred programming language)
+
+## Building a Custom Integration
+
+If you're interested in building a custom agent or application that integrates with Cyberdesk, continue reading this guide. The following sections provide detailed information on how to interact with the Cyberdesk API directly.
+
+## Authentication
+
+All API requests require authentication using your API key in the header:
+
+```bash
+x-api-key: your_api_key_here
+```
+
+Keep your API key secure and do not share it publicly. If you believe your key has been compromised, you can regenerate it from your dashboard.
+
+## Creating a Desktop Instance
+
+To create a new desktop instance, make a POST request to the `/desktop` endpoint:
+
+```bash
+curl -X POST https://api.cyberdesk.io/v1/desktop \
+  -H "x-api-key: your_api_key_here" \
+  -H "Content-Type: application/json" \
+  -d '{"timeoutMs": 3600000}'
+```
+
+JavaScript example:
+
+```javascript
+const response = await fetch('https://api.cyberdesk.io/v1/desktop', {
+  method: 'POST',
+  headers: {
+    'x-api-key': 'your_api_key_here',
+    'Content-Type': 'application/json'
+  },
+  body: JSON.stringify({
+    timeoutMs: 3600000 // 1 hour timeout
+  })
+});
+
+const { id, streamUrl } = await response.json();
+```
+
+The response will include:
+- `id`: A unique identifier for your desktop instance
+- `streamUrl`: A URL that you can use to stream the desktop visually
+
+```json
+{
+  "id": "desk_123abc",
+  "streamUrl": "https://stream.cyberdesk.io/desk_123abc?authKey=xyz"
+}
+```
+
+## Viewing the Desktop Stream
+
+The `streamUrl` returned when creating a desktop can be used to view the desktop in real-time. You can:
+
+1. Open the URL in a browser to view the desktop
+2. Embed it in an iframe in your application
+3. Use a VNC client to connect to it
+
+Example iframe implementation:
+
+```html
+<iframe 
+  src="https://stream.cyberdesk.io/desk_123abc?authKey=xyz" 
+  width="1024" 
+  height="768" 
+  style="border: none;"
+></iframe>
+```
+
+## Controlling the Desktop
+
+### Mouse Actions
+
+Perform a left mouse click:
+
+```bash
+curl -X POST https://api.cyberdesk.io/v1/desktop/desk_123abc/computer-action \
+  -H "x-api-key: your_api_key_here" \
+  -H "Content-Type: application/json" \
+  -d '{"type": "left_click", "x": 100, "y": 200}'
+```
+
+Move the mouse cursor:
+
+```bash
+curl -X POST https://api.cyberdesk.io/v1/desktop/desk_123abc/computer-action \
+  -H "x-api-key: your_api_key_here" \
+  -H "Content-Type: application/json" \
+  -d '{"type": "move_mouse", "x": 300, "y": 400}'
+```
+
+### Keyboard Actions
+
+Type text:
+
+```bash
+curl -X POST https://api.cyberdesk.io/v1/desktop/desk_123abc/computer-action \
+  -H "x-api-key: your_api_key_here" \
+  -H "Content-Type: application/json" \
+  -d '{"type": "write", "text": "Hello, Cyberdesk!"}'
+```
+
+Press keyboard shortcuts:
+
+```bash
+curl -X POST https://api.cyberdesk.io/v1/desktop/desk_123abc/computer-action \
+  -H "x-api-key: your_api_key_here" \
+  -H "Content-Type: application/json" \
+  -d '{"type": "press", "keys": ["Control", "c"]}'
+```
+
+### Taking Screenshots
+
+Take a screenshot of the current desktop state:
+
+```bash
+curl -X POST https://api.cyberdesk.io/v1/desktop/desk_123abc/computer-action \
+  -H "x-api-key: your_api_key_here" \
+  -H "Content-Type: application/json" \
+  -d '{"type": "screenshot"}'
+```
+
+The response will include a base64-encoded image:
+
+```json
+{
+  "status": "success",
+  "image": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAA..."
+}
+```
+
+### Running Bash Commands
+
+Execute commands directly on the desktop:
+
+```bash
+curl -X POST https://api.cyberdesk.io/v1/desktop/desk_123abc/bash-action \
+  -H "x-api-key: your_api_key_here" \
+  -H "Content-Type: application/json" \
+  -d '{"command": "ls -la"}'
+```
+
+Response:
+
+```json
+{
+  "status": "success",
+  "output": "total 20\ndrwxr-xr-x 4 user user 4096 Mar 29 10:00 .\ndrwxr-xr-x 3 user user 4096 Mar 29 09:55 ..\n..."
+}
+```
+
+## Stopping a Desktop Instance
+
+When you're done with a desktop instance, stop it to free up resources:
+
+```bash
+curl -X POST https://api.cyberdesk.io/v1/desktop/desk_123abc/stop \
+  -H "x-api-key: your_api_key_here"
+```
+
+Response:
+
+```json
+{
+  "status": "stopped"
+}
+```
+
+## Error Handling
+
+Cyberdesk API returns standard HTTP status codes and descriptive error messages. Always check for error responses and handle them appropriately:
+
+```javascript
+try {
+  const response = await fetch('https://api.cyberdesk.io/v1/desktop/desk_123abc/computer-action', {
+    method: 'POST',
+    headers: {
+      'x-api-key': 'your_api_key_here',
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      type: 'left_click',
+      x: 100,
+      y: 200
+    })
+  });
+  
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(`API error: ${error.message}`);
+  }
+  
+  const data = await response.json();
+  console.log('Success:', data);
+} catch (error) {
+  console.error('Error:', error);
+}
+```
+
+## Next Steps
+
+Now that you've learned the basics, check out our [Tutorials](/docs/tutorials) for more detailed examples and use cases, or explore the [API Reference](/docs/api-reference) for complete API documentation.

@@ -1,0 +1,836 @@
+---
+title: Tutorials
+description: Step-by-step tutorials for using Cyberdesk
+---
+Learn how to use Cyberdesk effectively with these step-by-step tutorials.
+
+## Tutorial 1: Creating and Interacting with a Desktop
+
+This tutorial walks you through creating a desktop instance and performing basic interactions.
+
+### Step 1: Create a Desktop Instance
+
+First, create a new desktop instance:
+
+```javascript
+const response = await fetch('https://api.cyberdesk.io/v1/desktop', {
+  method: 'POST',
+  headers: {
+    'x-api-key': 'your_api_key_here',
+    'Content-Type': 'application/json'
+  },
+  body: JSON.stringify({
+    timeoutMs: 3600000 // Optional: Set a custom timeout in milliseconds (1 hour in this example)
+  })
+});
+
+const { id, streamUrl } = await response.json();
+console.log(`Desktop created with ID: ${id}`);
+console.log(`Stream URL: ${streamUrl}`);
+```
+
+### Step 2: Perform Mouse Actions
+
+Now that you have a desktop instance, you can perform mouse actions:
+
+```javascript
+const desktopId = 'desk_123abc'; // Use the ID from the previous step
+
+// Click at coordinates (100, 200)
+await fetch(`https://api.cyberdesk.io/v1/desktop/${desktopId}/computer-action`, {
+  method: 'POST',
+  headers: {
+    'x-api-key': 'your_api_key_here',
+    'Content-Type': 'application/json'
+  },
+  body: JSON.stringify({
+    type: 'left_click',
+    x: 100,
+    y: 200
+  })
+});
+```
+
+### Step 3: Type Text
+
+You can also type text into the desktop:
+
+```javascript
+await fetch(`https://api.cyberdesk.io/v1/desktop/${desktopId}/computer-action`, {
+  method: 'POST',
+  headers: {
+    'x-api-key': 'your_api_key_here',
+    'Content-Type': 'application/json'
+  },
+  body: JSON.stringify({
+    type: 'write',
+    text: 'Hello, Cyberdesk!'
+  })
+});
+```
+
+### Step 4: Take a Screenshot
+
+You can capture the current state of the desktop:
+
+```javascript
+const screenshotResponse = await fetch(`https://api.cyberdesk.io/v1/desktop/${desktopId}/computer-action`, {
+  method: 'POST',
+  headers: {
+    'x-api-key': 'your_api_key_here',
+    'Content-Type': 'application/json'
+  },
+  body: JSON.stringify({
+    type: 'screenshot'
+  })
+});
+
+const { status, image } = await screenshotResponse.json();
+console.log('Screenshot captured:', status);
+// The image is returned as base64 data that can be displayed or saved
+```
+
+### Step 5: Execute a Bash Command
+
+Run commands directly on the desktop:
+
+```javascript
+const bashResponse = await fetch(`https://api.cyberdesk.io/v1/desktop/${desktopId}/bash-action`, {
+  method: 'POST',
+  headers: {
+    'x-api-key': 'your_api_key_here',
+    'Content-Type': 'application/json'
+  },
+  body: JSON.stringify({
+    command: 'ls -la'
+  })
+});
+
+const { output } = await bashResponse.json();
+console.log('Command output:', output);
+```
+
+### Step 6: Stop the Desktop
+
+When you're done, stop the desktop instance:
+
+```javascript
+await fetch(`https://api.cyberdesk.io/v1/desktop/${desktopId}/stop`, {
+  method: 'POST',
+  headers: {
+    'x-api-key': 'your_api_key_here'
+  }
+});
+```
+
+## Tutorial 2: Automating Web Testing
+
+This tutorial demonstrates how to use Cyberdesk to automate web testing.
+
+### Step 1: Create a Desktop Instance
+
+Create a desktop instance as shown in Tutorial 1.
+
+### Step 2: Open a Web Browser
+
+Run a bash command to open a web browser:
+
+```javascript
+await fetch(`https://api.cyberdesk.io/v1/desktop/${desktopId}/bash-action`, {
+  method: 'POST',
+  headers: {
+    'x-api-key': 'your_api_key_here',
+    'Content-Type': 'application/json'
+  },
+  body: JSON.stringify({
+    command: 'firefox https://example.com &'
+  })
+});
+
+// Wait for the browser to load
+await fetch(`https://api.cyberdesk.io/v1/desktop/${desktopId}/computer-action`, {
+  method: 'POST',
+  headers: {
+    'x-api-key': 'your_api_key_here',
+    'Content-Type': 'application/json'
+  },
+  body: JSON.stringify({
+    type: 'wait',
+    ms: 5000
+  })
+});
+```
+
+### Step 3: Take a Screenshot for Verification
+
+Capture a screenshot to verify the test results:
+
+```javascript
+const screenshotResponse = await fetch(`https://api.cyberdesk.io/v1/desktop/${desktopId}/computer-action`, {
+  method: 'POST',
+  headers: {
+    'x-api-key': 'your_api_key_here',
+    'Content-Type': 'application/json'
+  },
+  body: JSON.stringify({
+    type: 'screenshot'
+  })
+});
+
+const { image } = await screenshotResponse.json();
+// Save or analyze the screenshot for test verification
+```
+
+## Tutorial 3: Integrating with AI Models for Computer Use
+
+This tutorial demonstrates how to integrate Cyberdesk with AI models like Claude to create agents that can use computers. This is based on our implementation in the chat API.
+
+### Step 1: Set Up Required Dependencies
+
+First, install the necessary dependencies:
+
+```bash
+npm install @ai-sdk/anthropic
+```
+
+### Step 2: Create Utility Functions
+
+Create utility functions to handle computer actions and bash commands. Here's a simplified version based on our implementation:
+
+```javascript
+// computer-use.ts
+export async function getScreenshot(desktopId, apiKey) {
+  const response = await fetch(`https://api.cyberdesk.io/v1/desktop/${desktopId}/computer-action`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': apiKey
+    },
+    body: JSON.stringify({
+      type: 'screenshot'
+    })
+  });
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(`Failed to get screenshot: ${error.message}`);
+  }
+
+  const data = await response.json();
+  return data.image || '';
+}
+
+export async function executeComputerAction(
+  action,
+  desktopId,
+  apiKey,
+  coordinate,
+  text,
+  duration,
+  scroll_amount,
+  scroll_direction,
+  start_coordinate
+) {
+  let requestBody = {};
+
+  // Map the action to the appropriate API request format
+  switch (action) {
+    case 'left_click':
+      requestBody = {
+        type: 'left_click',
+        x: coordinate?.x || 0,
+        y: coordinate?.y || 0
+      };
+      break;
+    case 'type':
+      requestBody = {
+        type: 'write',
+        text: text || ''
+      };
+      break;
+    case 'screenshot':
+      requestBody = {
+        type: 'screenshot'
+      };
+      break;
+    // Add other cases as needed
+  }
+
+  const response = await fetch(`https://api.cyberdesk.io/v1/desktop/${desktopId}/computer-action`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': apiKey
+    },
+    body: JSON.stringify(requestBody)
+  });
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(`Failed to execute computer action: ${error.message}`);
+  }
+
+  const data = await response.json();
+  
+  if (data.image) {
+    return {
+      type: "image",
+      data: data.image
+    };
+  }
+  
+  return "Action completed successfully";
+}
+
+// bash.ts
+export async function executeBashCommand(command, desktopId, apiKey) {
+  const response = await fetch(`https://api.cyberdesk.io/v1/desktop/${desktopId}/bash-action`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': apiKey
+    },
+    body: JSON.stringify({
+      command
+    })
+  });
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(`Failed to execute bash command: ${error.message}`);
+  }
+
+  const data = await response.json();
+  return data.output || '';
+}
+```
+
+### Step 3: Set Up the API Endpoint
+
+Create an API endpoint that will handle the integration between the AI model and Cyberdesk:
+
+```javascript
+// route.ts
+import { anthropic } from '@ai-sdk/anthropic';
+import { streamText } from 'ai';
+import { getScreenshot, executeComputerAction } from './utils/computer-use';
+import { executeBashCommand } from './utils/bash';
+
+export async function POST(req) {
+  // Extract desktopId from headers
+  const desktopId = req.headers.get('X-Desktop-Id');
+  
+  // Get the request body
+  const { messages } = await req.json();
+  
+  // Ensure desktopId is provided
+  if (!desktopId) {
+    return Response.json({ error: "Desktop ID is required" }, { status: 400 });
+  }
+  
+  // Get API key from environment variables
+  const cyberdeskApiKey = process.env.CYBERDESK_API_KEY;
+  
+  // Ensure API key is available
+  if (!cyberdeskApiKey) {
+    return Response.json({ error: "Server configuration error" }, { status: 500 });
+  }
+  
+  const lastMessage = messages[messages.length - 1];
+  const userContent = lastMessage.content;
+  
+  // Define the computer tool for Claude
+  const computerTool = anthropic.tools.computer_20250124({
+    displayWidthPx: 1024,
+    displayHeightPx: 768,
+    execute: async ({ action, coordinate, duration, scroll_amount, scroll_direction, start_coordinate, text }) => {
+      if (action === 'screenshot') {
+        const screenshotData = await getScreenshot(desktopId, cyberdeskApiKey);
+        return {
+          type: "image",
+          data: screenshotData,
+        };
+      } else {
+        // Convert coordinate array to x,y object if needed
+        const coordinateObj = coordinate ? { x: coordinate[0], y: coordinate[1] } : undefined;
+        const startCoordinateObj = start_coordinate ? { x: start_coordinate[0], y: start_coordinate[1] } : undefined;
+        
+        // Make sure scroll_direction is either 'up' or 'down'
+        const validScrollDirection = scroll_direction && ['up', 'down'].includes(scroll_direction) 
+          ? scroll_direction 
+          : undefined;
+        
+        const result = await executeComputerAction(
+          action,
+          desktopId,
+          cyberdeskApiKey,
+          coordinateObj, 
+          text, 
+          duration, 
+          scroll_amount, 
+          validScrollDirection, 
+          startCoordinateObj
+        );
+        
+        if (typeof result === 'string') {
+          return {
+            type: "text",
+            text: result
+          };
+        } else {
+          return {
+            type: "image",
+            data: result.data
+          };
+        }
+      }
+    },
+    experimental_toToolResultContent(result) {
+      return result.type === 'text'
+        ? [{ type: 'text', text: result.text }]
+        : [{ type: 'image', data: result.data, mimeType: 'image/png' }];
+    },
+  });
+
+  // Define the bash tool for Claude
+  const bashTool = anthropic.tools.bash_20250124({
+    execute: async ({ command }) => await executeBashCommand(command, desktopId, cyberdeskApiKey)
+  });
+
+  try {
+    // Stream the response from Claude
+    const response = streamText({
+      model: anthropic("claude-3-7-sonnet-20250219"),
+      prompt: userContent,
+      system: "You are an AI assistant that can control a computer. Help the user accomplish their tasks by using the computer and bash tools.",
+      tools: {
+        computer: computerTool,
+        bash: bashTool
+      },
+      maxSteps: 100
+    });
+
+    return response.toDataStreamResponse();
+  } catch (error) {
+    console.error("Error calling Anthropic:", error);
+    return Response.json({ error: "Failed to process request" }, { status: 500 });
+  }
+}
+```
+
+### Step 4: Create a Frontend Component
+
+Create a frontend component to display the desktop stream and chat interface:
+
+```jsx
+// DesktopChat.jsx
+import { useState, useEffect } from 'react';
+
+export default function DesktopChat({ desktopId, streamUrl }) {
+  const [messages, setMessages] = useState([]);
+  const [input, setInput] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  async function sendMessage(e) {
+    e.preventDefault();
+    if (!input.trim()) return;
+
+    // Add user message to chat
+    const userMessage = { role: 'user', content: input };
+    setMessages(prev => [...prev, userMessage]);
+    setInput('');
+    setLoading(true);
+
+    try {
+      // Send message to API
+      const response = await fetch('/api/chat', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Desktop-Id': desktopId
+        },
+        body: JSON.stringify({
+          messages: [...messages, userMessage]
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to send message');
+      }
+
+      // Process the streaming response
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let assistantMessage = { role: 'assistant', content: '' };
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        const chunk = decoder.decode(value);
+        const lines = chunk.split('\n').filter(line => line.trim() !== '');
+
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            const data = line.slice(6);
+            if (data === '[DONE]') continue;
+
+            try {
+              const parsed = JSON.parse(data);
+              if (parsed.type === 'text') {
+                assistantMessage.content += parsed.text;
+                // Update the last message in real-time
+                setMessages(prev => [
+                  ...prev.slice(0, -1),
+                  { ...assistantMessage }
+                ]);
+              } else if (parsed.type === 'image') {
+                // Handle image content if needed
+                // For simplicity, we're not handling images in this example
+              }
+            } catch (e) {
+              console.error('Error parsing chunk:', e);
+            }
+          }
+        }
+      }
+
+      setLoading(false);
+    } catch (error) {
+      console.error('Error sending message:', error);
+      setMessages(prev => [
+        ...prev,
+        { role: 'assistant', content: 'Sorry, there was an error processing your request.' }
+      ]);
+      setLoading(false);
+    }
+  }
+
+  return (
+    <div className="flex flex-col h-screen">
+      <div className="flex flex-1 overflow-hidden">
+        {/* Desktop Stream */}
+        <div className="w-2/3 h-full bg-gray-900">
+          <iframe
+            src={streamUrl}
+            className="w-full h-full border-none"
+            title="Desktop Stream"
+          />
+        </div>
+        
+        {/* Chat Interface */}
+        <div className="w-1/3 flex flex-col bg-white">
+          <div className="flex-1 overflow-y-auto p-4">
+            {messages.map((message, i) => (
+              <div key={i} className={`mb-4 ${message.role === 'user' ? 'text-right' : 'text-left'}`}>
+                <div className={`inline-block p-2 rounded-lg ${
+                  message.role === 'user' ? 'bg-blue-500 text-white' : 'bg-gray-200 text-gray-800'
+                }`}>
+                  {message.content}
+                </div>
+              </div>
+            ))}
+            {loading && <div className="text-center text-gray-500">AI is thinking...</div>}
+          </div>
+          
+          <form onSubmit={sendMessage} className="border-t p-4">
+            <div className="flex">
+              <input
+                type="text"
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                placeholder="Tell the AI what to do..."
+                className="flex-1 border rounded-l px-3 py-2"
+              />
+              <button 
+                type="submit" 
+                className="bg-blue-500 text-white px-4 py-2 rounded-r"
+                disabled={loading}
+              >
+                Send
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  );
+}
+```
+
+### Step 5: Implement the Main Page
+
+Create a main page that creates a desktop instance and renders the chat component:
+
+```jsx
+// page.jsx
+import { useState, useEffect } from 'react';
+import DesktopChat from '../components/DesktopChat';
+
+export default function ComputerUsePage() {
+  const [desktop, setDesktop] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    async function createDesktop() {
+      try {
+        const response = await fetch('/api/desktop/create', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          }
+        });
+
+        if (!response.ok) {
+          throw new Error('Failed to create desktop');
+        }
+
+        const data = await response.json();
+        setDesktop(data);
+      } catch (err) {
+        console.error('Error creating desktop:', err);
+        setError('Failed to create desktop. Please try again.');
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    createDesktop();
+
+    // Cleanup function to stop the desktop when component unmounts
+    return () => {
+      if (desktop?.id) {
+        fetch(`/api/desktop/${desktop.id}/stop`, {
+          method: 'POST'
+        }).catch(err => {
+          console.error('Error stopping desktop:', err);
+        });
+      }
+    };
+  }, []);
+
+  if (loading) {
+    return <div className="flex h-screen items-center justify-center">Creating desktop environment...</div>;
+  }
+
+  if (error) {
+    return <div className="flex h-screen items-center justify-center text-red-500">{error}</div>;
+  }
+
+  return (
+    <div className="h-screen">
+      {desktop ? (
+        <DesktopChat desktopId={desktop.id} streamUrl={desktop.streamUrl} />
+      ) : (
+        <div className="flex h-screen items-center justify-center">No desktop available</div>
+      )}
+    </div>
+  );
+}
+```
+
+### Step 6: Create the Desktop API Endpoints
+
+Create API endpoints to handle desktop creation and management:
+
+```javascript
+// /api/desktop/create/route.ts
+export async function POST() {
+  const cyberdeskApiKey = process.env.CYBERDESK_API_KEY;
+  
+  if (!cyberdeskApiKey) {
+    return Response.json({ error: "Server configuration error" }, { status: 500 });
+  }
+  
+  try {
+    const response = await fetch('https://api.cyberdesk.io/v1/desktop', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': cyberdeskApiKey
+      },
+      body: JSON.stringify({
+        timeoutMs: 3600000 // 1 hour timeout
+      })
+    });
+    
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(`Failed to create desktop: ${error.message}`);
+    }
+    
+    const data = await response.json();
+    return Response.json(data);
+  } catch (error) {
+    console.error('Error creating desktop:', error);
+    return Response.json({ error: "Failed to create desktop" }, { status: 500 });
+  }
+}
+
+// /api/desktop/[id]/stop/route.ts
+export async function POST(req, { params }) {
+  const { id } = params;
+  const cyberdeskApiKey = process.env.CYBERDESK_API_KEY;
+  
+  if (!cyberdeskApiKey) {
+    return Response.json({ error: "Server configuration error" }, { status: 500 });
+  }
+  
+  try {
+    const response = await fetch(`https://api.cyberdesk.io/v1/desktop/${id}/stop`, {
+      method: 'POST',
+      headers: {
+        'x-api-key': cyberdeskApiKey
+      }
+    });
+    
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(`Failed to stop desktop: ${error.message}`);
+    }
+    
+    return Response.json({ status: 'stopped' });
+  } catch (error) {
+    console.error('Error stopping desktop:', error);
+    return Response.json({ error: "Failed to stop desktop" }, { status: 500 });
+  }
+}
+```
+
+### Step 7: Set Up Environment Variables
+
+Create a `.env` file with the necessary environment variables:
+
+```
+CYBERDESK_API_KEY=your_api_key_here
+```
+
+### Step 8: Test the Integration
+
+1. Start your application
+2. Navigate to the computer use page
+3. Wait for the desktop to be created
+4. Use the chat interface to instruct the AI to perform actions on the desktop
+
+This integration allows an AI model to:
+- See the desktop through screenshots
+- Perform mouse and keyboard actions
+- Execute bash commands
+- Respond to user instructions in natural language
+
+By combining Cyberdesk's programmatic control with AI capabilities, you can create powerful agents that can interact with desktop applications just like a human would.
+
+## Tutorial 4: Building a Responsive Desktop Viewer
+
+This tutorial demonstrates how to create a responsive iframe container for viewing the desktop stream, based on our implementation experience.
+
+### Step 1: Create the Responsive Container Component
+
+```jsx
+// ResponsiveDesktopViewer.jsx
+import { useEffect, useRef, useState } from 'react';
+
+export default function ResponsiveDesktopViewer({ streamUrl }) {
+  const containerRef = useRef(null);
+  const iframeRef = useRef(null);
+  const [scale, setScale] = useState(0.85);
+  const [isMobile, setIsMobile] = useState(false);
+
+  useEffect(() => {
+    // Check if mobile device
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth < 768);
+    };
+    
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    
+    // Set up ResizeObserver to handle container size changes
+    const resizeObserver = new ResizeObserver(entries => {
+      if (!containerRef.current || !iframeRef.current) return;
+      
+      const containerWidth = entries[0].contentRect.width;
+      const containerHeight = entries[0].contentRect.height;
+      
+      // Calculate the scale factor based on container dimensions
+      const widthScale = containerWidth / 1024;
+      const heightScale = containerHeight / 768;
+      
+      // Use the smaller scale to ensure content fits
+      const newScale = Math.min(widthScale, heightScale) * 0.95;
+      setScale(newScale > 0.85 ? 0.85 : newScale);
+    });
+    
+    if (containerRef.current) {
+      resizeObserver.observe(containerRef.current);
+    }
+    
+    return () => {
+      resizeObserver.disconnect();
+      window.removeEventListener('resize', checkMobile);
+    };
+  }, []);
+
+  return (
+    <div 
+      ref={containerRef}
+      className="w-full h-full flex justify-center items-center overflow-auto"
+      style={{ 
+        backgroundColor: '#000',
+        padding: '10px'
+      }}
+    >
+      <div
+        style={{
+          transform: `scale(${scale})`,
+          transformOrigin: isMobile ? 'top center' : 'center center',
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: isMobile ? 'flex-start' : 'center',
+          paddingTop: isMobile ? '20px' : '0'
+        }}
+      >
+        <iframe
+          ref={iframeRef}
+          src={streamUrl}
+          width="1024"
+          height="768"
+          style={{
+            border: 'none',
+            backgroundColor: '#fff'
+          }}
+          title="Desktop Stream"
+        />
+      </div>
+    </div>
+  );
+}
+```
+
+### Step 2: Use the Component in Your Application
+
+```jsx
+import ResponsiveDesktopViewer from '../components/ResponsiveDesktopViewer';
+
+export default function DesktopPage({ desktopId, streamUrl }) {
+  return (
+    <div className="h-screen flex flex-col">
+      <header className="bg-gray-800 text-white p-4">
+        <h1>Desktop Viewer</h1>
+        <p>Desktop ID: {desktopId}</p>
+      </header>
+      
+      <main className="flex-1">
+        <ResponsiveDesktopViewer streamUrl={streamUrl} />
+      </main>
+      
+      <footer className="bg-gray-800 text-white p-2 text-center">
+        <p>Powered by Cyberdesk</p>
+      </footer>
+    </div>
+  );
+}
+```
+
+This responsive viewer ensures that the desktop stream is properly displayed on all device sizes, with appropriate scaling and positioning to maximize the visible area while ensuring the content fits within the container.

@@ -1,0 +1,1 @@
+ALTER TABLE "desktop_instances" ALTER COLUMN "stream_url" SET DEFAULT 'https://placeholder-stream-url.cyberdesk.dev';
