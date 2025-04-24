@@ -55,6 +55,7 @@ These instructions explain how to run the gateway service locally on your machin
         ```bash
         docker run --rm -it \
           -v ~/.kube:/root/.kube:ro \
+          --env-file ./.env \
           -p 3001:80 \
           cyberdesk/gateway:local
         ```

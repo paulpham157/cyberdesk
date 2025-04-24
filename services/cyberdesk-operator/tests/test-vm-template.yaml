@@ -3,6 +3,10 @@ kind: VirtualMachine
 metadata:
   name: ${vm_name}
   namespace: kubevirt
+  labels:
+    app: cyberdesk
+    cyberdesk-instance: ${cyberdesk_name}
+    managed-by: ${managed_by}
 spec:
   runStrategy: Always
   dataVolumeTemplates:
@@ -26,22 +30,22 @@ spec:
         managed-by: ${managed_by}
         kubevirt.io/domain: ${vm_name}
     spec:
+      hostname: ${vm_name}
+      subdomain: kubevirt-vm-headless
       domain:
         cpu:
           cores: 1
         devices:
           disks:
-            # the root disk populated directly by CDI
             - name: rootdisk
               disk:
                 bus: virtio
-            # your cloud-init ISO
             - name: cloudinitdisk
               disk:
                 bus: virtio
           interfaces:
             - name: default
-              masquerade: {}
+              masquerade: {} # TODO: Add specific ports
         resources:
           requests:
             memory: 2Gi

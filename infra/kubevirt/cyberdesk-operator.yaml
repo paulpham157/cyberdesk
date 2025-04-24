@@ -159,6 +159,8 @@ data:
             managed-by: ${managed_by}
             kubevirt.io/domain: ${vm_name}
         spec:
+          hostname: ${vm_name}
+          subdomain: kubevirt-vm-headless
           domain:
             cpu:
               cores: 1
