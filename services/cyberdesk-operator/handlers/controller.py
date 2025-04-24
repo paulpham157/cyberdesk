@@ -108,7 +108,7 @@ VMI_PHASE_TO_SUPABASE_STATUS: Dict[KubeVirtVMIPhase, SupabaseInstanceStatus] = {
     KubeVirtVMIPhase.PENDING: SupabaseInstanceStatus.PENDING,
     KubeVirtVMIPhase.SCHEDULING: SupabaseInstanceStatus.PENDING,
     KubeVirtVMIPhase.SCHEDULED: SupabaseInstanceStatus.PENDING,
-    KubeVirtVMIPhase.RUNNING: SupabaseInstanceStatus.RUNNING,
+    KubeVirtVMIPhase.RUNNING: SupabaseInstanceStatus.PENDING, # We now only denote running after cloud init is done
     KubeVirtVMIPhase.SUCCEEDED: SupabaseInstanceStatus.COMPLETED,
     KubeVirtVMIPhase.FAILED: SupabaseInstanceStatus.ERROR,
     KubeVirtVMIPhase.UNKNOWN: SupabaseInstanceStatus.ERROR,
