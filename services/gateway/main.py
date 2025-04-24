@@ -132,6 +132,37 @@ class CommandRequest(BaseModel):
     """Payload for POST /cyberdesk/{vm_id}/execute-command"""
     command: str
 
+# --- Response Models ---
+
+class CyberdeskCreateResponse(BaseModel):
+    """Response for POST /cyberdesk/{vm_id}"""
+    id: str
+
+class StatusMessageResponse(BaseModel):
+    """Generic response model for status and message."""
+    status: str
+    message: str
+
+class CyberdeskReadyResponse(StatusMessageResponse):
+    """Response for POST /cyberdesk/{vm_id}/ready"""
+    stream_url: str
+
+class CommandExecuteResponse(BaseModel):
+    """Response for POST /cyberdesk/{vm_id}/execute-command"""
+    status: str
+    vm_status_code: int
+    vm_response: str # Or consider Union[str, dict, list] if VM response can vary
+
+class HealthCheckResponse(BaseModel):
+    """Response for GET /healthz"""
+    status: str
+
+class VmHealthCheckResponse(BaseModel):
+    """Response for GET /vm/healthcheck/{vmid}"""
+    status: str
+    vm_status_code: int
+    vm_response: str # Or consider Union[str, dict, list]
+
 
 # --------------------------------------------------------------------------- #
 # FastAPI application
@@ -378,7 +409,11 @@ async def update_supabase_instance(vm_id: str, stream_url: str):
         LOG.exception(f"Error updating Supabase for instance {vm_id}: {e}")
         return False
 
-@app.post("/cyberdesk/{vm_id}", status_code=status.HTTP_201_CREATED)
+@app.post(
+    "/cyberdesk/{vm_id}",
+    status_code=status.HTTP_201_CREATED,
+    response_model=CyberdeskCreateResponse
+)
 async def create_cyberdesk(vm_id: str, payload: CyberdeskCreateRequest):
     """Create a Cyberdesk CR in the cluster."""
     api = require_k8s()
@@ -407,7 +442,11 @@ async def create_cyberdesk(vm_id: str, payload: CyberdeskCreateRequest):
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=exc.reason) from exc
 
 
-@app.post("/cyberdesk/{vm_id}/stop", status_code=status.HTTP_200_OK)
+@app.post(
+    "/cyberdesk/{vm_id}/stop",
+    status_code=status.HTTP_200_OK,
+    response_model=StatusMessageResponse
+)
 async def stop_cyberdesk(vm_id: str):
     """Delete a Cyberdesk CR from the cluster."""
     api = require_k8s()
@@ -422,7 +461,8 @@ async def stop_cyberdesk(vm_id: str):
             name=vm_id,
             body=client.V1DeleteOptions(),
         )
-        return JSONResponse({"status": "success", "message": f"Deletion of '{vm_id}' initiated."})
+        # Return a dictionary matching the response model
+        return {"status": "success", "message": f"Deletion of '{vm_id}' initiated."}
     except ApiException as exc:
         LOG.error("Kubernetes API error: %s", exc, exc_info=False)
         if exc.status == 404:
@@ -430,7 +470,11 @@ async def stop_cyberdesk(vm_id: str):
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=exc.reason) from exc
 
 # --- NEW Endpoint ---
-@app.post("/cyberdesk/{vm_id}/ready", status_code=status.HTTP_200_OK)
+@app.post(
+    "/cyberdesk/{vm_id}/ready",
+    status_code=status.HTTP_200_OK,
+    response_model=CyberdeskReadyResponse
+)
 async def cyberdesk_ready(vm_id: str):
     """
     Signal that a VM is ready. Fetches gateway external IP and updates Supabase.
@@ -457,6 +501,7 @@ async def cyberdesk_ready(vm_id: str):
 
     if success:
         LOG.info(f"Successfully processed ready signal for {vm_id}")
+        # Return a dictionary matching the response model
         return {"status": "success", "message": f"Instance {vm_id} marked as running.", "stream_url": stream_url}
     else:
         LOG.error(f"Failed to update Supabase for {vm_id} after getting IP.")
@@ -466,18 +511,79 @@ async def cyberdesk_ready(vm_id: str):
             detail=f"Failed to update instance status in database for {vm_id}."
         )
 
+@app.post(
+    "/cyberdesk/{vm_id}/execute-command",
+    response_model=CommandExecuteResponse
+)
+async def execute_vm_command(vm_id: str, payload: CommandRequest):
+    """
+    Sends a command string to the execute-command endpoint of the specified VM.
+    Proxies the request to the internal VM service.
+    """
+    # Resolve VM FQDN and Port (assuming same as health check logic)
+    vm_namespace = "kubevirt"
+    vm_service_name = "kubevirt-vm-headless"
+    target_fqdn = f"{vm_id}.{vm_service_name}.{vm_namespace}.svc.cluster.local"
+    target_port = 8000 # Assuming command endpoint runs on port 8000
+    # --- IMPORTANT: Verify this path with the actual VM service implementation --- #
+    command_endpoint_path = "/execute-command"
+    command_endpoint_url = f"http://{target_fqdn}:{target_port}{command_endpoint_path}"
+
+    command_to_execute = payload.command
+    LOG.info(f"Attempting command execution for VM {vm_id} at {command_endpoint_url}: '{command_to_execute[:80]}...'" ) # Log truncated command
+
+    async with httpx.AsyncClient(timeout=30.0) as client: # Longer timeout for potential command execution
+        try:
+            response = await client.post(
+                command_endpoint_url,
+                json={"cmd": command_to_execute}, # Send JSON payload
+                headers={"Content-Type": "application/json"} # Set correct header
+            )
+
+            # Raise exception for 4xx/5xx responses from the VM's endpoint
+            response.raise_for_status()
+
+            # If successful, return the VM's response
+            vm_response_text = response.text
+            LOG.info(f"Command execution for {vm_id} successful: {response.status_code}, Response: {vm_response_text[:100]}...") # Log truncated response
+            # Return a dictionary matching the response model
+            return {
+                "status": "success",
+                "vm_status_code": response.status_code,
+                "vm_response": vm_response_text
+             }
+
+        except httpx.TimeoutException:
+            LOG.error(f"Command execution for {vm_id} timed out at {command_endpoint_url}")
+            raise HTTPException(status_code=504, detail=f"Command execution timed out for VM {vm_id}")
+        except httpx.ConnectError as e:
+            LOG.error(f"Command execution connection error for {vm_id} at {command_endpoint_url}: {e}")
+            raise HTTPException(status_code=503, detail=f"Could not connect to VM {vm_id} for command execution: {e}")
+        except httpx.HTTPStatusError as e:
+            # VM's command endpoint returned a non-2xx status
+            vm_error_response = e.response.text
+            LOG.error(f"VM {vm_id} command execution failed: {e.response.status_code}, Body: {vm_error_response[:100]}...")
+            raise HTTPException(
+                status_code=502, # Bad Gateway - indicates upstream failure
+                detail=f"VM {vm_id} command execution failed with status {e.response.status_code}. VM Response: {vm_error_response}",
+                headers={"X-VM-Status-Code": str(e.response.status_code)}
+            )
+        except Exception as e:
+            LOG.exception(f"Unexpected error during command execution for {vm_id}: {e}")
+            raise HTTPException(status_code=500, detail=f"An unexpected error occurred during command execution for VM {vm_id}")
+
 
 # --------------------------------------------------------------------------- #
 # Liveness / readiness
 # --------------------------------------------------------------------------- #
 
 
-@app.get("/healthz")
+@app.get("/healthz", response_model=HealthCheckResponse)
 async def health_check():
     """Kubernetes livenessProbe target."""
     return {"status": "ok"}
 
-@app.get("/vm/healthcheck/{vmid}")
+@app.get("/vm/healthcheck/{vmid}", response_model=VmHealthCheckResponse)
 async def vm_health_check(vmid: str):
     """
     Performs a health check on the specified VM instance.
@@ -514,14 +620,12 @@ async def vm_health_check(vmid: str):
             # Let's return a JSON indicating success + the VM's response text
             vm_response_text = response.text
             print(f"Health check for {vmid} successful: {response.status_code}, Body: {vm_response_text}") # Add logging
-            return JSONResponse(
-                status_code=200,
-                content={
-                    "status": "ok",
-                    "vm_status_code": response.status_code,
-                    "vm_response": vm_response_text
-                 }
-            )
+            # Return a dictionary matching the response model
+            return {
+                "status": "ok",
+                "vm_status_code": response.status_code,
+                "vm_response": vm_response_text
+            }
 
         except httpx.TimeoutException:
             print(f"Health check for {vmid} timed out") # Add logging
@@ -542,64 +646,4 @@ async def vm_health_check(vmid: str):
             # Catch any other unexpected errors
             print(f"Unexpected error during health check for {vmid}: {e}") # Add logging
             raise HTTPException(status_code=500, detail=f"An unexpected error occurred during health check for VM {vmid}")
-
-@app.post("/cyberdesk/{vm_id}/execute-command")
-async def execute_vm_command(vm_id: str, payload: CommandRequest):
-    """
-    Sends a command string to the execute-command endpoint of the specified VM.
-    Proxies the request to the internal VM service.
-    """
-    # Resolve VM FQDN and Port (assuming same as health check logic)
-    vm_namespace = "kubevirt"
-    vm_service_name = "kubevirt-vm-headless"
-    target_fqdn = f"{vm_id}.{vm_service_name}.{vm_namespace}.svc.cluster.local"
-    target_port = 8000 # Assuming command endpoint runs on port 8000
-    # --- IMPORTANT: Verify this path with the actual VM service implementation --- #
-    command_endpoint_path = "/execute-command"
-    command_endpoint_url = f"http://{target_fqdn}:{target_port}{command_endpoint_path}"
-
-    command_to_execute = payload.command
-    LOG.info(f"Attempting command execution for VM {vm_id} at {command_endpoint_url}: '{command_to_execute[:80]}...'" ) # Log truncated command
-
-    async with httpx.AsyncClient(timeout=30.0) as client: # Longer timeout for potential command execution
-        try:
-            response = await client.post(
-                command_endpoint_url,
-                json={"cmd": command_to_execute}, # Send JSON payload
-                headers={"Content-Type": "application/json"} # Set correct header
-            )
-
-            # Raise exception for 4xx/5xx responses from the VM's endpoint
-            response.raise_for_status()
-
-            # If successful, return the VM's response
-            vm_response_text = response.text
-            LOG.info(f"Command execution for {vm_id} successful: {response.status_code}, Response: {vm_response_text[:100]}...") # Log truncated response
-            return JSONResponse(
-                status_code=200,
-                content={
-                    "status": "success",
-                    "vm_status_code": response.status_code,
-                    "vm_response": vm_response_text
-                 }
-            )
-
-        except httpx.TimeoutException:
-            LOG.error(f"Command execution for {vm_id} timed out at {command_endpoint_url}")
-            raise HTTPException(status_code=504, detail=f"Command execution timed out for VM {vm_id}")
-        except httpx.ConnectError as e:
-            LOG.error(f"Command execution connection error for {vm_id} at {command_endpoint_url}: {e}")
-            raise HTTPException(status_code=503, detail=f"Could not connect to VM {vm_id} for command execution: {e}")
-        except httpx.HTTPStatusError as e:
-            # VM's command endpoint returned a non-2xx status
-            vm_error_response = e.response.text
-            LOG.error(f"VM {vm_id} command execution failed: {e.response.status_code}, Body: {vm_error_response[:100]}...")
-            raise HTTPException(
-                status_code=502, # Bad Gateway - indicates upstream failure
-                detail=f"VM {vm_id} command execution failed with status {e.response.status_code}. VM Response: {vm_error_response}",
-                headers={"X-VM-Status-Code": str(e.response.status_code)}
-            )
-        except Exception as e:
-            LOG.exception(f"Unexpected error during command execution for {vm_id}: {e}")
-            raise HTTPException(status_code=500, detail=f"An unexpected error occurred during command execution for VM {vm_id}")
 
