@@ -5,6 +5,12 @@
         "version": "1.0.0",
         "description": "API for Cyberdesk, to create, control, and manage virtual desktop instances."
     },
+    "servers": [
+        {
+            "url": "https://api.cyberdesk.io",
+            "description": "Production server"
+        }
+    ],
     "components": {
         "securitySchemes": {
             "apiKeyAuth": {
@@ -17,6 +23,241 @@
         "parameters": {}
     },
     "paths": {
+        "/v1/desktop/:id": {
+            "get": {
+                "tags": [
+                    "Desktop"
+                ],
+                "summary": "Get details of a specific desktop instance",
+                "description": "Returns the ID, status, creation timestamp, and timeout timestamp for a given desktop instance.",
+                "parameters": [
+                    {
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid",
+                            "description": "The UUID of the desktop instance to retrieve",
+                            "example": "a1b2c3d4-e5f6-7890-1234-567890abcdef"
+                        },
+                        "required": true,
+                        "name": "id",
+                        "in": "path"
+                    },
+                    {
+                        "schema": {
+                            "type": "string",
+                            "description": "API key for authentication",
+                            "example": "api_12345"
+                        },
+                        "required": true,
+                        "name": "x-api-key",
+                        "in": "header"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Desktop instance details retrieved successfully",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "id": {
+                                            "type": "string",
+                                            "format": "uuid",
+                                            "description": "Unique identifier for the desktop instance",
+                                            "example": "a1b2c3d4-e5f6-7890-1234-567890abcdef"
+                                        },
+                                        "status": {
+                                            "type": "string",
+                                            "enum": [
+                                                "pending",
+                                                "running",
+                                                "terminated",
+                                                "error"
+                                            ],
+                                            "description": "Current status of the desktop instance",
+                                            "example": "running"
+                                        },
+                                        "createdAt": {
+                                            "type": "string",
+                                            "format": "date-time",
+                                            "description": "Timestamp when the instance was created",
+                                            "example": "2023-10-27T10:00:00Z"
+                                        },
+                                        "timeoutAt": {
+                                            "type": "string",
+                                            "format": "date-time",
+                                            "description": "Timestamp when the instance will automatically time out",
+                                            "example": "2023-10-28T10:00:00Z"
+                                        }
+                                    },
+                                    "required": [
+                                        "id",
+                                        "status",
+                                        "createdAt",
+                                        "timeoutAt"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "The server cannot or will not process the request due to something that is perceived to be a client error (e.g., malformed request syntax, invalid request message framing, or deceptive request routing).",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "message": {
+                                            "type": "string"
+                                        },
+                                        "docs": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": [
+                                        "message",
+                                        "docs"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Although the HTTP standard specifies \"unauthorized\", semantically this response means \"unauthenticated\". That is, the client must authenticate itself to get the requested response.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "message": {
+                                            "type": "string"
+                                        },
+                                        "docs": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": [
+                                        "message",
+                                        "docs"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "The client does not have access rights to the content; that is, it is unauthorized, so the server is refusing to give the requested resource. Unlike 401 Unauthorized, the client's identity is known to the server.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "message": {
+                                            "type": "string"
+                                        },
+                                        "docs": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": [
+                                        "message",
+                                        "docs"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "The server cannot find the requested resource. In the browser, this means the URL is not recognized. In an API, this can also mean that the endpoint is valid but the resource itself does not exist. Servers may also send this response instead of 403 Forbidden to hide the existence of a resource from an unauthorized client. This response code is probably the most well known due to its frequent occurrence on the web.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "message": {
+                                            "type": "string"
+                                        },
+                                        "docs": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": [
+                                        "message",
+                                        "docs"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "409": {
+                        "description": "This response is sent when a request conflicts with the current state of the server.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "message": {
+                                            "type": "string"
+                                        },
+                                        "docs": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": [
+                                        "message",
+                                        "docs"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "429": {
+                        "description": "The user has sent too many requests in a given amount of time (\"rate limiting\")",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "message": {
+                                            "type": "string"
+                                        },
+                                        "docs": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": [
+                                        "message",
+                                        "docs"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "The server has encountered a situation it does not know how to handle.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "message": {
+                                            "type": "string"
+                                        },
+                                        "docs": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": [
+                                        "message",
+                                        "docs"
+                                    ]
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/v1/desktop": {
             "post": {
                 "tags": [
@@ -282,6 +523,26 @@
                                             "type": "string",
                                             "description": "Base64 encoded image data (only returned for screenshot actions)",
                                             "example": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAA..."
+                                        },
+                                        "cursorPosition": {
+                                            "type": "object",
+                                            "properties": {
+                                                "x": {
+                                                    "type": "integer",
+                                                    "description": "X coordinate on the screen",
+                                                    "example": 500
+                                                },
+                                                "y": {
+                                                    "type": "integer",
+                                                    "description": "Y coordinate on the screen",
+                                                    "example": 300
+                                                }
+                                            },
+                                            "description": "Current cursor coordinates (only returned for get_cursor_position action)",
+                                            "example": {
+                                                "x": 500,
+                                                "y": 300
+                                            }
                                         }
                                     },
                                     "required": [
@@ -488,99 +749,52 @@
                                             "type": {
                                                 "type": "string",
                                                 "enum": [
-                                                    "double_click"
+                                                    "click_mouse"
                                                 ],
-                                                "description": "Double-click at the current mouse position",
-                                                "example": "double_click"
+                                                "description": "Perform a mouse action: click, press (down), or release (up). Defaults to a single left click at the current position.",
+                                                "example": "click_mouse"
+                                            },
+                                            "x": {
+                                                "type": "integer",
+                                                "description": "X coordinate for the action (optional, uses current position if omitted)",
+                                                "example": 500
+                                            },
+                                            "y": {
+                                                "type": "integer",
+                                                "description": "Y coordinate for the action (optional, uses current position if omitted)",
+                                                "example": 300
+                                            },
+                                            "button": {
+                                                "type": "string",
+                                                "enum": [
+                                                    "left",
+                                                    "right",
+                                                    "middle"
+                                                ],
+                                                "description": "Mouse button to use (optional, defaults to 'left')",
+                                                "example": "left"
+                                            },
+                                            "num_of_clicks": {
+                                                "type": "integer",
+                                                "minimum": 0,
+                                                "description": "Number of clicks to perform (optional, defaults to 1, only applicable for 'click' type)",
+                                                "example": 1
+                                            },
+                                            "click_type": {
+                                                "type": "string",
+                                                "enum": [
+                                                    "click",
+                                                    "down",
+                                                    "up"
+                                                ],
+                                                "description": "Type of mouse action (optional, defaults to 'click')",
+                                                "example": "click"
                                             }
                                         },
                                         "required": [
                                             "type"
-                                        ]
-                                    },
-                                    {
-                                        "type": "object",
-                                        "properties": {
-                                            "type": {
-                                                "type": "string",
-                                                "enum": [
-                                                    "left_click"
-                                                ],
-                                                "description": "Perform a left mouse click at the specified coordinates",
-                                                "example": "left_click"
-                                            },
-                                            "x": {
-                                                "type": "integer",
-                                                "description": "X coordinate for the click",
-                                                "example": 500
-                                            },
-                                            "y": {
-                                                "type": "integer",
-                                                "description": "Y coordinate for the click",
-                                                "example": 300
-                                            }
-                                        },
-                                        "required": [
-                                            "type",
-                                            "x",
-                                            "y"
-                                        ]
-                                    },
-                                    {
-                                        "type": "object",
-                                        "properties": {
-                                            "type": {
-                                                "type": "string",
-                                                "enum": [
-                                                    "right_click"
-                                                ],
-                                                "description": "Perform a right mouse click at the specified coordinates",
-                                                "example": "right_click"
-                                            },
-                                            "x": {
-                                                "type": "integer",
-                                                "description": "X coordinate for the click",
-                                                "example": 500
-                                            },
-                                            "y": {
-                                                "type": "integer",
-                                                "description": "Y coordinate for the click",
-                                                "example": 300
-                                            }
-                                        },
-                                        "required": [
-                                            "type",
-                                            "x",
-                                            "y"
-                                        ]
-                                    },
-                                    {
-                                        "type": "object",
-                                        "properties": {
-                                            "type": {
-                                                "type": "string",
-                                                "enum": [
-                                                    "middle_click"
-                                                ],
-                                                "description": "Perform a middle mouse click at the specified coordinates",
-                                                "example": "middle_click"
-                                            },
-                                            "x": {
-                                                "type": "integer",
-                                                "description": "X coordinate for the click",
-                                                "example": 500
-                                            },
-                                            "y": {
-                                                "type": "integer",
-                                                "description": "Y coordinate for the click",
-                                                "example": 300
-                                            }
-                                        },
-                                        "required": [
-                                            "type",
-                                            "x",
-                                            "y"
-                                        ]
+                                        ],
+                                        "title": "Click Mouse Action"
                                     },
                                     {
                                         "type": "object",
@@ -597,7 +811,9 @@
                                                 "type": "string",
                                                 "enum": [
                                                     "up",
-                                                    "down"
+                                                    "down",
+                                                    "left",
+                                                    "right"
                                                 ],
                                                 "description": "Direction to scroll",
                                                 "example": "down"
@@ -612,7 +828,8 @@
                                             "type",
                                             "direction",
                                             "amount"
-                                        ]
+                                        ],
+                                        "title": "Scroll Action"
                                     },
                                     {
                                         "type": "object",
@@ -640,7 +857,8 @@
                                             "type",
                                             "x",
                                             "y"
-                                        ]
+                                        ],
+                                        "title": "Move Mouse Action"
                                     },
                                     {
                                         "type": "object",
@@ -648,10 +866,10 @@
                                             "type": {
                                                 "type": "string",
                                                 "enum": [
-                                                    "drag"
+                                                    "drag_mouse"
                                                 ],
                                                 "description": "Drag the mouse from start to end coordinates",
-                                                "example": "drag"
+                                                "example": "drag_mouse"
                                             },
                                             "start": {
                                                 "type": "object",
@@ -706,7 +924,8 @@
                                             "type",
                                             "start",
                                             "end"
-                                        ]
+                                        ],
+                                        "title": "Drag Mouse Action"
                                     },
                                     {
                                         "type": "object",
@@ -714,64 +933,10 @@
                                             "type": {
                                                 "type": "string",
                                                 "enum": [
-                                                    "mouse_press"
-                                                ],
-                                                "description": "Press and hold a mouse button",
-                                                "example": "mouse_press"
-                                            },
-                                            "button": {
-                                                "type": "string",
-                                                "enum": [
-                                                    "left",
-                                                    "right",
-                                                    "middle"
-                                                ],
-                                                "description": "Mouse button to press",
-                                                "example": "left"
-                                            }
-                                        },
-                                        "required": [
-                                            "type",
-                                            "button"
-                                        ]
-                                    },
-                                    {
-                                        "type": "object",
-                                        "properties": {
-                                            "type": {
-                                                "type": "string",
-                                                "enum": [
-                                                    "mouse_release"
-                                                ],
-                                                "description": "Release a previously pressed mouse button",
-                                                "example": "mouse_release"
-                                            },
-                                            "button": {
-                                                "type": "string",
-                                                "enum": [
-                                                    "left",
-                                                    "right",
-                                                    "middle"
-                                                ],
-                                                "description": "Mouse button to release",
-                                                "example": "left"
-                                            }
-                                        },
-                                        "required": [
-                                            "type",
-                                            "button"
-                                        ]
-                                    },
-                                    {
-                                        "type": "object",
-                                        "properties": {
-                                            "type": {
-                                                "type": "string",
-                                                "enum": [
-                                                    "write"
+                                                    "type"
                                                 ],
                                                 "description": "Type text at the current cursor position",
-                                                "example": "write"
+                                                "example": "type"
                                             },
                                             "text": {
                                                 "type": "string",
@@ -782,7 +947,8 @@
                                         "required": [
                                             "type",
                                             "text"
-                                        ]
+                                        ],
+                                        "title": "Type Text Action"
                                     },
                                     {
                                         "type": "object",
@@ -790,10 +956,10 @@
                                             "type": {
                                                 "type": "string",
                                                 "enum": [
-                                                    "press"
+                                                    "press_keys"
                                                 ],
-                                                "description": "Press one or more keyboard keys",
-                                                "example": "press"
+                                                "description": "Press, hold down, or release one or more keyboard keys. Defaults to a single press and release.",
+                                                "example": "press_keys"
                                             },
                                             "keys": {
                                                 "anyOf": [
@@ -814,12 +980,23 @@
                                                         ]
                                                     }
                                                 ]
+                                            },
+                                            "key_action_type": {
+                                                "type": "string",
+                                                "enum": [
+                                                    "press",
+                                                    "down",
+                                                    "up"
+                                                ],
+                                                "description": "Type of key action (optional, defaults to 'press' which is a down and up action)",
+                                                "example": "press"
                                             }
                                         },
                                         "required": [
                                             "type",
                                             "keys"
-                                        ]
+                                        ],
+                                        "title": "Press Keys Action"
                                     },
                                     {
                                         "type": "object",
@@ -841,7 +1018,8 @@
                                         "required": [
                                             "type",
                                             "ms"
-                                        ]
+                                        ],
+                                        "title": "Wait Action"
                                     },
                                     {
                                         "type": "object",
@@ -857,7 +1035,25 @@
                                         },
                                         "required": [
                                             "type"
-                                        ]
+                                        ],
+                                        "title": "Screenshot Action"
+                                    },
+                                    {
+                                        "type": "object",
+                                        "properties": {
+                                            "type": {
+                                                "type": "string",
+                                                "enum": [
+                                                    "get_cursor_position"
+                                                ],
+                                                "description": "Get the current mouse cursor position",
+                                                "example": "get_cursor_position"
+                                            }
+                                        },
+                                        "required": [
+                                            "type"
+                                        ],
+                                        "title": "Get Cursor Position Action"
                                     }
                                 ]
                             }
@@ -881,6 +1077,26 @@
                                             "type": "string",
                                             "description": "Base64 encoded image data (only returned for screenshot actions)",
                                             "example": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAA..."
+                                        },
+                                        "cursorPosition": {
+                                            "type": "object",
+                                            "properties": {
+                                                "x": {
+                                                    "type": "integer",
+                                                    "description": "X coordinate on the screen",
+                                                    "example": 500
+                                                },
+                                                "y": {
+                                                    "type": "integer",
+                                                    "description": "Y coordinate on the screen",
+                                                    "example": 300
+                                                }
+                                            },
+                                            "description": "Current cursor coordinates (only returned for get_cursor_position action)",
+                                            "example": {
+                                                "x": 500,
+                                                "y": 300
+                                            }
                                         }
                                     },
                                     "required": [

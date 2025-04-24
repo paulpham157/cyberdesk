@@ -95,7 +95,7 @@ export const ComputerActionSchema = z.discriminatedUnion("type", [
       description: "Mouse button to use (optional, defaults to 'left')",
       example: "left",
     }),
-    num_of_clicks: z.number().int().positive().optional().openapi({
+    num_of_clicks: z.number().int().min(0).optional().openapi({
       description: "Number of clicks to perform (optional, defaults to 1, only applicable for 'click' type)",
       example: 1,
     }),
@@ -103,7 +103,7 @@ export const ComputerActionSchema = z.discriminatedUnion("type", [
       description: "Type of mouse action (optional, defaults to 'click')",
       example: "click",
     }),
-  }),
+  }).openapi({ title: "Click Mouse Action" }),
   z.object({
     type: z.literal("scroll").openapi({
       description: "Scroll the mouse wheel in the specified direction",
@@ -117,7 +117,7 @@ export const ComputerActionSchema = z.discriminatedUnion("type", [
       description: "Amount to scroll in pixels",
       example: 100,
     }),
-  }),
+  }).openapi({ title: "Scroll Action" }),
   z.object({
     type: z.literal("move_mouse").openapi({
       description: "Move the mouse cursor to the specified coordinates",
@@ -131,7 +131,7 @@ export const ComputerActionSchema = z.discriminatedUnion("type", [
       description: "Y coordinate to move to",
       example: 300,
     }),
-  }),
+  }).openapi({ title: "Move Mouse Action" }),
   z.object({
     type: z.literal("drag_mouse").openapi({
       description: "Drag the mouse from start to end coordinates",
@@ -145,7 +145,7 @@ export const ComputerActionSchema = z.discriminatedUnion("type", [
       description: "Ending coordinates for the drag operation",
       example: { x: 300, y: 300 },
     }),
-  }),
+  }).openapi({ title: "Drag Mouse Action" }),
   z.object({
     type: z.literal("type").openapi({
       description: "Type text at the current cursor position",
@@ -155,7 +155,7 @@ export const ComputerActionSchema = z.discriminatedUnion("type", [
       description: "Text to type",
       example: "Hello, World!",
     }),
-  }),
+  }).openapi({ title: "Type Text Action" }),
   z.object({
     type: z.literal("press_keys").openapi({
       description: "Press, hold down, or release one or more keyboard keys. Defaults to a single press and release.",
@@ -165,7 +165,7 @@ export const ComputerActionSchema = z.discriminatedUnion("type", [
       z.string().openapi({
         description: "Single key to press",
         example: "Enter",
-      }), 
+      }),
       z.array(z.string()).openapi({
         description: "Multiple keys to press simultaneously",
         example: ["Control", "c"],
@@ -175,7 +175,7 @@ export const ComputerActionSchema = z.discriminatedUnion("type", [
         description: "Type of key action (optional, defaults to 'press' which is a down and up action)",
         example: "press",
       }),
-  }),
+  }).openapi({ title: "Press Keys Action" }),
   z.object({
     type: z.literal("wait").openapi({
       description: "Wait for the specified number of milliseconds",
@@ -185,19 +185,19 @@ export const ComputerActionSchema = z.discriminatedUnion("type", [
       description: "Time to wait in milliseconds",
       example: 1000,
     }),
-  }),
+  }).openapi({ title: "Wait Action" }),
   z.object({
     type: z.literal("screenshot").openapi({
       description: "Take a screenshot of the desktop",
       example: "screenshot",
     }),
-  }),
+  }).openapi({ title: "Screenshot Action" }),
   z.object({
     type: z.literal("get_cursor_position").openapi({
       description: "Get the current mouse cursor position",
       example: "get_cursor_position",
     }),
-  }),
+  }).openapi({ title: "Get Cursor Position Action" }),
 ]);
 
 // Create Desktop Route

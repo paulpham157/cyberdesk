@@ -1,5 +1,5 @@
 import { newApp } from "./lib/hono.js";
-import { desktop } from "./routes/desktop.js";
+import desktop from "./routes/desktop.js";
 import { serve } from "@hono/node-server";
 import * as dotenv from 'dotenv'
 

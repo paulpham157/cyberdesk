@@ -80,6 +80,12 @@ export function newApp() {
       version: "1.0.0",
       description: "API for Cyberdesk, to create, control, and manage virtual desktop instances.",
     },
+    servers: [
+      {
+        url: "https://api.cyberdesk.io",
+        description: "Production server"
+      }
+    ],
   });
 
   app.openAPIRegistry.registerComponent("securitySchemes", "apiKeyAuth", {

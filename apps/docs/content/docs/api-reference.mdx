@@ -11,6 +11,341 @@ import { Root, API, APIInfo, APIExample, Responses, Response, ResponseTypes, Exa
 
 <API>
 
+<APIInfo method={"GET"} route={"/v1/desktop/:id"}>
+
+## Get details of a specific desktop instance
+
+Returns the ID, status, creation timestamp, and timeout timestamp for a given desktop instance.
+
+### Path Parameters
+
+<Property name={"id"} type={"string"} required={true} deprecated={false}>
+
+The UUID of the desktop instance to retrieve
+
+<span>Example: `"a1b2c3d4-e5f6-7890-1234-567890abcdef"`</span>
+
+<span>Format: `"uuid"`</span>
+
+</Property>
+
+### Header Parameters
+
+<Property name={"x-api-key"} type={"string"} required={true} deprecated={false}>
+
+API key for authentication
+
+<span>Example: `"api_12345"`</span>
+
+</Property>
+
+| Status code | Description |
+| ----------- | ----------- |
+| `200` | Desktop instance details retrieved successfully |
+| `400` | The server cannot or will not process the request due to something that is perceived to be a client error (e.g., malformed request syntax, invalid request message framing, or deceptive request routing). |
+| `401` | Although the HTTP standard specifies "unauthorized", semantically this response means "unauthenticated". That is, the client must authenticate itself to get the requested response. |
+| `403` | The client does not have access rights to the content; that is, it is unauthorized, so the server is refusing to give the requested resource. Unlike 401 Unauthorized, the client's identity is known to the server. |
+| `404` | The server cannot find the requested resource. In the browser, this means the URL is not recognized. In an API, this can also mean that the endpoint is valid but the resource itself does not exist. Servers may also send this response instead of 403 Forbidden to hide the existence of a resource from an unauthorized client. This response code is probably the most well known due to its frequent occurrence on the web. |
+| `409` | This response is sent when a request conflicts with the current state of the server. |
+| `429` | The user has sent too many requests in a given amount of time ("rate limiting") |
+| `500` | The server has encountered a situation it does not know how to handle. |
+
+</APIInfo>
+
+<APIExample>
+
+<Requests items={["cURL","JavaScript"]}>
+
+<Request value={"cURL"}>
+
+```bash
+curl -X GET "https://api.cyberdesk.io/v1/desktop/:id" \
+  -H "x-api-key: api_12345"
+```
+
+</Request>
+
+<Request value={"JavaScript"}>
+
+```js
+fetch("https://api.cyberdesk.io/v1/desktop/:id", {
+  method: "GET",
+  headers: {
+  "x-api-key": "api_12345"
+}
+});
+```
+
+</Request>
+
+</Requests>
+
+<Responses items={["200","400","401","403","404","409","429","500"]}>
+
+<Response value={"200"}>
+
+<ResponseTypes>
+
+<ExampleResponse>
+
+```json
+{
+  "id": "a1b2c3d4-e5f6-7890-1234-567890abcdef",
+  "status": "running",
+  "createdAt": "2023-10-27T10:00:00Z",
+  "timeoutAt": "2023-10-28T10:00:00Z"
+}
+```
+
+</ExampleResponse>
+
+<TypeScriptResponse>
+
+```ts
+export interface Response {
+  /**
+   * Unique identifier for the desktop instance
+   */
+  id: string;
+  /**
+   * Current status of the desktop instance
+   */
+  status: "pending" | "running" | "terminated" | "error";
+  /**
+   * Timestamp when the instance was created
+   */
+  createdAt: string;
+  /**
+   * Timestamp when the instance will automatically time out
+   */
+  timeoutAt: string;
+}
+```
+
+</TypeScriptResponse>
+
+</ResponseTypes>
+
+</Response>
+
+<Response value={"400"}>
+
+<ResponseTypes>
+
+<ExampleResponse>
+
+```json
+{
+  "message": "string",
+  "docs": "string"
+}
+```
+
+</ExampleResponse>
+
+<TypeScriptResponse>
+
+```ts
+export interface Response {
+  message: string;
+  docs: string;
+}
+```
+
+</TypeScriptResponse>
+
+</ResponseTypes>
+
+</Response>
+
+<Response value={"401"}>
+
+<ResponseTypes>
+
+<ExampleResponse>
+
+```json
+{
+  "message": "string",
+  "docs": "string"
+}
+```
+
+</ExampleResponse>
+
+<TypeScriptResponse>
+
+```ts
+export interface Response {
+  message: string;
+  docs: string;
+}
+```
+
+</TypeScriptResponse>
+
+</ResponseTypes>
+
+</Response>
+
+<Response value={"403"}>
+
+<ResponseTypes>
+
+<ExampleResponse>
+
+```json
+{
+  "message": "string",
+  "docs": "string"
+}
+```
+
+</ExampleResponse>
+
+<TypeScriptResponse>
+
+```ts
+export interface Response {
+  message: string;
+  docs: string;
+}
+```
+
+</TypeScriptResponse>
+
+</ResponseTypes>
+
+</Response>
+
+<Response value={"404"}>
+
+<ResponseTypes>
+
+<ExampleResponse>
+
+```json
+{
+  "message": "string",
+  "docs": "string"
+}
+```
+
+</ExampleResponse>
+
+<TypeScriptResponse>
+
+```ts
+export interface Response {
+  message: string;
+  docs: string;
+}
+```
+
+</TypeScriptResponse>
+
+</ResponseTypes>
+
+</Response>
+
+<Response value={"409"}>
+
+<ResponseTypes>
+
+<ExampleResponse>
+
+```json
+{
+  "message": "string",
+  "docs": "string"
+}
+```
+
+</ExampleResponse>
+
+<TypeScriptResponse>
+
+```ts
+export interface Response {
+  message: string;
+  docs: string;
+}
+```
+
+</TypeScriptResponse>
+
+</ResponseTypes>
+
+</Response>
+
+<Response value={"429"}>
+
+<ResponseTypes>
+
+<ExampleResponse>
+
+```json
+{
+  "message": "string",
+  "docs": "string"
+}
+```
+
+</ExampleResponse>
+
+<TypeScriptResponse>
+
+```ts
+export interface Response {
+  message: string;
+  docs: string;
+}
+```
+
+</TypeScriptResponse>
+
+</ResponseTypes>
+
+</Response>
+
+<Response value={"500"}>
+
+<ResponseTypes>
+
+<ExampleResponse>
+
+```json
+{
+  "message": "string",
+  "docs": "string"
+}
+```
+
+</ExampleResponse>
+
+<TypeScriptResponse>
+
+```ts
+export interface Response {
+  message: string;
+  docs: string;
+}
+```
+
+</TypeScriptResponse>
+
+</ResponseTypes>
+
+</Response>
+
+</Responses>
+
+</APIExample>
+
+</API>
+
+<API>
+
 <APIInfo method={"POST"} route={"/v1/desktop"}>
 
 ## Create a new virtual desktop instance
@@ -92,7 +427,7 @@ fetch("https://api.cyberdesk.io/v1/desktop", {
 ```json
 {
   "id": "desktop_12345",
-  "streamUrl": "https://cyberdesk.io/stream/desk_12345"
+  "streamUrl": "https://stream.example.com"
 }
 ```
 
@@ -415,7 +750,11 @@ fetch("https://api.cyberdesk.io/v1/desktop/:id/stop", {
 ```json
 {
   "status": "success",
-  "image": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAA..."
+  "image": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAA...",
+  "cursorPosition": {
+    "x": 500,
+    "y": 300
+  }
 }
 ```
 
@@ -433,6 +772,19 @@ export interface Response {
    * Base64 encoded image data (only returned for screenshot actions)
    */
   image?: string;
+  /**
+   * Current cursor coordinates (only returned for get_cursor_position action)
+   */
+  cursorPosition?: {
+    /**
+     * X coordinate on the screen
+     */
+    x?: number;
+    /**
+     * Y coordinate on the screen
+     */
+    y?: number;
+  };
 }
 ```
 
@@ -668,113 +1020,69 @@ Executes a computer action such as mouse clicks, keyboard input, or screenshots 
 
 ### Request Body (Optional)
 
-<Property name={"body"} type={"object | object | object | object | object | object | object | object | object | object | object | object | object"} required={false} deprecated={undefined}>
+<Property name={"body"} type={"Click Mouse Action | Scroll Action | Move Mouse Action | Drag Mouse Action | Type Text Action | Press Keys Action | Wait Action | Screenshot Action | Get Cursor Position Action"} required={false} deprecated={undefined}>
 
-<ObjectCollapsible name={"Object 1"}>
-
-<Property name={"type"} type={"string"} required={true} deprecated={undefined}>
-
-Double-click at the current mouse position
-
-<span>Example: `"double_click"`</span>
-
-<span>Value in: `"double_click"`</span>
-
-</Property>
-
-</ObjectCollapsible>
-
-<ObjectCollapsible name={"Object 2"}>
+<ObjectCollapsible name={"Click Mouse Action"}>
 
 <Property name={"type"} type={"string"} required={true} deprecated={undefined}>
 
-Perform a left mouse click at the specified coordinates
+Perform a mouse action: click, press (down), or release (up). Defaults to a single left click at the current position.
 
-<span>Example: `"left_click"`</span>
+<span>Example: `"click_mouse"`</span>
 
-<span>Value in: `"left_click"`</span>
+<span>Value in: `"click_mouse"`</span>
 
 </Property>
 
-<Property name={"x"} type={"integer"} required={true} deprecated={undefined}>
+<Property name={"x"} type={"integer"} required={false} deprecated={undefined}>
 
-X coordinate for the click
+X coordinate for the action (optional, uses current position if omitted)
 
 <span>Example: `500`</span>
 
 </Property>
 
-<Property name={"y"} type={"integer"} required={true} deprecated={undefined}>
+<Property name={"y"} type={"integer"} required={false} deprecated={undefined}>
 
-Y coordinate for the click
-
-<span>Example: `300`</span>
-
-</Property>
-
-</ObjectCollapsible>
-
-<ObjectCollapsible name={"Object 3"}>
-
-<Property name={"type"} type={"string"} required={true} deprecated={undefined}>
-
-Perform a right mouse click at the specified coordinates
-
-<span>Example: `"right_click"`</span>
-
-<span>Value in: `"right_click"`</span>
-
-</Property>
-
-<Property name={"x"} type={"integer"} required={true} deprecated={undefined}>
-
-X coordinate for the click
-
-<span>Example: `500`</span>
-
-</Property>
-
-<Property name={"y"} type={"integer"} required={true} deprecated={undefined}>
-
-Y coordinate for the click
+Y coordinate for the action (optional, uses current position if omitted)
 
 <span>Example: `300`</span>
 
 </Property>
 
+<Property name={"button"} type={"string"} required={false} deprecated={undefined}>
+
+Mouse button to use (optional, defaults to 'left')
+
+<span>Example: `"left"`</span>
+
+<span>Value in: `"left" | "right" | "middle"`</span>
+
+</Property>
+
+<Property name={"num_of_clicks"} type={"integer"} required={false} deprecated={undefined}>
+
+Number of clicks to perform (optional, defaults to 1, only applicable for 'click' type)
+
+<span>Example: `1`</span>
+
+<span>Minimum: `0`</span>
+
+</Property>
+
+<Property name={"click_type"} type={"string"} required={false} deprecated={undefined}>
+
+Type of mouse action (optional, defaults to 'click')
+
+<span>Example: `"click"`</span>
+
+<span>Value in: `"click" | "down" | "up"`</span>
+
+</Property>
+
 </ObjectCollapsible>
 
-<ObjectCollapsible name={"Object 4"}>
-
-<Property name={"type"} type={"string"} required={true} deprecated={undefined}>
-
-Perform a middle mouse click at the specified coordinates
-
-<span>Example: `"middle_click"`</span>
-
-<span>Value in: `"middle_click"`</span>
-
-</Property>
-
-<Property name={"x"} type={"integer"} required={true} deprecated={undefined}>
-
-X coordinate for the click
-
-<span>Example: `500`</span>
-
-</Property>
-
-<Property name={"y"} type={"integer"} required={true} deprecated={undefined}>
-
-Y coordinate for the click
-
-<span>Example: `300`</span>
-
-</Property>
-
-</ObjectCollapsible>
-
-<ObjectCollapsible name={"Object 5"}>
+<ObjectCollapsible name={"Scroll Action"}>
 
 <Property name={"type"} type={"string"} required={true} deprecated={undefined}>
 
@@ -792,7 +1100,7 @@ Direction to scroll
 
 <span>Example: `"down"`</span>
 
-<span>Value in: `"up" | "down"`</span>
+<span>Value in: `"up" | "down" | "left" | "right"`</span>
 
 </Property>
 
@@ -806,7 +1114,7 @@ Amount to scroll in pixels
 
 </ObjectCollapsible>
 
-<ObjectCollapsible name={"Object 6"}>
+<ObjectCollapsible name={"Move Mouse Action"}>
 
 <Property name={"type"} type={"string"} required={true} deprecated={undefined}>
 
@@ -836,15 +1144,15 @@ Y coordinate to move to
 
 </ObjectCollapsible>
 
-<ObjectCollapsible name={"Object 7"}>
+<ObjectCollapsible name={"Drag Mouse Action"}>
 
 <Property name={"type"} type={"string"} required={true} deprecated={undefined}>
 
 Drag the mouse from start to end coordinates
 
-<span>Example: `"drag"`</span>
+<span>Example: `"drag_mouse"`</span>
 
-<span>Value in: `"drag"`</span>
+<span>Value in: `"drag_mouse"`</span>
 
 </Property>
 
@@ -906,63 +1214,15 @@ Y coordinate on the screen
 
 </ObjectCollapsible>
 
-<ObjectCollapsible name={"Object 8"}>
-
-<Property name={"type"} type={"string"} required={true} deprecated={undefined}>
-
-Press and hold a mouse button
-
-<span>Example: `"mouse_press"`</span>
-
-<span>Value in: `"mouse_press"`</span>
-
-</Property>
-
-<Property name={"button"} type={"string"} required={true} deprecated={undefined}>
-
-Mouse button to press
-
-<span>Example: `"left"`</span>
-
-<span>Value in: `"left" | "right" | "middle"`</span>
-
-</Property>
-
-</ObjectCollapsible>
-
-<ObjectCollapsible name={"Object 9"}>
-
-<Property name={"type"} type={"string"} required={true} deprecated={undefined}>
-
-Release a previously pressed mouse button
-
-<span>Example: `"mouse_release"`</span>
-
-<span>Value in: `"mouse_release"`</span>
-
-</Property>
-
-<Property name={"button"} type={"string"} required={true} deprecated={undefined}>
-
-Mouse button to release
-
-<span>Example: `"left"`</span>
-
-<span>Value in: `"left" | "right" | "middle"`</span>
-
-</Property>
-
-</ObjectCollapsible>
-
-<ObjectCollapsible name={"Object 10"}>
+<ObjectCollapsible name={"Type Text Action"}>
 
 <Property name={"type"} type={"string"} required={true} deprecated={undefined}>
 
 Type text at the current cursor position
 
-<span>Example: `"write"`</span>
+<span>Example: `"type"`</span>
 
-<span>Value in: `"write"`</span>
+<span>Value in: `"type"`</span>
 
 </Property>
 
@@ -976,15 +1236,15 @@ Text to type
 
 </ObjectCollapsible>
 
-<ObjectCollapsible name={"Object 11"}>
+<ObjectCollapsible name={"Press Keys Action"}>
 
 <Property name={"type"} type={"string"} required={true} deprecated={undefined}>
 
-Press one or more keyboard keys
+Press, hold down, or release one or more keyboard keys. Defaults to a single press and release.
 
-<span>Example: `"press"`</span>
+<span>Example: `"press_keys"`</span>
 
-<span>Value in: `"press"`</span>
+<span>Value in: `"press_keys"`</span>
 
 </Property>
 
@@ -1004,9 +1264,19 @@ Multiple keys to press simultaneously
 
 </Property>
 
+<Property name={"key_action_type"} type={"string"} required={false} deprecated={undefined}>
+
+Type of key action (optional, defaults to 'press' which is a down and up action)
+
+<span>Example: `"press"`</span>
+
+<span>Value in: `"press" | "down" | "up"`</span>
+
+</Property>
+
 </ObjectCollapsible>
 
-<ObjectCollapsible name={"Object 12"}>
+<ObjectCollapsible name={"Wait Action"}>
 
 <Property name={"type"} type={"string"} required={true} deprecated={undefined}>
 
@@ -1028,7 +1298,7 @@ Time to wait in milliseconds
 
 </ObjectCollapsible>
 
-<ObjectCollapsible name={"Object 13"}>
+<ObjectCollapsible name={"Screenshot Action"}>
 
 <Property name={"type"} type={"string"} required={true} deprecated={undefined}>
 
@@ -1037,6 +1307,20 @@ Take a screenshot of the desktop
 <span>Example: `"screenshot"`</span>
 
 <span>Value in: `"screenshot"`</span>
+
+</Property>
+
+</ObjectCollapsible>
+
+<ObjectCollapsible name={"Get Cursor Position Action"}>
+
+<Property name={"type"} type={"string"} required={true} deprecated={undefined}>
+
+Get the current mouse cursor position
+
+<span>Example: `"get_cursor_position"`</span>
+
+<span>Value in: `"get_cursor_position"`</span>
 
 </Property>
 
@@ -1087,7 +1371,12 @@ API key for authentication
 curl -X POST "https://api.cyberdesk.io/v1/desktop/:id/computer-action" \
   -H "x-api-key: api_12345" \
   -d '{
-  "type": "double_click"
+  "type": "click_mouse",
+  "x": 500,
+  "y": 300,
+  "button": "left",
+  "num_of_clicks": 1,
+  "click_type": "click"
 }'
 ```
 
@@ -1119,7 +1408,11 @@ fetch("https://api.cyberdesk.io/v1/desktop/:id/computer-action", {
 ```json
 {
   "status": "success",
-  "image": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAA..."
+  "image": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAA...",
+  "cursorPosition": {
+    "x": 500,
+    "y": 300
+  }
 }
 ```
 
@@ -1137,6 +1430,19 @@ export interface Response {
    * Base64 encoded image data (only returned for screenshot actions)
    */
   image?: string;
+  /**
+   * Current cursor coordinates (only returned for get_cursor_position action)
+   */
+  cursorPosition?: {
+    /**
+     * X coordinate on the screen
+     */
+    x?: number;
+    /**
+     * Y coordinate on the screen
+     */
+    y?: number;
+  };
 }
 ```
 

@@ -18,44 +18,55 @@ Cyberdesk is built on a microservices architecture that provides scalable, relia
 
 A desktop instance is a virtual desktop environment running in the cloud. Each instance:
 
-- Has a unique identifier
+- Has a unique identifier (UUID format)
 - Runs in an isolated environment for security
 - Can be controlled programmatically through the API
 - Provides a stream URL for visual feedback
 - Persists until explicitly stopped or times out
 - Has configurable resources (CPU, memory, storage)
 
-When creating a desktop instance, you can specify a custom timeout in milliseconds using the `timeoutMs` parameter. This allows you to control how long the desktop instance will remain active before being automatically terminated. If not specified, a default timeout of 1 hour (3,600,000 ms) is applied. For Pro users, a maximum of 24 hours (86,400,000 ms) is allowed.
+When creating a desktop instance, you can specify a custom timeout in milliseconds using the `timeoutMs` parameter. This allows you to control how long the desktop instance will remain active before being automatically terminated. If not specified, a default timeout is applied (refer to API documentation for defaults). Check your plan for maximum allowed timeout values.
 
 ## Computer Actions
 
-Cyberdesk supports various computer actions to interact with the desktop:
+Cyberdesk supports various computer actions to interact with the desktop via the `/desktop/:id/computer-action` endpoint. Actions are specified using a `type` field and associated parameters:
 
 ### Mouse Actions
 
-- `left_click`: Perform a left mouse click at specific coordinates
-- `right_click`: Perform a right mouse click at specific coordinates
-- `middle_click`: Perform a middle mouse click at specific coordinates
-- `double_click`: Perform a double click at the current mouse position
-- `scroll`: Scroll up or down by a specified amount
-- `move_mouse`: Move the mouse cursor to specific coordinates
-- `drag`: Drag from one point to another
-- `mouse_press`: Press and hold a mouse button
-- `mouse_release`: Release a previously pressed mouse button
+- **`click_mouse`**: Perform a mouse action (click, press down, or release up).
+  - `x`, `y` (optional): Coordinates for the click.
+  - `button` (optional): `left`, `right`, or `middle` (defaults to `left`).
+  - `num_of_clicks` (optional): Number of clicks (defaults to 1, for `click_type: 'click'`).
+  - `click_type` (optional): `click` (down and up), `down` (press), or `up` (release) (defaults to `click`).
+- **`scroll`**: Scroll the mouse wheel.
+  - `direction`: `up`, `down`, `left`, or `right`.
+  - `amount`: Amount to scroll in pixels.
+- **`move_mouse`**: Move the mouse cursor to specific coordinates.
+  - `x`, `y`: Target coordinates.
+- **`drag_mouse`**: Drag the mouse from a start point to an end point.
+  - `start`: `{ x, y }` starting coordinates.
+  - `end`: `{ x, y }` ending coordinates.
 
 ### Keyboard Actions
 
-- `write`: Type text into the desktop
-- `press`: Press specific keys or key combinations
+- **`type`**: Type text at the current cursor position.
+  - `text`: The string to type.
+- **`press_keys`**: Press, hold down, or release keyboard keys.
+  - `keys`: A single key string (e.g., `'Enter'`) or an array of keys to press simultaneously (e.g., `['Control', 'c']`).
+  - `key_action_type` (optional): `press` (down and up), `down` (hold), or `up` (release) (defaults to `press`).
 
 ### Other Actions
 
-- `wait`: Wait for a specified number of milliseconds
-- `screenshot`: Capture the current state of the desktop and return the image data
+- **`wait`**: Pause execution for a specified duration.
+  - `ms`: Time to wait in milliseconds.
+- **`screenshot`**: Capture the current state of the desktop.
+  - Returns a base64 encoded image string in the response (`image` field).
+- **`get_cursor_position`**: Get the current mouse cursor coordinates.
+  - Returns `{ x, y }` coordinates in the response (`cursorPosition` field).
 
 ## Bash Actions
 
-Bash actions allow you to execute shell commands on the desktop instance. This is useful for:
+Bash actions allow you to execute shell commands on the desktop instance via the `/desktop/:id/bash-action` endpoint. This is useful for:
 
 - Installing software
 - Running applications
@@ -63,17 +74,17 @@ Bash actions allow you to execute shell commands on the desktop instance. This i
 - Executing scripts
 - System configuration
 
-The bash action endpoint accepts a `command` parameter containing the shell command to execute and returns the command output as a string.
+The endpoint accepts a `command` parameter containing the shell command to execute and returns the command `output` (stdout/stderr) as a string in the response.
 
 ## Desktop Streaming
 
 Cyberdesk provides real-time streaming of desktop visuals through:
 
-1. **Web-based Viewer**: Access the desktop through a browser using the provided stream URL
-2. **VNC Protocol**: Connect to the desktop using standard VNC clients
-3. **Embedded Iframe**: Embed the desktop view directly in your web applications
+1.  **Web-based Viewer**: Access the desktop through a browser using the provided `streamUrl` from the desktop creation response.
+2.  **VNC Protocol**: The `streamUrl` often corresponds to a VNC-compatible endpoint (details may vary).
+3.  **Embedded Iframe**: Embed the desktop view directly in your web applications using the `streamUrl`.
 
-The streaming service uses WebRTC for low-latency, high-quality video transmission, making it suitable for real-time interaction.
+The streaming service aims for low-latency transmission suitable for real-time interaction.
 
 ## Authentication and Security
 
@@ -81,60 +92,54 @@ Cyberdesk uses API keys for authentication. Each API key:
 
 - Is associated with a specific user account
 - Has rate limits to prevent abuse
-- Can be revoked or regenerated as needed
-- Should be kept secure and not shared
+- Can be revoked or regenerated from your dashboard
+- Must be kept secure and not shared publicly
 
 All API requests must include the API key in the `x-api-key` header. Communication with the API is encrypted using TLS/SSL.
 
 ## Resource Management
 
-Cyberdesk automatically manages resources to ensure efficient operation:
+Cyberdesk automatically manages resources:
 
-- Desktop instances are automatically cleaned up when stopped
-- Inactive instances may be terminated after extended periods of inactivity
-- Users are responsible for stopping instances when no longer needed to avoid unnecessary resource usage
-- Resource quotas may apply depending on your subscription plan
+- Desktop instances are cleaned up when stopped via the API or when they reach their timeout.
+- Users are responsible for stopping instances when no longer needed to manage costs and resources.
+- Resource quotas and limits may apply depending on your subscription plan.
 
 ## Error Handling
 
-Cyberdesk API returns standard HTTP status codes and descriptive error messages:
+Cyberdesk API returns standard HTTP status codes and a simple JSON error message:
 
-- 200: Successful operation
-- 400: Bad request (invalid parameters)
-- 401: Unauthorized (invalid API key)
-- 403: Forbidden (insufficient permissions)
-- 404: Resource not found
-- 409: Conflict
-- 429: Rate limit exceeded
-- 500: Server error
+- 2xx: Successful operation
+- 400: Bad Request (e.g., invalid parameters in the request body)
+- 401: Unauthorized (e.g., missing or invalid API key)
+- 403: Forbidden (e.g., attempting an action not allowed by your plan)
+- 404: Not Found (e.g., desktop instance ID does not exist)
+- 429: Too Many Requests (rate limit exceeded)
+- 5xx: Server Error (an issue occurred on the Cyberdesk side)
 
-Each error response includes a message and a link to relevant documentation:
+Error responses follow the `ErrorResponseSchema`:
 
 ```json
 {
-  "error": true,
-  "message": "Desktop instance not found",
-  "code": "DESKTOP_NOT_FOUND",
-  "documentation": "https://docs.cyberdesk.io/errors#DESKTOP_NOT_FOUND"
+  "error": "Descriptive error message here. Example: Desktop instance a1b2c3d4-... not found"
 }
 ```
 
+Check the specific error message returned by the API for details on what went wrong.
+
 ## Performance Considerations
 
-When building applications with Cyberdesk, consider these performance best practices:
+When building applications with Cyberdesk, consider:
 
-- **Minimize API Calls**: Batch operations when possible to reduce latency
-- **Handle Timeouts**: Implement proper timeout handling for long-running operations
-- **Optimize Image Processing**: When working with screenshots, consider compression and caching
-- **Connection Management**: Maintain persistent connections when performing multiple actions
-- **Error Retries**: Implement exponential backoff for retrying failed requests
+- **API Call Latency**: Network latency will affect interaction speed.
+- **Action Duration**: Some actions (like `wait` or long bash commands) take time.
+- **Streaming Latency**: There will be some delay in the visual stream.
+- **Error Retries**: Implement robust error handling, potentially with retries using exponential backoff for transient issues (like 5xx errors or rate limits).
 
 ## Billing and Usage
 
-Cyberdesk billing is based on:
+Cyberdesk billing is typically based on factors like:
 
-- **Active Desktop Time**: The duration desktop instances are running
-- **API Calls**: The number of API requests made
-- **Storage**: Any persistent storage used by desktop instances
+- **Active Desktop Time**: The duration desktop instances are running (often billed per second or minute).
 
-Monitor your usage through the Cyberdesk dashboard to optimize costs and resource utilization.
+Monitor your usage and understand the pricing model via the Cyberdesk dashboard (coming soon!)

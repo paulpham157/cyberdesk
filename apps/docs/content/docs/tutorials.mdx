@@ -24,31 +24,46 @@ const response = await fetch('https://api.cyberdesk.io/v1/desktop', {
   })
 });
 
+if (!response.ok) {
+  const errorData = await response.json();
+  throw new Error(`Failed to create desktop: ${errorData.error}`);
+}
+
 const { id, streamUrl } = await response.json();
-console.log(`Desktop created with ID: ${id}`);
+console.log(`Desktop created with ID: ${id}`); // ID will be a UUID
 console.log(`Stream URL: ${streamUrl}`);
+
+// Store the ID for subsequent steps
+const desktopId = id; // e.g., "a1b2c3d4-e5f6-7890-1234-567890abcdef"
 ```
 
 ### Step 2: Perform Mouse Actions
 
-Now that you have a desktop instance, you can perform mouse actions:
+Now that you have a desktop instance ID (e.g., `a1b2c3d4-e5f6-7890-1234-567890abcdef`), you can perform mouse actions:
 
 ```javascript
-const desktopId = 'desk_123abc'; // Use the ID from the previous step
-
-// Click at coordinates (100, 200)
-await fetch(`https://api.cyberdesk.io/v1/desktop/${desktopId}/computer-action`, {
+// Example: Left click at coordinates (100, 200)
+const clickResponse = await fetch(`https://api.cyberdesk.io/v1/desktop/${desktopId}/computer-action`, {
   method: 'POST',
   headers: {
     'x-api-key': 'your_api_key_here',
     'Content-Type': 'application/json'
   },
   body: JSON.stringify({
-    type: 'left_click',
+    type: 'click_mouse', // Updated action type
     x: 100,
-    y: 200
+    y: 200,
+    button: 'left',      // Optional, defaults to 'left'
+    num_of_clicks: 1,   // Optional, defaults to 1
+    click_type: 'click' // Optional, defaults to 'click'
   })
 });
+
+if (!clickResponse.ok) {
+  const errorData = await clickResponse.json();
+  throw new Error(`Failed mouse click: ${errorData.error}`);
+}
+console.log('Mouse click successful:', await clickResponse.json());
 ```
 
 ### Step 3: Type Text
@@ -56,17 +71,23 @@ await fetch(`https://api.cyberdesk.io/v1/desktop/${desktopId}/computer-action`, 
 You can also type text into the desktop:
 
 ```javascript
-await fetch(`https://api.cyberdesk.io/v1/desktop/${desktopId}/computer-action`, {
+const typeResponse = await fetch(`https://api.cyberdesk.io/v1/desktop/${desktopId}/computer-action`, {
   method: 'POST',
   headers: {
     'x-api-key': 'your_api_key_here',
     'Content-Type': 'application/json'
   },
   body: JSON.stringify({
-    type: 'write',
+    type: 'type', // Updated action type
     text: 'Hello, Cyberdesk!'
   })
 });
+
+if (!typeResponse.ok) {
+  const errorData = await typeResponse.json();
+  throw new Error(`Failed to type text: ${errorData.error}`);
+}
+console.log('Typing successful:', await typeResponse.json());
 ```
 
 ### Step 4: Take a Screenshot
@@ -85,9 +106,15 @@ const screenshotResponse = await fetch(`https://api.cyberdesk.io/v1/desktop/${de
   })
 });
 
+if (!screenshotResponse.ok) {
+  const errorData = await screenshotResponse.json();
+  throw new Error(`Failed to take screenshot: ${errorData.error}`);
+}
+
 const { status, image } = await screenshotResponse.json();
-console.log('Screenshot captured:', status);
-// The image is returned as base64 data that can be displayed or saved
+console.log(`Screenshot captured: ${status}`);
+// The image is returned as base64 data (e.g., 'data:image/png;base64,...')
+// You can display or save this image data.
 ```
 
 ### Step 5: Execute a Bash Command
@@ -106,7 +133,13 @@ const bashResponse = await fetch(`https://api.cyberdesk.io/v1/desktop/${desktopI
   })
 });
 
-const { output } = await bashResponse.json();
+if (!bashResponse.ok) {
+  const errorData = await bashResponse.json();
+  throw new Error(`Failed bash command: ${errorData.error}`);
+}
+
+const { status: bashStatus, output } = await bashResponse.json();
+console.log(`Command executed: ${bashStatus}`);
 console.log('Command output:', output);
 ```
 
@@ -115,12 +148,19 @@ console.log('Command output:', output);
 When you're done, stop the desktop instance:
 
 ```javascript
-await fetch(`https://api.cyberdesk.io/v1/desktop/${desktopId}/stop`, {
+const stopResponse = await fetch(`https://api.cyberdesk.io/v1/desktop/${desktopId}/stop`, {
   method: 'POST',
   headers: {
     'x-api-key': 'your_api_key_here'
   }
 });
+
+if (!stopResponse.ok) {
+  const errorData = await stopResponse.json();
+  throw new Error(`Failed to stop desktop: ${errorData.error}`);
+}
+
+console.log('Desktop stop requested:', await stopResponse.json());
 ```
 
 ## Tutorial 2: Automating Web Testing
@@ -129,14 +169,14 @@ This tutorial demonstrates how to use Cyberdesk to automate web testing.
 
 ### Step 1: Create a Desktop Instance
 
-Create a desktop instance as shown in Tutorial 1.
+Create a desktop instance as shown in Tutorial 1, storing the `desktopId`.
 
 ### Step 2: Open a Web Browser
 
-Run a bash command to open a web browser:
+Run a bash command to open a web browser (e.g., Firefox) and navigate to a URL. The `&` runs the command in the background.
 
 ```javascript
-await fetch(`https://api.cyberdesk.io/v1/desktop/${desktopId}/bash-action`, {
+const openBrowserResponse = await fetch(`https://api.cyberdesk.io/v1/desktop/${desktopId}/bash-action`, {
   method: 'POST',
   headers: {
     'x-api-key': 'your_api_key_here',
@@ -147,8 +187,14 @@ await fetch(`https://api.cyberdesk.io/v1/desktop/${desktopId}/bash-action`, {
   })
 });
 
-// Wait for the browser to load
-await fetch(`https://api.cyberdesk.io/v1/desktop/${desktopId}/computer-action`, {
+if (!openBrowserResponse.ok) {
+  const errorData = await openBrowserResponse.json();
+  throw new Error(`Failed to open browser: ${errorData.error}`);
+}
+console.log('Browser opening command sent:', await openBrowserResponse.json());
+
+// Wait for the browser to load using the 'wait' computer action
+const waitResponse = await fetch(`https://api.cyberdesk.io/v1/desktop/${desktopId}/computer-action`, {
   method: 'POST',
   headers: {
     'x-api-key': 'your_api_key_here',
@@ -156,14 +202,20 @@ await fetch(`https://api.cyberdesk.io/v1/desktop/${desktopId}/computer-action`, 
   },
   body: JSON.stringify({
     type: 'wait',
-    ms: 5000
+    ms: 5000 // Wait for 5 seconds
   })
 });
+
+if (!waitResponse.ok) {
+  const errorData = await waitResponse.json();
+  throw new Error(`Failed to wait: ${errorData.error}`);
+}
+console.log('Wait completed:', await waitResponse.json());
 ```
 
 ### Step 3: Take a Screenshot for Verification
 
-Capture a screenshot to verify the test results:
+Capture a screenshot to verify the browser loaded the page correctly:
 
 ```javascript
 const screenshotResponse = await fetch(`https://api.cyberdesk.io/v1/desktop/${desktopId}/computer-action`, {
@@ -177,9 +229,19 @@ const screenshotResponse = await fetch(`https://api.cyberdesk.io/v1/desktop/${de
   })
 });
 
-const { image } = await screenshotResponse.json();
-// Save or analyze the screenshot for test verification
+if (!screenshotResponse.ok) {
+  const errorData = await screenshotResponse.json();
+  throw new Error(`Failed verification screenshot: ${errorData.error}`);
+}
+
+const { status, image } = await screenshotResponse.json();
+console.log(`Verification screenshot status: ${status}`);
+// Save or analyze the screenshot image data for test verification
 ```
+
+### Step 4: Stop the Desktop
+
+Remember to stop the desktop instance when the test is complete.
 
 ## Tutorial 3: Integrating with AI Models for Computer Use
 
@@ -213,7 +275,7 @@ export async function getScreenshot(desktopId, apiKey) {
 
   if (!response.ok) {
     const error = await response.json();
-    throw new Error(`Failed to get screenshot: ${error.message}`);
+    throw new Error(`Failed to get screenshot: ${error.error}`);
   }
 
   const data = await response.json();
@@ -237,14 +299,14 @@ export async function executeComputerAction(
   switch (action) {
     case 'left_click':
       requestBody = {
-        type: 'left_click',
-        x: coordinate?.x || 0,
-        y: coordinate?.y || 0
+        type: 'click_mouse',
+        x: coordinate?.x,
+        y: coordinate?.y
       };
       break;
     case 'type':
       requestBody = {
-        type: 'write',
+        type: 'type',
         text: text || ''
       };
       break;
@@ -267,7 +329,7 @@ export async function executeComputerAction(
 
   if (!response.ok) {
     const error = await response.json();
-    throw new Error(`Failed to execute computer action: ${error.message}`);
+    throw new Error(`Failed to execute computer action: ${error.error}`);
   }
 
   const data = await response.json();
@@ -297,7 +359,7 @@ export async function executeBashCommand(command, desktopId, apiKey) {
 
   if (!response.ok) {
     const error = await response.json();
-    throw new Error(`Failed to execute bash command: ${error.message}`);
+    throw new Error(`Failed to execute bash command: ${error.error}`);
   }
 
   const data = await response.json();
@@ -657,14 +719,14 @@ export async function POST() {
     
     if (!response.ok) {
       const error = await response.json();
-      throw new Error(`Failed to create desktop: ${error.message}`);
+      throw new Error(`Failed to create desktop: ${error.error}`);
     }
     
     const data = await response.json();
     return Response.json(data);
   } catch (error) {
     console.error('Error creating desktop:', error);
-    return Response.json({ error: "Failed to create desktop" }, { status: 500 });
+    return Response.json({ error: error.message || "Failed to create desktop" }, { status: 500 });
   }
 }
 
@@ -687,13 +749,13 @@ export async function POST(req, { params }) {
     
     if (!response.ok) {
       const error = await response.json();
-      throw new Error(`Failed to stop desktop: ${error.message}`);
+      throw new Error(`Failed to stop desktop: ${error.error}`);
     }
     
-    return Response.json({ status: 'stopped' });
+    return Response.json({ status: 'success' });
   } catch (error) {
     console.error('Error stopping desktop:', error);
-    return Response.json({ error: "Failed to stop desktop" }, { status: 500 });
+    return Response.json({ error: error.message || "Failed to stop desktop" }, { status: 500 });
   }
 }
 ```
