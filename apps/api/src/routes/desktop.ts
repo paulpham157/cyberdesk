@@ -9,13 +9,14 @@ import {
   createDesktop,
   stopDesktop,
   ComputerActionSchema,
-  CreateDesktopParamsSchema
+  CreateDesktopParamsSchema,
+  getDesktop,
 } from "../schema/desktop.js";
 import { db } from "../database.js";
 import { 
-  addDbDesktopInstance, 
-  killDbDesktopInstance,
-  getDbDesktopInstance
+  addDbInstance,
+  getDbInstanceDetails,
+  updateDbInstanceStatus,
 } from "../db/dbHelpers.js";
 
 // Type definitions
@@ -97,6 +98,32 @@ desktop.use("*", async (c, next) => {
   await next();
 });
 
+// Route for getting a desktop instance's details
+desktop.openapi(getDesktop, async (c) => {
+  const userId = c.get("userId");
+  const id = c.req.param("id");
+
+  try {
+    // Fetch the instance details using the helper function (now includes userId)
+    const instanceDetails = await getDbInstanceDetails(db, id, userId);
+
+    if (!instanceDetails) {
+      return c.json(
+        {
+          message: "Desktop instance not found or unauthorized",
+          docs: "https://docs.cyberdesk.io/docs/api-reference/",
+        },
+        404
+      );
+    }
+
+    // Return the found instance details
+    return c.json(instanceDetails, 200);
+  } catch (error) {
+    return handleApiError(c, error, "Failed to retrieve desktop instance details");
+  }
+});
+
 // Route for creating a new desktop instance
 desktop.openapi(createDesktop, async (c) => {
   const userId = c.get("userId");
@@ -106,12 +133,15 @@ desktop.openapi(createDesktop, async (c) => {
     const body = await c.req.json().catch(() => ({}));
     const params = CreateDesktopParamsSchema.parse(body);
     
-    // Create a new desktop instance, setting timeoutMs
+    // Create a new desktop instance using the helper
+    const newInstance = await addDbInstance(db, userId, params.timeoutMs);
+
+    // TODO: Actually provision the instance based on the newInstance ID
 
     return c.json(
       {
-        id: "123",
-        instance_status: "pending"
+        id: newInstance.id,
+        status: newInstance.status,
       },
       200
     );
@@ -126,29 +156,24 @@ desktop.openapi(stopDesktop, async (c) => {
   const id = c.req.param("id");
   
   try {
-    // Get the DB instance of this id
-    const dbInstance = await getDbDesktopInstance(db, id);
+    // Stop the Cyberdesk instance (update status to terminated)
+    const updatedInstance = await updateDbInstanceStatus(db, id, userId, "terminated");
 
-    // Stop the Cyberdesk instance
-
-    const success = true;
-
-    if (!success) {
+    if (!updatedInstance) {
       return c.json(
         {
-          message: "Failed to stop desktop instance, or the instance has already timed out.",
+          message: "Failed to stop desktop instance. It might not exist, already be stopped/terminated, or you may not be authorized.",
           docs: "https://docs.cyberdesk.io/docs/api-reference/",
         },
-        500
+        404
       );
     }
     
-    // Mark the Cyberdesk instance as ended in the database
-    await killDbDesktopInstance(db, id);
+    // TODO: Trigger deprovisioning logic here based on the id
 
     return c.json(
       {
-        status: "stopped",
+        status: updatedInstance.status,
       },
       200
     );
@@ -157,93 +182,72 @@ desktop.openapi(stopDesktop, async (c) => {
   }
 });
 
-// Helper function to handle computer actions
-/**
- * Fixes keyboard key names to ensure compatibility with xdotool
- * @param key The key or keys to fix
- * @returns The fixed key or keys
- */
-function fixKeyboardKeys(key: string | string[]): string | string[] {
-  if (typeof key === 'string') {
-    const lowerKey = key.toLowerCase();
-    if (lowerKey.includes('return')) {
-      return "enter";
-    }
-    return key;
-  } else if (Array.isArray(key)) {
-    // Handle arrays of keys, replacing any keys containing "return" with "enter"
-    const fixedKeys = key.map(k => {
-      const lowerK = k.toLowerCase();
-      if (lowerK.includes('return')) {
-        return "enter";
-      }
-      return k;
-    });
-    return fixedKeys;
+async function executeComputerAction(id: string, userId: string, action: ComputerAction) {
+  // Get instance details (includes auth check)
+  const instance = await getDbInstanceDetails(db, id, userId);
+  if (!instance) {
+    throw new Error("Instance not found or unauthorized");
   }
-  
-  // Fallback for any unexpected type
-  return key;
-}
+  if (instance.status !== 'running') {
+    throw new Error(`Instance is not running (status: ${instance.status}). Cannot perform action.`);
+  }
 
-async function executeComputerAction(id: string, action: ComputerAction) {
-  // TODO: Implement this
+  // TODO: Implement actual action execution based on instance details (e.g., using streamUrl or remoteId if added)
+
+
+  return { status: "success" };
 }
 
 // Route for performing a computer action on a desktop
 desktop.openapi(computerAction, async (c) => {
+  const userId = c.get("userId");
   const id = c.req.param("id");
   const action = await c.req.json() as ComputerAction;
   
+  // Execute the appropriate action
   try {
-    // Get the DB instance of this id
-    const dbInstance = await getDbDesktopInstance(db, id);
-
-    // Execute the appropriate action
-    try {
-      const result = await executeComputerAction(dbInstance.id, action);
-      
-      // If it's a screenshot action, return the image data
-      if (action.type === "screenshot" && result) {
-        return c.json(
-          {
-            status: "success",
-            image: result,
-          },
-          200
-        );
-      }
-      
+    const result = await executeComputerAction(id, userId, action);
+    
+    // If it's a screenshot action, return the image data
+    if (action.type === "screenshot" && result) {
       return c.json(
         {
           status: "success",
+          image: result,
         },
         200
       );
-    } catch (actionError) {
-      return c.json(
-        {
-          message: "Unsupported action type",
-          docs: "https://docs.cyberdesk.io/docs/api-reference/",
-        },
-        400
-      );
     }
-  } catch (error) {
-    return handleApiError(c, error, `Failed to execute ${action.type} action`);
+    
+    return c.json(
+      {
+        status: "success",
+      },
+      200
+    );
+  } catch (actionError) {
+    return c.json(
+      {
+        message: "Unsupported action type",
+        docs: "https://docs.cyberdesk.io/docs/api-reference/",
+      },
+      400
+    );
   }
-});
+})
+   
 
 // Route for executing a bash command on a desktop
 desktop.openapi(bashAction, async (c) => {
+  const userId = c.get("userId");
   const id = c.req.param("id");
   const { command } = await c.req.json();
   
   try {
     // Get the DB instance of this id
-    const dbInstance = await getDbDesktopInstance(db, id);
+    const dbInstance = await getDbInstanceDetails(db, id, userId);
 
-    // Execute the bash command
+    // TODO: Execute the bash command
 
     return c.json(
       {
@@ -257,4 +261,4 @@ desktop.openapi(bashAction, async (c) => {
   }
 });
 
-export { desktop };
+export default desktop;

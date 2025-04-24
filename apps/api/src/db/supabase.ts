@@ -24,7 +24,7 @@ export const profiles = pgTable("profiles", {
 });
 
 // Define the status enum type
-export const instanceStatusEnum = pgEnum('instance_status', ['pending', 'running', 'completed', 'error']);
+export const instanceStatusEnum = pgEnum('instance_status', ['pending', 'running', 'terminated', 'error']);
 
 // Define the desktop_instances table
 export const desktopInstances = pgTable("desktop_instances", {

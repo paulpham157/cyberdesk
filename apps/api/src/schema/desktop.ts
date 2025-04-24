@@ -1,6 +1,7 @@
 import { createRoute, z } from "@hono/zod-openapi";
 
 import { openApiErrorResponses } from "./errors.js";
+import { instanceStatusEnum } from "../db/supabase.js";
 
 // Header schema for API key authentication
 const HeadersSchema = z.object({
@@ -262,6 +263,55 @@ export const stopDesktop = createRoute({
         },
       },
       description: "Desktop stopped successfully",
+    },
+    ...openApiErrorResponses,
+  },
+});
+
+// Get Desktop Route Response Schema
+const GetDesktopResponseSchema = z.object({
+  id: z.string().uuid().openapi({
+    description: "Unique identifier for the desktop instance",
+    example: "a1b2c3d4-e5f6-7890-1234-567890abcdef",
+  }),
+  status: z.enum(instanceStatusEnum.enumValues).openapi({
+    description: "Current status of the desktop instance",
+    example: "running",
+  }),
+  createdAt: z.string().datetime().openapi({
+    description: "Timestamp when the instance was created",
+    example: "2023-10-27T10:00:00Z",
+  }),
+  timeoutAt: z.string().datetime().openapi({
+    description: "Timestamp when the instance will automatically time out",
+    example: "2023-10-28T10:00:00Z",
+  }),
+});
+
+// Get Desktop Route
+export const getDesktop = createRoute({
+  method: "get",
+  path: "/desktop/:id",
+  tags: ["Desktop"],
+  summary: "Get details of a specific desktop instance",
+  description: "Returns the ID, status, creation timestamp, and timeout timestamp for a given desktop instance.",
+  request: {
+    headers: HeadersSchema,
+    params: z.object({
+      id: z.string().uuid().openapi({
+        description: "The UUID of the desktop instance to retrieve",
+        example: "a1b2c3d4-e5f6-7890-1234-567890abcdef",
+      }),
+    }),
+  },
+  responses: {
+    200: {
+      content: {
+        "application/json": {
+          schema: GetDesktopResponseSchema,
+        },
+      },
+      description: "Desktop instance details retrieved successfully",
     },
     ...openApiErrorResponses,
   },
