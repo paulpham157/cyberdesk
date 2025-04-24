@@ -99,7 +99,7 @@ class SupabaseInstanceStatus(str, Enum):
 
     PENDING = "pending"
     RUNNING = "running"
-    COMPLETED = "completed"
+    TERMINATED = "terminated"
     ERROR = "error"
 
 
@@ -109,7 +109,7 @@ VMI_PHASE_TO_SUPABASE_STATUS: Dict[KubeVirtVMIPhase, SupabaseInstanceStatus] = {
     KubeVirtVMIPhase.SCHEDULING: SupabaseInstanceStatus.PENDING,
     KubeVirtVMIPhase.SCHEDULED: SupabaseInstanceStatus.PENDING,
     KubeVirtVMIPhase.RUNNING: SupabaseInstanceStatus.PENDING, # We now only denote running after cloud init is done
-    KubeVirtVMIPhase.SUCCEEDED: SupabaseInstanceStatus.COMPLETED,
+    KubeVirtVMIPhase.SUCCEEDED: SupabaseInstanceStatus.TERMINATED,
     KubeVirtVMIPhase.FAILED: SupabaseInstanceStatus.ERROR,
     KubeVirtVMIPhase.UNKNOWN: SupabaseInstanceStatus.ERROR,
 }
