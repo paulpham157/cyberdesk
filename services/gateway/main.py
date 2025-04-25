@@ -204,105 +204,231 @@ async def serve_novnc(vm_id: str) -> FileResponse:
 # WebSocket proxy
 # --------------------------------------------------------------------------- #
 
+def _build_ssl_ctx(ca_path: Path) -> ssl.SSLContext:
+    """
+    Return an :class:`ssl.SSLContext` pre-loaded with the in-cluster CA bundle.
+
+    If the CA bundle is missing, fall back to the system trust store but keep
+    hostname verification enabled.
+    """
+    if ca_path.exists():
+        return ssl.create_default_context(cafile=str(ca_path))
+    LOG.warning("CA bundle not found – falling back to system trust store")
+    return ssl.create_default_context()
+
+
+# Helper function to create SSL context from loaded Kubeconfig
+def _build_ssl_ctx_from_config(k8s_config: client.Configuration) -> ssl.SSLContext:
+    """
+    Build SSLContext based on loaded Kubernetes configuration.
+    Handles CA bundle and client certificates if present.
+    Respects insecure_skip_tls_verify flag.
+    """
+    ca_path = k8s_config.ssl_ca_cert
+    ssl_ctx = None
+
+    try:
+        if ca_path and Path(ca_path).exists():
+            ssl_ctx = ssl.create_default_context(cafile=ca_path)
+            LOG.info(f"Using CA bundle from kubeconfig: {ca_path}")
+        else:
+            # Fallback for missing CA file or if not specified in kubeconfig
+            ssl_ctx = ssl.create_default_context() # Uses system CAs
+            if ca_path:
+                LOG.warning(f"Specified CA bundle '{ca_path}' not found. Falling back to system trust store.")
+            else:
+                LOG.info("No CA bundle specified in kubeconfig. Using system trust store.")
+
+        # Apply client certificate if specified
+        client_cert = k8s_config.cert_file
+        client_key = k8s_config.key_file
+        if client_cert and client_key and Path(client_cert).exists() and Path(client_key).exists():
+            ssl_ctx.load_cert_chain(certfile=client_cert, keyfile=client_key)
+            LOG.info(f"Loaded client certificate: {client_cert}")
+        elif client_cert or client_key:
+            # Log warning if one is specified but not the other, or files missing
+             LOG.warning(f"Client certificate or key specified but missing/incomplete. Cert: '{client_cert}', Key: '{client_key}'. Client cert auth disabled.")
+
+        # Disable hostname verification if insecure_skip_tls_verify is true
+        if k8s_config.verify_ssl is False:
+             LOG.warning("Disabling TLS hostname verification as per kubeconfig.")
+             ssl_ctx.check_hostname = False
+             # websockets uses the context's verify_mode. Setting check_hostname=False
+             # AND verify_mode=CERT_NONE achieves skipping verification.
+             # ssl.CERT_NONE might be needed for self-signed certs even with skip hostname.
+             ssl_ctx.verify_mode = ssl.CERT_NONE
+
+    except ssl.SSLError as e:
+        LOG.error(f"SSL Error creating context from kubeconfig: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to configure SSL from kubeconfig: {e}")
+    except FileNotFoundError as e:
+         LOG.error(f"Certificate file not found: {e}")
+         raise HTTPException(status_code=500, detail=f"Certificate file specified in kubeconfig not found: {e}")
+    except Exception as e:
+        LOG.exception(f"Unexpected error building SSL context from kubeconfig: {e}")
+        raise HTTPException(status_code=500, detail=f"Unexpected error configuring SSL from kubeconfig.")
+
+    if ssl_ctx is None: # Should not happen with current logic, but defensive check
+         LOG.error("Failed to create SSL Context")
+         raise HTTPException(status_code=500, detail="Failed to create SSL context")
+
+    return ssl_ctx
+
+
+async def _relay(
+    recv: Callable[[], Awaitable[bytes]],
+    send: Callable[[bytes], Awaitable[None]],
+) -> None:
+    """
+    Copy bytes from *recv* to *send* until EOF or a normal WebSocket shutdown.
+    """
+    try:
+        while True:
+            await send(await recv())
+    except (WebSocketDisconnect, websockets.exceptions.ConnectionClosed):
+        # A graceful close on either side ends the task.
+        return
+
+
+async def _ping(ws: websockets.WebSocketClientProtocol) -> None:
+    """
+    Emit WebSocket Ping frames every *PING_INTERVAL* seconds.
+    """
+    try:
+        while True:
+            await asyncio.sleep(PING_INTERVAL)
+            await ws.ping()
+    except websockets.exceptions.ConnectionClosed:
+        return
+
+
 PING_INTERVAL = 20  # seconds
 
 
 @app.websocket("/vnc/ws/{vm_id}")
 async def proxy_vnc(websocket: WebSocket, vm_id: str) -> None:
     """
-    Bidirectional proxy between browser and KubeVirt's VNC sub-resource.
+    Bidirectional proxy between the browser and KubeVirt's VNC sub-resource.
 
-    Life-cycle:
-      1. Browser connects -> we accept instantly (FastAPI handshake).
-      2. Dial KubeVirt sub-resource at
-         `wss://$KUBERNETES_SERVICE_HOST/apis/.../virtualmachineinstances/{vm_id}/vnc`
-         with sub-protocol `binary.kubevirt.io`.
-      3. Spin up three tasks:
-           * browser→k8s shuttle
-           * k8s→browser shuttle
-           * periodic ping to keep idle connections alive
-      4. When any task exits, cancel the others and close gracefully.
+    Life-cycle
+    ----------
+    1. Browser connects – we accept instantly.
+    2. Determine VNC connection parameters (URL, SSL, Auth) based on environment.
+    3. Dial KubeVirt VNC sub-resource with sub-protocol ``binary.kubevirt.io``.
+    4. Spawn three tasks:
+         * browser → k8s relay
+         * k8s → browser relay
+         * periodic Ping task
+    5. When any task finishes, cancel the others and close gracefully.
     """
     await websocket.accept()
 
-    api_host = os.getenv("KUBERNETES_SERVICE_HOST", "kubernetes.default.svc")
-    api_port = os.getenv("KUBERNETES_SERVICE_PORT_HTTPS", "443")
-    k8s_url = (
-        f"wss://{api_host}:{api_port}/apis/"
-        f"subresources.kubevirt.io/v1/namespaces/{VMI_NAMESPACE}/"
-        f"virtualmachineinstances/{vm_id}/vnc"
-    )
-
-    token_path = "/var/run/secrets/kubernetes.io/serviceaccount/token"
-    ca_path = "/var/run/secrets/kubernetes.io/serviceaccount/ca.crt"
-
-    token: Optional[str] = None
-    ssl_ctx: ssl.SSLContext
+    k8s_url: Optional[str] = None
+    ssl_ctx: Optional[ssl.SSLContext] = None
+    headers: list[tuple[str, str]] = []
 
     try:
-        if Path(token_path).exists():
-            token = Path(token_path).read_text().strip()
-
-        if Path(ca_path).exists():
-            ssl_ctx = ssl.create_default_context(cafile=ca_path)
+        # Check if we are running in-cluster by checking for the token file
+        token_path = Path("/var/run/secrets/kubernetes.io/serviceaccount/token")
+        if token_path.exists():
+            k8s_url, ssl_ctx, headers = _get_in_cluster_vnc_config(vm_id)
         else:
-            LOG.warning("CA bundle not found – falling back to system trust store")
-            ssl_ctx = ssl.create_default_context()
-    except Exception as exc:  # noqa: BLE001
-        LOG.error("Failed to load ServiceAccount credentials: %s", exc)
-        await websocket.close(code=status.WS_1011_INTERNAL_ERROR)
+            k8s_url, ssl_ctx, headers = _get_local_vnc_config(vm_id)
+
+    except RuntimeError as e:
+        LOG.error(f"Failed to configure VNC proxy: {e}")
+        await websocket.close(code=status.WS_1011_INTERNAL_ERROR, reason=f"Proxy config error: {e}")
+        return
+    except Exception as e: # Catch unexpected configuration errors
+         LOG.exception(f"Unexpected error during VNC proxy configuration: {e}")
+         await websocket.close(code=status.WS_1011_INTERNAL_ERROR, reason="Unexpected proxy config error")
+         return
+
+    # Ensure configuration succeeded
+    if not k8s_url or not ssl_ctx:
+        # Should have been caught above, but defensive check
+        LOG.error("Configuration resulted in missing K8s URL or SSL context.")
+        await websocket.close(code=status.WS_1011_INTERNAL_ERROR, reason="Proxy config error")
         return
 
-    if not token:
-        LOG.error("No Kubernetes bearer token available – cannot proxy VNC")
-        await websocket.close(code=status.WS_1011_INTERNAL_ERROR)
-        return
-
+    LOG.info(f"Attempting WebSocket connection to KubeVirt VNC at {k8s_url}")
     try:
         async with websockets.connect(
             k8s_url,
             subprotocols=["binary.kubevirt.io"],
             ssl=ssl_ctx,
-            additional_headers=[("Authorization", f"Bearer {token}")],
+            additional_headers=headers,
+            # Consider adding timeouts for connect/disconnect/transfer if needed
+            # open_timeout=10, close_timeout=10, ping_timeout=20
         ) as kube_ws:
-
-            async def _relay(
-                recv: Callable[[], Awaitable[bytes]],
-                send: Callable[[bytes], Awaitable[None]],
-            ) -> None:
-                """Copy bytes from *recv* to *send* until EOF."""
-                try:
-                    while True:
-                        send(await recv())
-                except (WebSocketDisconnect, websockets.exceptions.ConnectionClosed):
-                    # Normal shutdown path.
-                    ...
-
-            async def _ping(ws: websockets.WebSocketClientProtocol) -> None:
-                """Send WebSocket pings every *PING_INTERVAL* seconds."""
-                try:
-                    while True:
-                        await asyncio.sleep(PING_INTERVAL)
-                        await ws.ping()
-                except websockets.exceptions.ConnectionClosed:
-                    ...
-
+            LOG.info(f"WebSocket connection established to {k8s_url}")
             tasks = {
                 asyncio.create_task(_relay(websocket.receive_bytes, kube_ws.send)),
                 asyncio.create_task(_relay(kube_ws.recv, websocket.send_bytes)),
                 asyncio.create_task(_ping(kube_ws)),
             }
 
-            done, pending = await asyncio.wait(tasks, return_when=asyncio.FIRST_COMPLETED)
+            done, pending = await asyncio.wait(
+                tasks, return_when=asyncio.FIRST_COMPLETED
+            )
+
+            # Log which task completed first if helpful for debugging
+            for task in done:
+                 try:
+                     # Access result or exception to see why it finished
+                     task.result()
+                     LOG.info(f"Relay/Ping task completed normally: {task.get_name()}")
+                 except (WebSocketDisconnect, websockets.exceptions.ConnectionClosed) as e:
+                     LOG.info(f"Relay/Ping task finished due to WebSocket close: {task.get_name()} ({e})")
+                 except asyncio.CancelledError:
+                     LOG.info(f"Relay/Ping task cancelled: {task.get_name()}")
+                 except Exception as e:
+                     LOG.exception(f"Relay/Ping task failed unexpectedly: {task.get_name()}", exc_info=e)
+
             for task in pending:
                 task.cancel()
+                # Optionally await task cancellation
+                # try:
+                #     await task
+                # except asyncio.CancelledError:
+                #     pass
+
+            LOG.info(f"VNC proxy tasks for {vm_id} finished or cancelled.")
+
+    # ----- WebSocket Connection & Proxy Error Handling ---------------------- #
+
+    except ssl.SSLCertVerificationError as exc:
+        LOG.error("TLS verification failed connecting to KubeVirt VNC: %s", exc)
+        reason = f"TLS verification failed ({exc.reason if hasattr(exc, 'reason') else 'unknown'}). Check CA or server certificate."
+        if not ssl_ctx.check_hostname:
+             reason += " Hostname verification was disabled."
+        await websocket.close(code=status.WS_1011_INTERNAL_ERROR, reason=reason)
 
     except websockets.exceptions.InvalidStatusCode as exc:
-        LOG.error("Upstream VNC endpoint refused connection: %s", exc)
-        await websocket.close(code=status.WS_1011_INTERNAL_ERROR, reason=str(exc.status_code))
-    except Exception as exc:  # noqa: BLE001
+        LOG.error("Upstream KubeVirt VNC endpoint refused connection: %s", exc)
+        reason = f"KubeVirt VNC connection failed ({exc.status_code}). Check permissions or VM status."
+        if hasattr(exc, 'response') and exc.response and exc.response.body and len(exc.response.body) < 100:
+            try:
+                reason += f" Body: {exc.response.body.decode()}"
+            except UnicodeDecodeError:
+                pass
+        await websocket.close(code=status.WS_1011_INTERNAL_ERROR, reason=reason)
+
+    except websockets.exceptions.ConnectionClosedError as exc:
+         LOG.error(f"Connection closed unexpectedly during VNC proxy handshake: {exc.code} {exc.reason}")
+         await websocket.close(code=status.WS_1011_INTERNAL_ERROR, reason=f"VNC Connection closed: {exc.reason}")
+
+    except ConnectionRefusedError as exc:
+        LOG.error(f"Connection refused connecting to KubeVirt VNC at {k8s_url}: {exc}")
+        await websocket.close(code=status.WS_1011_INTERNAL_ERROR, reason="Connection refused by K8s API server.")
+
+    except OSError as exc: # Catch potential socket/network errors like timeout during connect
+         LOG.error(f"Network error connecting to KubeVirt VNC at {k8s_url}: {exc}")
+         await websocket.close(code=status.WS_1011_INTERNAL_ERROR, reason=f"Network error: {exc}")
+
+    except Exception as exc:  # Catch any other unexpected errors during connect/proxy
         LOG.exception("Unexpected VNC proxy error: %s", exc)
-        await websocket.close(code=status.WS_1011_INTERNAL_ERROR, reason="Proxy failure")
+        await websocket.close(code=status.WS_1011_INTERNAL_ERROR, reason="Unexpected proxy failure")
 
 
 # --------------------------------------------------------------------------- #
@@ -517,60 +643,54 @@ async def cyberdesk_ready(vm_id: str):
 )
 async def execute_vm_command(vm_id: str, payload: CommandRequest):
     """
-    Sends a command string to the execute-command endpoint of the specified VM.
-    Proxies the request to the internal VM service.
+    Sends a command string to the execute-command endpoint of the specified VM
+    using the proxy helper.
     """
-    # Resolve VM FQDN and Port (assuming same as health check logic)
-    vm_namespace = "kubevirt"
-    vm_service_name = "kubevirt-vm-headless"
-    target_fqdn = f"{vm_id}.{vm_service_name}.{vm_namespace}.svc.cluster.local"
-    target_port = 8000 # Assuming command endpoint runs on port 8000
-    # --- IMPORTANT: Verify this path with the actual VM service implementation --- #
-    command_endpoint_path = "/execute-command"
-    command_endpoint_url = f"http://{target_fqdn}:{target_port}{command_endpoint_path}"
+    command_port = 8000
+    command_path = "execute-command" # Path on the VM service
+    command_timeout = 30.0 # Longer timeout for potential command execution
 
     command_to_execute = payload.command
-    LOG.info(f"Attempting command execution for VM {vm_id} at {command_endpoint_url}: '{command_to_execute[:80]}...'" ) # Log truncated command
+    # IMPORTANT: Ensure the receiving service expects this JSON structure
+    request_payload = {"cmd": command_to_execute}
 
-    async with httpx.AsyncClient(timeout=30.0) as client: # Longer timeout for potential command execution
-        try:
-            response = await client.post(
-                command_endpoint_url,
-                json={"cmd": command_to_execute}, # Send JSON payload
-                headers={"Content-Type": "application/json"} # Set correct header
-            )
+    LOG.info(f"Attempting command execution for VM {vm_id}: '{command_to_execute[:80]}...'")
 
-            # Raise exception for 4xx/5xx responses from the VM's endpoint
-            response.raise_for_status()
+    try:
+        status_code, response_text = await _proxy_request_to_vm(
+            vmid=vm_id,
+            port=command_port,
+            path=command_path,
+            method="POST",
+            json_payload=request_payload,
+            timeout=command_timeout
+        )
 
-            # If successful, return the VM's response
-            vm_response_text = response.text
-            LOG.info(f"Command execution for {vm_id} successful: {response.status_code}, Response: {vm_response_text[:100]}...") # Log truncated response
-            # Return a dictionary matching the response model
+        # Check if the VM's command endpoint returned a success status
+        if 200 <= status_code < 300:
+            LOG.info(f"Command execution for {vm_id} successful: {status_code}, Response: {response_text[:100]}...")
             return {
                 "status": "success",
-                "vm_status_code": response.status_code,
-                "vm_response": vm_response_text
-             }
-
-        except httpx.TimeoutException:
-            LOG.error(f"Command execution for {vm_id} timed out at {command_endpoint_url}")
-            raise HTTPException(status_code=504, detail=f"Command execution timed out for VM {vm_id}")
-        except httpx.ConnectError as e:
-            LOG.error(f"Command execution connection error for {vm_id} at {command_endpoint_url}: {e}")
-            raise HTTPException(status_code=503, detail=f"Could not connect to VM {vm_id} for command execution: {e}")
-        except httpx.HTTPStatusError as e:
-            # VM's command endpoint returned a non-2xx status
-            vm_error_response = e.response.text
-            LOG.error(f"VM {vm_id} command execution failed: {e.response.status_code}, Body: {vm_error_response[:100]}...")
+                "vm_status_code": status_code,
+                "vm_response": response_text
+            }
+        else:
+            # VM is reachable, but the command endpoint returned an error
+            LOG.error(f"VM {vm_id} command execution failed with status {status_code}. Body: {response_text[:100]}")
             raise HTTPException(
-                status_code=502, # Bad Gateway - indicates upstream failure
-                detail=f"VM {vm_id} command execution failed with status {e.response.status_code}. VM Response: {vm_error_response}",
-                headers={"X-VM-Status-Code": str(e.response.status_code)}
+                status_code=502, # Bad Gateway, as the upstream VM endpoint failed
+                detail=f"VM {vm_id} command execution failed: {status_code}",
+                headers={"X-VM-Status-Code": str(status_code)}
             )
-        except Exception as e:
-            LOG.exception(f"Unexpected error during command execution for {vm_id}: {e}")
-            raise HTTPException(status_code=500, detail=f"An unexpected error occurred during command execution for VM {vm_id}")
+
+    except HTTPException as e:
+         # Re-raise known HTTP exceptions from the proxy helper
+         LOG.error(f"Command execution failed for {vm_id} due to proxy error: {e.status_code} - {e.detail}")
+         raise e
+    except Exception as e:
+        # Catch any other unexpected errors during the process
+        LOG.exception(f"Unexpected error during command execution processing for {vm_id}: {e}")
+        raise HTTPException(status_code=500, detail=f"An unexpected error occurred during command execution for VM {vm_id}")
 
 
 # --------------------------------------------------------------------------- #
@@ -586,64 +706,274 @@ async def health_check():
 @app.get("/vm/healthcheck/{vmid}", response_model=VmHealthCheckResponse)
 async def vm_health_check(vmid: str):
     """
-    Performs a health check on the specified VM instance.
-
-    Connects to the VM's pod via internal Kubernetes DNS and requests
-    the /healthcheck endpoint on port 8000.
+    Performs a health check on the specified VM instance using the proxy helper.
     """
-    # Use the headless service defined for VMs
-    # Assumes VMs are in 'kubevirt' namespace and service is 'kubevirt-vm-headless'
-    vm_namespace = "kubevirt"
-    vm_service_name = "kubevirt-vm-headless"
-    # Construct the internal FQDN for the specific VM pod
-    # Format: <pod-hostname>.<service-name>.<namespace>.svc.<cluster-domain>
-    # The pod hostname for KubeVirt VMs usually matches the VM name (vmid)
-    # Assuming default cluster domain 'cluster.local'
-    target_fqdn = f"{vmid}.{vm_service_name}.{vm_namespace}.svc.cluster.local"
-    target_port = 8000 # Assuming health check runs on port 8000 (same as service targetPort)
-    health_check_url = f"http://{target_fqdn}:{target_port}/health"
+    health_port = 8000
+    health_path = "health"
 
-    LOG.info(f"Attempting health check for {vmid} at {health_check_url}")
+    try:
+        status_code, response_text = await _proxy_request_to_vm(
+            vmid=vmid,
+            port=health_port,
+            path=health_path,
+            method="GET",
+            timeout=10.0
+        )
 
-    # Use httpx for async requests, handles DNS resolution within the cluster
-    async with httpx.AsyncClient(timeout=10.0) as client:
-        try:
-            print(f"Attempting health check for {vmid} at {health_check_url}") # Add logging
-            response = await client.get(health_check_url)
-
-            # Proxy the status code and response body from the VM's health check
-            # You might want to add more specific handling based on expected health check responses
-            response.raise_for_status() # Raise exception for 4xx/5xx responses
-
-            # If successful, return the VM's health check response body
-            # Decide on the format - returning raw text/plain or assuming JSON
-            # Let's return a JSON indicating success + the VM's response text
-            vm_response_text = response.text
-            print(f"Health check for {vmid} successful: {response.status_code}, Body: {vm_response_text}") # Add logging
-            # Return a dictionary matching the response model
+        # Check if the VM's health endpoint returned a success status
+        if 200 <= status_code < 300:
+            LOG.info(f"Health check for {vmid} successful: {status_code}")
             return {
                 "status": "ok",
-                "vm_status_code": response.status_code,
-                "vm_response": vm_response_text
+                "vm_status_code": status_code,
+                "vm_response": response_text
             }
-
-        except httpx.TimeoutException:
-            print(f"Health check for {vmid} timed out") # Add logging
-            raise HTTPException(status_code=504, detail=f"Health check timed out for VM {vmid}")
-        except httpx.ConnectError as e:
-             # This often includes DNS resolution errors (gaierror)
-            print(f"Health check connection error for {vmid}: {e}") # Add logging
-            raise HTTPException(status_code=503, detail=f"Could not connect to VM {vmid} for health check: {e}")
-        except httpx.HTTPStatusError as e:
-            # VM's health check returned a non-2xx status
-            print(f"VM {vmid} health check failed: {e.response.status_code}, Body: {e.response.text}") # Add logging
+        else:
+            # VM is reachable, but reported unhealthy
+            LOG.warning(f"VM {vmid} health check failed with status {status_code}. Body: {response_text[:100]}")
             raise HTTPException(
-                status_code=502, # Bad Gateway - indicates upstream failure
-                detail=f"Unfortunately, VM {vmid} health check failed with status {e.response.status_code}",
-                headers={"X-VM-Status-Code": str(e.response.status_code)} # Pass original status via header
+                status_code=502, # Bad Gateway, as the upstream VM is unhealthy
+                detail=f"VM {vmid} health check reported failure: {status_code}",
+                headers={"X-VM-Status-Code": str(status_code)}
             )
+
+    except HTTPException as e:
+         # Re-raise known HTTP exceptions from the proxy helper
+         # (e.g., 404 if pod not found, 503 if connection failed, 504 timeout)
+         LOG.error(f"Health check failed for {vmid} due to proxy error: {e.status_code} - {e.detail}")
+         raise e
+    except Exception as e:
+        # Catch any other unexpected errors during the process
+        LOG.exception(f"Unexpected error during health check processing for {vmid}: {e}")
+        raise HTTPException(status_code=500, detail=f"An unexpected error occurred during health check for VM {vmid}")
+
+
+# --- VNC Proxy Configuration Helpers ---
+
+def _get_in_cluster_vnc_config(vm_id: str) -> tuple[str, ssl.SSLContext, list[tuple[str, str]]]:
+    """Get WebSocket URL, SSL Context, and Headers for in-cluster VNC proxy."""
+    LOG.info("Configuring VNC proxy for in-cluster environment.")
+    token_path = Path("/var/run/secrets/kubernetes.io/serviceaccount/token")
+    ca_path = Path("/var/run/secrets/kubernetes.io/serviceaccount/ca.crt")
+
+    # Use DNS name so the certificate's SAN matches → no hostname mismatch.
+    api_host = os.getenv("KUBERNETES_SERVICE_HOSTNAME", "kubernetes.default.svc")
+    api_port = os.getenv("KUBERNETES_SERVICE_PORT_HTTPS", "443")
+    k8s_url = (
+        f"wss://{api_host}:{api_port}/apis/"
+        f"subresources.kubevirt.io/v1/namespaces/{VMI_NAMESPACE}/"
+        f"virtualmachineinstances/{vm_id}/vnc"
+    )
+
+    try:
+        token = token_path.read_text().strip()
+        headers = [("Authorization", f"Bearer {token}")]
+    except FileNotFoundError:
+        LOG.error("Service account token path exists but could not be read.")
+        # Raise an exception to be caught by the caller
+        raise RuntimeError("In-cluster token read failed.")
+
+    ssl_ctx = _build_ssl_ctx(ca_path)
+    return k8s_url, ssl_ctx, headers
+
+def _get_local_vnc_config(vm_id: str) -> tuple[str, ssl.SSLContext, list[tuple[str, str]]]:
+    """Get WebSocket URL, SSL Context, and Headers for local VNC proxy using kubeconfig."""
+    LOG.info("Configuring VNC proxy for local environment using kubeconfig.")
+    try:
+        k8s_config = client.Configuration().get_default_copy()
+        if not k8s_config or not k8s_config.host:
+            raise RuntimeError("Failed to load kubeconfig details for VNC proxy.")
+
+        # Construct URL from kubeconfig host
+        api_host_port = k8s_config.host.replace("https://", "").replace("http://", "")
+        k8s_url = (
+             f"wss://{api_host_port}/apis/"
+             f"subresources.kubevirt.io/v1/namespaces/{VMI_NAMESPACE}/"
+             f"virtualmachineinstances/{vm_id}/vnc"
+        )
+
+        # Build SSL context from kubeconfig
+        ssl_ctx = _build_ssl_ctx_from_config(k8s_config)
+
+        # Determine headers based on authentication method in kubeconfig
+        headers = []
+        if k8s_config.api_key and k8s_config.api_key.get("authorization"): # Token auth
+            token = k8s_config.api_key["authorization"]
+            headers = [("Authorization", f"Bearer {token}")]
+            LOG.info("Using Bearer token from kubeconfig for VNC.")
+        elif k8s_config.cert_file and k8s_config.key_file: # Cert auth
+             LOG.info("Using client certificate from kubeconfig for VNC.")
+             # No extra header needed; handled by SSL context
+        else:
+             LOG.warning("No Bearer token or client certificate found in kubeconfig for VNC proxy authentication.")
+
+        return k8s_url, ssl_ctx, headers
+
+    except Exception as e:
+        LOG.exception(f"Error configuring VNC proxy from kubeconfig: {e}")
+        # Re-raise to be caught by the caller
+        raise RuntimeError(f"Kubeconfig VNC setup error: {e}") from e
+
+
+# --- Generic VM Pod Communication Helper ---
+
+async def _proxy_request_to_vm(
+    vmid: str,
+    port: int,
+    path: str,
+    method: str = "GET",
+    json_payload: Optional[dict] = None,
+    timeout: float = 10.0
+) -> tuple[int, str]:
+    """
+    Sends an HTTP request to a specific port/path on the VM pod.
+
+    Handles routing via internal DNS (in-cluster) or K8s API proxy (local).
+    Finds the correct virt-launcher pod name when running locally.
+
+    Args:
+        vmid: The target Virtual Machine ID.
+        port: The target port on the VM pod.
+        path: The target URL path on the VM pod (e.g., "health", "execute-command").
+        method: HTTP method ("GET", "POST", etc.).
+        json_payload: Optional dictionary to send as JSON body (for POST/PUT).
+        timeout: Request timeout in seconds.
+
+    Returns:
+        A tuple containing (status_code, response_text).
+
+    Raises:
+        HTTPException: If the request fails due to connection errors, timeouts,
+                       API errors, non-2xx VM responses, or pod lookup issues.
+    """
+    vm_namespace = "kubevirt"
+    path = path.lstrip('/') # Ensure path doesn't start with /
+
+    # Check if running in-cluster
+    token_path = Path("/var/run/secrets/kubernetes.io/serviceaccount/token")
+    in_cluster = token_path.exists()
+
+    if in_cluster:
+        # --- In-Cluster Logic (httpx via internal DNS) ---
+        LOG.info(f"Proxying {method} to VM {vmid} (in-cluster) -> :{port}/{path}")
+        vm_service_name = "kubevirt-vm-headless"
+        target_fqdn = f"{vmid}.{vm_service_name}.{vm_namespace}.svc.cluster.local"
+        target_url = f"http://{target_fqdn}:{port}/{path}"
+        LOG.debug(f"Target URL (in-cluster): {target_url}")
+
+        async with httpx.AsyncClient(timeout=timeout) as client:
+            try:
+                response = await client.request(
+                    method,
+                    target_url,
+                    json=json_payload # httpx handles None payload correctly
+                )
+                # Don't raise for status here, return actual status and body
+                LOG.debug(f"VM {vmid} (in-cluster) response: {response.status_code}")
+                return response.status_code, response.text
+            except httpx.TimeoutException:
+                LOG.error(f"Timeout connecting to VM {vmid} (in-cluster) at {target_url}")
+                raise HTTPException(status_code=504, detail=f"Request timed out connecting to VM {vmid}")
+            except httpx.ConnectError as e:
+                LOG.error(f"Connection error to VM {vmid} (in-cluster) at {target_url}: {e}")
+                raise HTTPException(status_code=503, detail=f"Could not connect to VM {vmid} (DNS issue?): {e}")
+            except Exception as e:
+                LOG.exception(f"Unexpected error during httpx request to VM {vmid} (in-cluster): {e}")
+                raise HTTPException(status_code=500, detail=f"Unexpected error connecting to VM {vmid}")
+
+    else:
+        # --- Local Logic (Kubernetes API Proxy) ---
+        LOG.info(f"Proxying {method} to VM {vmid} (local) via K8s API -> :{port}/{path}")
+        core_api = require_k8s_core() # Ensures K8s client is loaded
+        api_client = core_api.api_client # Get the underlying ApiClient
+
+        # 1. Find the Pod Name
+        pod_name: Optional[str] = None
+        try:
+            label_selector = f"kubevirt.io/domain={vmid}"
+            LOG.debug(f"Searching for pod with label selector: {label_selector}")
+            pod_list_response = await asyncio.to_thread(
+                core_api.list_namespaced_pod,
+                namespace=vm_namespace,
+                label_selector=label_selector,
+                _request_timeout=5
+            )
+            pods = pod_list_response.items
+            if len(pods) == 1:
+                pod_name = pods[0].metadata.name
+                LOG.debug(f"Found virt-launcher pod: {pod_name}")
+            elif len(pods) == 0:
+                LOG.warning(f"No virt-launcher pod found for vmid {vmid}")
+                raise HTTPException(status_code=404, detail=f"VM (pod) with ID {vmid} not found or not running.")
+            else:
+                pod_names_str = ", ".join([p.metadata.name for p in pods[:3]])
+                LOG.error(f"Found multiple ({len(pods)}) virt-launcher pods for vmid {vmid}: {pod_names_str}")
+                raise HTTPException(status_code=500, detail=f"Multiple pods found for VM {vmid}: {pod_names_str}")
+        except ApiException as e:
+            LOG.error(f"K8s API error finding pod for {vmid}: {e.status} {e.reason}")
+            raise HTTPException(status_code=500, detail=f"API error finding VM pod: {e.reason}")
+        except asyncio.TimeoutError:
+             LOG.error(f"Timeout searching for pod for {vmid}")
+             raise HTTPException(status_code=504, detail="Timeout finding VM pod")
         except Exception as e:
-            # Catch any other unexpected errors
-            print(f"Unexpected error during health check for {vmid}: {e}") # Add logging
-            raise HTTPException(status_code=500, detail=f"An unexpected error occurred during health check for VM {vmid}")
+            LOG.exception(f"Unexpected error finding pod for {vmid}: {e}")
+            raise HTTPException(status_code=500, detail="Unexpected error finding VM pod")
+
+        if not pod_name:
+             raise HTTPException(status_code=500, detail="Could not determine pod name")
+
+        # 2. Make the Proxied Request
+        api_proxy_path = f"/api/v1/namespaces/{vm_namespace}/pods/{pod_name}:{port}/proxy/{path}"
+        LOG.debug(f"Attempting {method} via K8s API proxy path: {api_proxy_path}")
+
+        try:
+            # Prepare arguments for call_api
+            call_api_args = {
+                'resource_path': api_proxy_path,
+                'method': method,
+                'auth_settings': ['BearerToken'],
+                'response_type': 'str', # Expect text back
+                '_request_timeout': timeout
+            }
+            header_params = {}
+            # Set body and Content-Type for methods that have payloads
+            if json_payload is not None and method in ["POST", "PUT", "PATCH"]:
+                call_api_args['body'] = json_payload
+                header_params['Content-Type'] = api_client.select_header_content_type(['application/json'])
+                call_api_args['header_params'] = header_params
+
+            # Run synchronous call_api in thread
+            response_data = await asyncio.to_thread(
+                api_client.call_api,
+                **call_api_args
+            )
+
+            # response_data = (data, status_code, headers)
+            status_code = response_data[1]
+            response_text = response_data[0]
+            LOG.debug(f"K8s API proxy request to VM {vmid} completed with status: {status_code}")
+            return status_code, response_text
+
+        except ApiException as e:
+            LOG.error(f"K8s API error during proxy request to {vmid}: {e.status} {e.reason} - Body: {e.body}")
+            # Map common K8s API errors during proxying
+            if e.status == 404:
+                 detail = f"Proxy path not found on pod '{pod_name}' (or pod disappeared)."
+                 http_status = 502 # Treat as bad gateway, pod endpoint issue
+            elif e.status == 503 or e.status == 504:
+                detail = f"Could not connect to Pod '{pod_name}' via K8s API proxy: {e.reason}"
+                http_status = 503
+            elif e.status == 401 or e.status == 403:
+                detail = f"Permission denied accessing K8s pod proxy: {e.reason}"
+                http_status = 500
+            else:
+                 detail = f"Kubernetes API error during proxy: {e.reason}"
+                 http_status = 500
+            raise HTTPException(status_code=http_status, detail=detail)
+        except asyncio.TimeoutError:
+             LOG.error(f"Timeout during K8s API proxy request to {vmid}")
+             raise HTTPException(status_code=504, detail=f"Request via K8s API timed out for VM {vmid}")
+        except Exception as e:
+            LOG.exception(f"Unexpected error during K8s API proxy request to {vmid}: {e}")
+            raise HTTPException(status_code=500, detail=f"Unexpected error during proxy request to VM {vmid}")
 
