@@ -8,7 +8,6 @@ apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
   name: gateway-vnc-access
-  namespace: cyberdesk-system
 rules:
 - apiGroups: ["subresources.kubevirt.io"]
   resources: ["virtualmachineinstances/vnc"]
@@ -16,6 +15,9 @@ rules:
 - apiGroups: [""] # Core API group
   resources: ["services"]
   verbs: ["get", "list", "watch"] # Add permissions to get service status
+- apiGroups: [""]
+  resources: ["services/status"]
+  verbs: ["get"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
