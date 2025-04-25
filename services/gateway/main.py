@@ -21,7 +21,7 @@ import logging
 import os
 import ssl
 from pathlib import Path
-from typing import Callable, Awaitable, Optional
+from typing import Callable, Awaitable, Optional, List, Any
 import httpx
 import websockets
 from fastapi import (
@@ -39,6 +39,7 @@ from kubernetes.client import ApiException, CustomObjectsApi, CoreV1Api
 from pydantic import BaseModel, Field
 from supabase import create_client, Client
 from dotenv import load_dotenv
+import json
 
 # --------------------------------------------------------------------------- #
 # Logging
@@ -147,11 +148,19 @@ class CyberdeskReadyResponse(StatusMessageResponse):
     """Response for POST /cyberdesk/{vm_id}/ready"""
     stream_url: str
 
-class CommandExecuteResponse(BaseModel):
+class VMCommandExecutionResponse(BaseModel):
+    """Schema for the response received *from* the VM's /execute-command endpoint."""
+    args: List[str]
+    return_code: int
+    stdout: str
+    stderr: str
+    duration_s: float
+
+class GatewayCommandResponse(BaseModel):
     """Response for POST /cyberdesk/{vm_id}/execute-command"""
     status: str
     vm_status_code: int
-    vm_response: str # Or consider Union[str, dict, list] if VM response can vary
+    vm_response: VMCommandExecutionResponse
 
 class HealthCheckResponse(BaseModel):
     """Response for GET /healthz"""
@@ -159,9 +168,8 @@ class HealthCheckResponse(BaseModel):
 
 class VmHealthCheckResponse(BaseModel):
     """Response for GET /vm/healthcheck/{vmid}"""
-    status: str
-    vm_status_code: int
-    vm_response: str # Or consider Union[str, dict, list]
+    status: str  # Status reported by the VM's health endpoint
+    vm_status_code: int # The HTTP status code received from the VM
 
 
 # --------------------------------------------------------------------------- #
@@ -639,7 +647,7 @@ async def cyberdesk_ready(vm_id: str):
 
 @app.post(
     "/cyberdesk/{vm_id}/execute-command",
-    response_model=CommandExecuteResponse
+    response_model=GatewayCommandResponse
 )
 async def execute_vm_command(vm_id: str, payload: CommandRequest):
     """
@@ -657,7 +665,7 @@ async def execute_vm_command(vm_id: str, payload: CommandRequest):
     LOG.info(f"Attempting command execution for VM {vm_id}: '{command_to_execute[:80]}...'")
 
     try:
-        status_code, response_text = await _proxy_request_to_vm(
+        status_code, response_json = await _proxy_request_to_vm(
             vmid=vm_id,
             port=command_port,
             path=command_path,
@@ -668,15 +676,21 @@ async def execute_vm_command(vm_id: str, payload: CommandRequest):
 
         # Check if the VM's command endpoint returned a success status
         if 200 <= status_code < 300:
-            LOG.info(f"Command execution for {vm_id} successful: {status_code}, Response: {response_text[:100]}...")
+            LOG.info(f"Command execution for {vm_id} successful: {status_code}, Response: { response_json}")
             return {
                 "status": "success",
                 "vm_status_code": status_code,
-                "vm_response": response_text
+                "vm_response": {
+                    "args": response_json["args"],
+                    "return_code": response_json["return_code"],
+                    "stdout": response_json["stdout"],
+                    "stderr": response_json["stderr"],
+                    "duration_s": response_json["duration_s"]
+                }
             }
         else:
             # VM is reachable, but the command endpoint returned an error
-            LOG.error(f"VM {vm_id} command execution failed with status {status_code}. Body: {response_text[:100]}")
+            LOG.error(f"VM {vm_id} command execution failed with status {status_code}.")
             raise HTTPException(
                 status_code=502, # Bad Gateway, as the upstream VM endpoint failed
                 detail=f"VM {vm_id} command execution failed: {status_code}",
@@ -712,7 +726,7 @@ async def vm_health_check(vmid: str):
     health_path = "health"
 
     try:
-        status_code, response_text = await _proxy_request_to_vm(
+        status_code, response_json = await _proxy_request_to_vm(
             vmid=vmid,
             port=health_port,
             path=health_path,
@@ -725,12 +739,11 @@ async def vm_health_check(vmid: str):
             LOG.info(f"Health check for {vmid} successful: {status_code}")
             return {
                 "status": "ok",
-                "vm_status_code": status_code,
-                "vm_response": response_text
+                "vm_status_code": status_code
             }
         else:
             # VM is reachable, but reported unhealthy
-            LOG.warning(f"VM {vmid} health check failed with status {status_code}. Body: {response_text[:100]}")
+            LOG.warning(f"VM {vmid} health check failed with status {status_code}")
             raise HTTPException(
                 status_code=502, # Bad Gateway, as the upstream VM is unhealthy
                 detail=f"VM {vmid} health check reported failure: {status_code}",
@@ -824,7 +837,7 @@ async def _proxy_request_to_vm(
     method: str = "GET",
     json_payload: Optional[dict] = None,
     timeout: float = 10.0
-) -> tuple[int, str]:
+) -> tuple[int, Any]:
     """
     Sends an HTTP request to a specific port/path on the VM pod.
 
@@ -840,7 +853,8 @@ async def _proxy_request_to_vm(
         timeout: Request timeout in seconds.
 
     Returns:
-        A tuple containing (status_code, response_text).
+        A tuple containing (status_code, response_body). The response_body
+        will be a parsed JSON object (dict/list) if possible, otherwise raw text.
 
     Raises:
         HTTPException: If the request fails due to connection errors, timeouts,
@@ -868,9 +882,16 @@ async def _proxy_request_to_vm(
                     target_url,
                     json=json_payload # httpx handles None payload correctly
                 )
-                # Don't raise for status here, return actual status and body
-                LOG.debug(f"VM {vmid} (in-cluster) response: {response.status_code}")
-                return response.status_code, response.text
+                response.raise_for_status() # Raise exception for 4xx/5xx responses
+
+                # Attempt to parse response as JSON
+                try:
+                    json_response = response.json()
+                    LOG.debug(f"Successfully parsed JSON response from {target_url}")
+                    return response.status_code, json_response
+                except Exception as json_exc: # Catches JSONDecodeError and others
+                    LOG.warning(f"Failed to parse response from {target_url} as JSON: {json_exc}. Returning raw text.")
+                    return response.status_code, response.text
             except httpx.TimeoutException:
                 LOG.error(f"Timeout connecting to VM {vmid} (in-cluster) at {target_url}")
                 raise HTTPException(status_code=504, detail=f"Request timed out connecting to VM {vmid}")
@@ -952,7 +973,16 @@ async def _proxy_request_to_vm(
             status_code = response_data[1]
             response_text = response_data[0]
             LOG.debug(f"K8s API proxy request to VM {vmid} completed with status: {status_code}")
-            return status_code, response_text
+            LOG.debug(f"Response data: {response_data}...")
+            # Attempt to parse response as JSON, fall back to text
+            try:
+                corrected_json_string = response_text.replace("'", '"') # Basic, might break
+                json_response = json.loads(corrected_json_string)
+                LOG.debug(f"Successfully parsed JSON response from K8s proxy for {vmid}")
+                return status_code, json_response
+            except json.JSONDecodeError:
+                LOG.warning(f"Failed to parse response from K8s proxy for {vmid} as JSON. Returning raw text. {response_text[:100]}...")
+                return status_code, response_text
 
         except ApiException as e:
             LOG.error(f"K8s API error during proxy request to {vmid}: {e.status} {e.reason} - Body: {e.body}")
