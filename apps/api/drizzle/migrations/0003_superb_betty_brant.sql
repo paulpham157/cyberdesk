@@ -1,0 +1,1 @@
+ALTER TABLE "desktop_instances" ADD COLUMN "stream_url" varchar(1024) NOT NULL;

@@ -1,0 +1,1499 @@
+{
+    "openapi": "3.0.0",
+    "info": {
+        "title": "API Reference",
+        "version": "1.0.0",
+        "description": "API for Cyberdesk, to create, control, and manage virtual desktop instances."
+    },
+    "servers": [
+        {
+            "url": "https://api.cyberdesk.io",
+            "description": "Production server"
+        }
+    ],
+    "components": {
+        "securitySchemes": {
+            "apiKeyAuth": {
+                "type": "apiKey",
+                "in": "header",
+                "name": "x-api-key"
+            }
+        },
+        "schemas": {},
+        "parameters": {}
+    },
+    "paths": {
+        "/v1/desktop/:id": {
+            "get": {
+                "tags": [
+                    "Desktop"
+                ],
+                "summary": "Get details of a specific desktop instance",
+                "description": "Returns the ID, status, creation timestamp, and timeout timestamp for a given desktop instance.",
+                "parameters": [
+                    {
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid",
+                            "description": "The UUID of the desktop instance to retrieve",
+                            "example": "a1b2c3d4-e5f6-7890-1234-567890abcdef"
+                        },
+                        "required": true,
+                        "name": "id",
+                        "in": "path"
+                    },
+                    {
+                        "schema": {
+                            "type": "string",
+                            "description": "API key for authentication",
+                            "example": "api_12345"
+                        },
+                        "required": true,
+                        "name": "x-api-key",
+                        "in": "header"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Desktop instance details retrieved successfully",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "id": {
+                                            "type": "string",
+                                            "format": "uuid",
+                                            "description": "Unique identifier for the desktop instance",
+                                            "example": "a1b2c3d4-e5f6-7890-1234-567890abcdef"
+                                        },
+                                        "status": {
+                                            "type": "string",
+                                            "enum": [
+                                                "pending",
+                                                "running",
+                                                "terminated",
+                                                "error"
+                                            ],
+                                            "description": "Current status of the desktop instance",
+                                            "example": "running"
+                                        },
+                                        "createdAt": {
+                                            "type": "string",
+                                            "format": "date-time",
+                                            "description": "Timestamp when the instance was created",
+                                            "example": "2023-10-27T10:00:00Z"
+                                        },
+                                        "timeoutAt": {
+                                            "type": "string",
+                                            "format": "date-time",
+                                            "description": "Timestamp when the instance will automatically time out",
+                                            "example": "2023-10-28T10:00:00Z"
+                                        }
+                                    },
+                                    "required": [
+                                        "id",
+                                        "status",
+                                        "createdAt",
+                                        "timeoutAt"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "The server cannot or will not process the request due to something that is perceived to be a client error (e.g., malformed request syntax, invalid request message framing, or deceptive request routing).",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "message": {
+                                            "type": "string"
+                                        },
+                                        "docs": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": [
+                                        "message",
+                                        "docs"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Although the HTTP standard specifies \"unauthorized\", semantically this response means \"unauthenticated\". That is, the client must authenticate itself to get the requested response.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "message": {
+                                            "type": "string"
+                                        },
+                                        "docs": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": [
+                                        "message",
+                                        "docs"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "The client does not have access rights to the content; that is, it is unauthorized, so the server is refusing to give the requested resource. Unlike 401 Unauthorized, the client's identity is known to the server.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "message": {
+                                            "type": "string"
+                                        },
+                                        "docs": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": [
+                                        "message",
+                                        "docs"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "The server cannot find the requested resource. In the browser, this means the URL is not recognized. In an API, this can also mean that the endpoint is valid but the resource itself does not exist. Servers may also send this response instead of 403 Forbidden to hide the existence of a resource from an unauthorized client. This response code is probably the most well known due to its frequent occurrence on the web.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "message": {
+                                            "type": "string"
+                                        },
+                                        "docs": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": [
+                                        "message",
+                                        "docs"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "409": {
+                        "description": "This response is sent when a request conflicts with the current state of the server.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "message": {
+                                            "type": "string"
+                                        },
+                                        "docs": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": [
+                                        "message",
+                                        "docs"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "429": {
+                        "description": "The user has sent too many requests in a given amount of time (\"rate limiting\")",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "message": {
+                                            "type": "string"
+                                        },
+                                        "docs": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": [
+                                        "message",
+                                        "docs"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "The server has encountered a situation it does not know how to handle.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "message": {
+                                            "type": "string"
+                                        },
+                                        "docs": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": [
+                                        "message",
+                                        "docs"
+                                    ]
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/desktop": {
+            "post": {
+                "tags": [
+                    "Desktop"
+                ],
+                "summary": "Create a new virtual desktop instance",
+                "description": "Creates a new virtual desktop instance and returns its ID and stream URL",
+                "parameters": [
+                    {
+                        "schema": {
+                            "type": "string",
+                            "description": "API key for authentication",
+                            "example": "api_12345"
+                        },
+                        "required": true,
+                        "name": "x-api-key",
+                        "in": "header"
+                    }
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "properties": {
+                                    "timeoutMs": {
+                                        "type": "integer",
+                                        "description": "Timeout in milliseconds for the desktop session",
+                                        "example": 3600000
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Desktop created successfully",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "id": {
+                                            "type": "string",
+                                            "description": "Unique identifier for the desktop instance",
+                                            "example": "desktop_12345"
+                                        },
+                                        "streamUrl": {
+                                            "type": "string",
+                                            "description": "URL to stream the desktop via VNC",
+                                            "example": "https://stream.example.com"
+                                        }
+                                    },
+                                    "required": [
+                                        "id",
+                                        "streamUrl"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "The server cannot or will not process the request due to something that is perceived to be a client error (e.g., malformed request syntax, invalid request message framing, or deceptive request routing).",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "message": {
+                                            "type": "string"
+                                        },
+                                        "docs": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": [
+                                        "message",
+                                        "docs"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Although the HTTP standard specifies \"unauthorized\", semantically this response means \"unauthenticated\". That is, the client must authenticate itself to get the requested response.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "message": {
+                                            "type": "string"
+                                        },
+                                        "docs": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": [
+                                        "message",
+                                        "docs"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "The client does not have access rights to the content; that is, it is unauthorized, so the server is refusing to give the requested resource. Unlike 401 Unauthorized, the client's identity is known to the server.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "message": {
+                                            "type": "string"
+                                        },
+                                        "docs": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": [
+                                        "message",
+                                        "docs"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "The server cannot find the requested resource. In the browser, this means the URL is not recognized. In an API, this can also mean that the endpoint is valid but the resource itself does not exist. Servers may also send this response instead of 403 Forbidden to hide the existence of a resource from an unauthorized client. This response code is probably the most well known due to its frequent occurrence on the web.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "message": {
+                                            "type": "string"
+                                        },
+                                        "docs": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": [
+                                        "message",
+                                        "docs"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "409": {
+                        "description": "This response is sent when a request conflicts with the current state of the server.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "message": {
+                                            "type": "string"
+                                        },
+                                        "docs": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": [
+                                        "message",
+                                        "docs"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "429": {
+                        "description": "The user has sent too many requests in a given amount of time (\"rate limiting\")",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "message": {
+                                            "type": "string"
+                                        },
+                                        "docs": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": [
+                                        "message",
+                                        "docs"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "The server has encountered a situation it does not know how to handle.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "message": {
+                                            "type": "string"
+                                        },
+                                        "docs": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": [
+                                        "message",
+                                        "docs"
+                                    ]
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/desktop/:id/stop": {
+            "post": {
+                "tags": [
+                    "Desktop"
+                ],
+                "summary": "Stop a running desktop instance",
+                "description": "Stops a running desktop instance and cleans up resources",
+                "parameters": [
+                    {
+                        "schema": {
+                            "type": "string",
+                            "description": "Desktop instance ID to stop",
+                            "example": "desktop_12345"
+                        },
+                        "required": true,
+                        "name": "id",
+                        "in": "path"
+                    },
+                    {
+                        "schema": {
+                            "type": "string",
+                            "description": "API key for authentication",
+                            "example": "api_12345"
+                        },
+                        "required": true,
+                        "name": "x-api-key",
+                        "in": "header"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Desktop stopped successfully",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "status": {
+                                            "type": "string",
+                                            "description": "Status of the operation",
+                                            "example": "success"
+                                        },
+                                        "image": {
+                                            "type": "string",
+                                            "description": "Base64 encoded image data (only returned for screenshot actions)",
+                                            "example": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAA..."
+                                        },
+                                        "cursorPosition": {
+                                            "type": "object",
+                                            "properties": {
+                                                "x": {
+                                                    "type": "integer",
+                                                    "description": "X coordinate on the screen",
+                                                    "example": 500
+                                                },
+                                                "y": {
+                                                    "type": "integer",
+                                                    "description": "Y coordinate on the screen",
+                                                    "example": 300
+                                                }
+                                            },
+                                            "description": "Current cursor coordinates (only returned for get_cursor_position action)",
+                                            "example": {
+                                                "x": 500,
+                                                "y": 300
+                                            }
+                                        }
+                                    },
+                                    "required": [
+                                        "status"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "The server cannot or will not process the request due to something that is perceived to be a client error (e.g., malformed request syntax, invalid request message framing, or deceptive request routing).",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "message": {
+                                            "type": "string"
+                                        },
+                                        "docs": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": [
+                                        "message",
+                                        "docs"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Although the HTTP standard specifies \"unauthorized\", semantically this response means \"unauthenticated\". That is, the client must authenticate itself to get the requested response.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "message": {
+                                            "type": "string"
+                                        },
+                                        "docs": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": [
+                                        "message",
+                                        "docs"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "The client does not have access rights to the content; that is, it is unauthorized, so the server is refusing to give the requested resource. Unlike 401 Unauthorized, the client's identity is known to the server.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "message": {
+                                            "type": "string"
+                                        },
+                                        "docs": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": [
+                                        "message",
+                                        "docs"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "The server cannot find the requested resource. In the browser, this means the URL is not recognized. In an API, this can also mean that the endpoint is valid but the resource itself does not exist. Servers may also send this response instead of 403 Forbidden to hide the existence of a resource from an unauthorized client. This response code is probably the most well known due to its frequent occurrence on the web.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "message": {
+                                            "type": "string"
+                                        },
+                                        "docs": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": [
+                                        "message",
+                                        "docs"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "409": {
+                        "description": "This response is sent when a request conflicts with the current state of the server.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "message": {
+                                            "type": "string"
+                                        },
+                                        "docs": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": [
+                                        "message",
+                                        "docs"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "429": {
+                        "description": "The user has sent too many requests in a given amount of time (\"rate limiting\")",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "message": {
+                                            "type": "string"
+                                        },
+                                        "docs": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": [
+                                        "message",
+                                        "docs"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "The server has encountered a situation it does not know how to handle.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "message": {
+                                            "type": "string"
+                                        },
+                                        "docs": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": [
+                                        "message",
+                                        "docs"
+                                    ]
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/desktop/:id/computer-action": {
+            "post": {
+                "tags": [
+                    "Desktop"
+                ],
+                "summary": "Perform an action on the desktop",
+                "description": "Executes a computer action such as mouse clicks, keyboard input, or screenshots on the desktop",
+                "parameters": [
+                    {
+                        "schema": {
+                            "type": "string",
+                            "description": "Desktop instance ID to perform the action on",
+                            "example": "desktop_12345"
+                        },
+                        "required": true,
+                        "name": "id",
+                        "in": "path"
+                    },
+                    {
+                        "schema": {
+                            "type": "string",
+                            "description": "API key for authentication",
+                            "example": "api_12345"
+                        },
+                        "required": true,
+                        "name": "x-api-key",
+                        "in": "header"
+                    }
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "oneOf": [
+                                    {
+                                        "type": "object",
+                                        "properties": {
+                                            "type": {
+                                                "type": "string",
+                                                "enum": [
+                                                    "click_mouse"
+                                                ],
+                                                "description": "Perform a mouse action: click, press (down), or release (up). Defaults to a single left click at the current position.",
+                                                "example": "click_mouse"
+                                            },
+                                            "x": {
+                                                "type": "integer",
+                                                "description": "X coordinate for the action (optional, uses current position if omitted)",
+                                                "example": 500
+                                            },
+                                            "y": {
+                                                "type": "integer",
+                                                "description": "Y coordinate for the action (optional, uses current position if omitted)",
+                                                "example": 300
+                                            },
+                                            "button": {
+                                                "type": "string",
+                                                "enum": [
+                                                    "left",
+                                                    "right",
+                                                    "middle"
+                                                ],
+                                                "description": "Mouse button to use (optional, defaults to 'left')",
+                                                "example": "left"
+                                            },
+                                            "num_of_clicks": {
+                                                "type": "integer",
+                                                "minimum": 0,
+                                                "description": "Number of clicks to perform (optional, defaults to 1, only applicable for 'click' type)",
+                                                "example": 1
+                                            },
+                                            "click_type": {
+                                                "type": "string",
+                                                "enum": [
+                                                    "click",
+                                                    "down",
+                                                    "up"
+                                                ],
+                                                "description": "Type of mouse action (optional, defaults to 'click')",
+                                                "example": "click"
+                                            }
+                                        },
+                                        "required": [
+                                            "type"
+                                        ],
+                                        "title": "Click Mouse Action"
+                                    },
+                                    {
+                                        "type": "object",
+                                        "properties": {
+                                            "type": {
+                                                "type": "string",
+                                                "enum": [
+                                                    "scroll"
+                                                ],
+                                                "description": "Scroll the mouse wheel in the specified direction",
+                                                "example": "scroll"
+                                            },
+                                            "direction": {
+                                                "type": "string",
+                                                "enum": [
+                                                    "up",
+                                                    "down",
+                                                    "left",
+                                                    "right"
+                                                ],
+                                                "description": "Direction to scroll",
+                                                "example": "down"
+                                            },
+                                            "amount": {
+                                                "type": "integer",
+                                                "description": "Amount to scroll in pixels",
+                                                "example": 100
+                                            }
+                                        },
+                                        "required": [
+                                            "type",
+                                            "direction",
+                                            "amount"
+                                        ],
+                                        "title": "Scroll Action"
+                                    },
+                                    {
+                                        "type": "object",
+                                        "properties": {
+                                            "type": {
+                                                "type": "string",
+                                                "enum": [
+                                                    "move_mouse"
+                                                ],
+                                                "description": "Move the mouse cursor to the specified coordinates",
+                                                "example": "move_mouse"
+                                            },
+                                            "x": {
+                                                "type": "integer",
+                                                "description": "X coordinate to move to",
+                                                "example": 500
+                                            },
+                                            "y": {
+                                                "type": "integer",
+                                                "description": "Y coordinate to move to",
+                                                "example": 300
+                                            }
+                                        },
+                                        "required": [
+                                            "type",
+                                            "x",
+                                            "y"
+                                        ],
+                                        "title": "Move Mouse Action"
+                                    },
+                                    {
+                                        "type": "object",
+                                        "properties": {
+                                            "type": {
+                                                "type": "string",
+                                                "enum": [
+                                                    "drag_mouse"
+                                                ],
+                                                "description": "Drag the mouse from start to end coordinates",
+                                                "example": "drag_mouse"
+                                            },
+                                            "start": {
+                                                "type": "object",
+                                                "properties": {
+                                                    "x": {
+                                                        "type": "integer",
+                                                        "description": "X coordinate on the screen",
+                                                        "example": 500
+                                                    },
+                                                    "y": {
+                                                        "type": "integer",
+                                                        "description": "Y coordinate on the screen",
+                                                        "example": 300
+                                                    }
+                                                },
+                                                "required": [
+                                                    "x",
+                                                    "y"
+                                                ],
+                                                "description": "Starting coordinates for the drag operation",
+                                                "example": {
+                                                    "x": 100,
+                                                    "y": 100
+                                                }
+                                            },
+                                            "end": {
+                                                "type": "object",
+                                                "properties": {
+                                                    "x": {
+                                                        "type": "integer",
+                                                        "description": "X coordinate on the screen",
+                                                        "example": 500
+                                                    },
+                                                    "y": {
+                                                        "type": "integer",
+                                                        "description": "Y coordinate on the screen",
+                                                        "example": 300
+                                                    }
+                                                },
+                                                "required": [
+                                                    "x",
+                                                    "y"
+                                                ],
+                                                "description": "Ending coordinates for the drag operation",
+                                                "example": {
+                                                    "x": 300,
+                                                    "y": 300
+                                                }
+                                            }
+                                        },
+                                        "required": [
+                                            "type",
+                                            "start",
+                                            "end"
+                                        ],
+                                        "title": "Drag Mouse Action"
+                                    },
+                                    {
+                                        "type": "object",
+                                        "properties": {
+                                            "type": {
+                                                "type": "string",
+                                                "enum": [
+                                                    "type"
+                                                ],
+                                                "description": "Type text at the current cursor position",
+                                                "example": "type"
+                                            },
+                                            "text": {
+                                                "type": "string",
+                                                "description": "Text to type",
+                                                "example": "Hello, World!"
+                                            }
+                                        },
+                                        "required": [
+                                            "type",
+                                            "text"
+                                        ],
+                                        "title": "Type Text Action"
+                                    },
+                                    {
+                                        "type": "object",
+                                        "properties": {
+                                            "type": {
+                                                "type": "string",
+                                                "enum": [
+                                                    "press_keys"
+                                                ],
+                                                "description": "Press, hold down, or release one or more keyboard keys. Defaults to a single press and release.",
+                                                "example": "press_keys"
+                                            },
+                                            "keys": {
+                                                "anyOf": [
+                                                    {
+                                                        "type": "string",
+                                                        "description": "Single key to press",
+                                                        "example": "Enter"
+                                                    },
+                                                    {
+                                                        "type": "array",
+                                                        "items": {
+                                                            "type": "string"
+                                                        },
+                                                        "description": "Multiple keys to press simultaneously",
+                                                        "example": [
+                                                            "Control",
+                                                            "c"
+                                                        ]
+                                                    }
+                                                ]
+                                            },
+                                            "key_action_type": {
+                                                "type": "string",
+                                                "enum": [
+                                                    "press",
+                                                    "down",
+                                                    "up"
+                                                ],
+                                                "description": "Type of key action (optional, defaults to 'press' which is a down and up action)",
+                                                "example": "press"
+                                            }
+                                        },
+                                        "required": [
+                                            "type",
+                                            "keys"
+                                        ],
+                                        "title": "Press Keys Action"
+                                    },
+                                    {
+                                        "type": "object",
+                                        "properties": {
+                                            "type": {
+                                                "type": "string",
+                                                "enum": [
+                                                    "wait"
+                                                ],
+                                                "description": "Wait for the specified number of milliseconds",
+                                                "example": "wait"
+                                            },
+                                            "ms": {
+                                                "type": "integer",
+                                                "description": "Time to wait in milliseconds",
+                                                "example": 1000
+                                            }
+                                        },
+                                        "required": [
+                                            "type",
+                                            "ms"
+                                        ],
+                                        "title": "Wait Action"
+                                    },
+                                    {
+                                        "type": "object",
+                                        "properties": {
+                                            "type": {
+                                                "type": "string",
+                                                "enum": [
+                                                    "screenshot"
+                                                ],
+                                                "description": "Take a screenshot of the desktop",
+                                                "example": "screenshot"
+                                            }
+                                        },
+                                        "required": [
+                                            "type"
+                                        ],
+                                        "title": "Screenshot Action"
+                                    },
+                                    {
+                                        "type": "object",
+                                        "properties": {
+                                            "type": {
+                                                "type": "string",
+                                                "enum": [
+                                                    "get_cursor_position"
+                                                ],
+                                                "description": "Get the current mouse cursor position",
+                                                "example": "get_cursor_position"
+                                            }
+                                        },
+                                        "required": [
+                                            "type"
+                                        ],
+                                        "title": "Get Cursor Position Action"
+                                    }
+                                ]
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Action executed successfully",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "status": {
+                                            "type": "string",
+                                            "description": "Status of the operation",
+                                            "example": "success"
+                                        },
+                                        "image": {
+                                            "type": "string",
+                                            "description": "Base64 encoded image data (only returned for screenshot actions)",
+                                            "example": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAA..."
+                                        },
+                                        "cursorPosition": {
+                                            "type": "object",
+                                            "properties": {
+                                                "x": {
+                                                    "type": "integer",
+                                                    "description": "X coordinate on the screen",
+                                                    "example": 500
+                                                },
+                                                "y": {
+                                                    "type": "integer",
+                                                    "description": "Y coordinate on the screen",
+                                                    "example": 300
+                                                }
+                                            },
+                                            "description": "Current cursor coordinates (only returned for get_cursor_position action)",
+                                            "example": {
+                                                "x": 500,
+                                                "y": 300
+                                            }
+                                        }
+                                    },
+                                    "required": [
+                                        "status"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "The server cannot or will not process the request due to something that is perceived to be a client error (e.g., malformed request syntax, invalid request message framing, or deceptive request routing).",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "message": {
+                                            "type": "string"
+                                        },
+                                        "docs": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": [
+                                        "message",
+                                        "docs"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Although the HTTP standard specifies \"unauthorized\", semantically this response means \"unauthenticated\". That is, the client must authenticate itself to get the requested response.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "message": {
+                                            "type": "string"
+                                        },
+                                        "docs": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": [
+                                        "message",
+                                        "docs"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "The client does not have access rights to the content; that is, it is unauthorized, so the server is refusing to give the requested resource. Unlike 401 Unauthorized, the client's identity is known to the server.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "message": {
+                                            "type": "string"
+                                        },
+                                        "docs": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": [
+                                        "message",
+                                        "docs"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "The server cannot find the requested resource. In the browser, this means the URL is not recognized. In an API, this can also mean that the endpoint is valid but the resource itself does not exist. Servers may also send this response instead of 403 Forbidden to hide the existence of a resource from an unauthorized client. This response code is probably the most well known due to its frequent occurrence on the web.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "message": {
+                                            "type": "string"
+                                        },
+                                        "docs": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": [
+                                        "message",
+                                        "docs"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "409": {
+                        "description": "This response is sent when a request conflicts with the current state of the server.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "message": {
+                                            "type": "string"
+                                        },
+                                        "docs": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": [
+                                        "message",
+                                        "docs"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "429": {
+                        "description": "The user has sent too many requests in a given amount of time (\"rate limiting\")",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "message": {
+                                            "type": "string"
+                                        },
+                                        "docs": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": [
+                                        "message",
+                                        "docs"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "The server has encountered a situation it does not know how to handle.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "message": {
+                                            "type": "string"
+                                        },
+                                        "docs": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": [
+                                        "message",
+                                        "docs"
+                                    ]
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/desktop/:id/bash-action": {
+            "post": {
+                "tags": [
+                    "Desktop"
+                ],
+                "summary": "Execute a bash command on the desktop",
+                "description": "Runs a bash command on the desktop and returns the command output",
+                "parameters": [
+                    {
+                        "schema": {
+                            "type": "string",
+                            "description": "Desktop instance ID to run the command on",
+                            "example": "desktop_12345"
+                        },
+                        "required": true,
+                        "name": "id",
+                        "in": "path"
+                    },
+                    {
+                        "schema": {
+                            "type": "string",
+                            "description": "API key for authentication",
+                            "example": "api_12345"
+                        },
+                        "required": true,
+                        "name": "x-api-key",
+                        "in": "header"
+                    }
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "properties": {
+                                    "command": {
+                                        "type": "string",
+                                        "description": "Bash command to execute",
+                                        "example": "echo 'Hello, World!'"
+                                    }
+                                },
+                                "required": [
+                                    "command"
+                                ]
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Command executed successfully",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "status": {
+                                            "type": "string",
+                                            "description": "Status of the bash command execution",
+                                            "example": "success"
+                                        },
+                                        "output": {
+                                            "type": "string",
+                                            "description": "Output from the bash command execution",
+                                            "example": "Hello, World!"
+                                        }
+                                    },
+                                    "required": [
+                                        "status",
+                                        "output"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "The server cannot or will not process the request due to something that is perceived to be a client error (e.g., malformed request syntax, invalid request message framing, or deceptive request routing).",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "message": {
+                                            "type": "string"
+                                        },
+                                        "docs": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": [
+                                        "message",
+                                        "docs"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Although the HTTP standard specifies \"unauthorized\", semantically this response means \"unauthenticated\". That is, the client must authenticate itself to get the requested response.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "message": {
+                                            "type": "string"
+                                        },
+                                        "docs": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": [
+                                        "message",
+                                        "docs"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "The client does not have access rights to the content; that is, it is unauthorized, so the server is refusing to give the requested resource. Unlike 401 Unauthorized, the client's identity is known to the server.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "message": {
+                                            "type": "string"
+                                        },
+                                        "docs": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": [
+                                        "message",
+                                        "docs"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "The server cannot find the requested resource. In the browser, this means the URL is not recognized. In an API, this can also mean that the endpoint is valid but the resource itself does not exist. Servers may also send this response instead of 403 Forbidden to hide the existence of a resource from an unauthorized client. This response code is probably the most well known due to its frequent occurrence on the web.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "message": {
+                                            "type": "string"
+                                        },
+                                        "docs": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": [
+                                        "message",
+                                        "docs"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "409": {
+                        "description": "This response is sent when a request conflicts with the current state of the server.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "message": {
+                                            "type": "string"
+                                        },
+                                        "docs": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": [
+                                        "message",
+                                        "docs"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "429": {
+                        "description": "The user has sent too many requests in a given amount of time (\"rate limiting\")",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "message": {
+                                            "type": "string"
+                                        },
+                                        "docs": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": [
+                                        "message",
+                                        "docs"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "The server has encountered a situation it does not know how to handle.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "message": {
+                                            "type": "string"
+                                        },
+                                        "docs": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": [
+                                        "message",
+                                        "docs"
+                                    ]
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

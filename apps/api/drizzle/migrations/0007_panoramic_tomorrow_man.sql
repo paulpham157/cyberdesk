@@ -1,0 +1,1 @@
+ALTER TYPE "instance_status" ADD VALUE 'terminated';

@@ -1,0 +1,39 @@
+{
+  "name": "api",
+  "type": "module",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsx watch src/index.ts",
+    "start": "node dist/src/index.js",
+    "env": "dotenv",
+    "db:push": "npm run env -- drizzle-kit push",
+    "db:studio": "npm run env -- drizzle-kit studio",
+    "db:generate": "npm run env -- drizzle-kit generate",
+    "db:migrate": "npm run env -- drizzle-kit migrate"
+  },
+  "dependencies": {
+    "@hono/node-server": "^1.14.0",
+    "@hono/zod-openapi": "^0.14.5",
+    "@libsql/client": "^0.6.2",
+    "@supabase/supabase-js": "^2.49.3",
+    "@unkey/api": "^0.20.7",
+    "@unkey/cache": "^1.0.2",
+    "@unkey/hono": "^1.2.0",
+    "@unkey/ratelimit": "^0.1.12",
+    "dotenv": "^16.4.7",
+    "drizzle-orm": "^0.30.10",
+    "hono": "^4.4.7",
+    "postgres": "^3.4.5",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20240529.0",
+    "@types/node": "^22.15.0",
+    "dotenv-cli": "^7.4.2",
+    "drizzle-kit": "^0.21.4",
+    "eslint-plugin-drizzle": "^0.2.3",
+    "tsx": "^3.10.6",
+    "typescript": "^5.8.2",
+    "wrangler": "^3.57.2"
+  }
+}

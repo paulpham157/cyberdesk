@@ -1,0 +1,2007 @@
+---
+title: API Reference
+description: API for Cyberdesk, to create, control, and manage virtual desktop instances.
+full: true
+toc: false
+---
+
+import { Root, API, APIInfo, APIExample, Responses, Response, ResponseTypes, ExampleResponse, TypeScriptResponse, Property, ObjectCollapsible, Requests, Request } from "fumadocs-ui/components/api";
+
+<Root>
+
+<API>
+
+<APIInfo method={"GET"} route={"/v1/desktop/:id"}>
+
+## Get details of a specific desktop instance
+
+Returns the ID, status, creation timestamp, and timeout timestamp for a given desktop instance.
+
+### Path Parameters
+
+<Property name={"id"} type={"string"} required={true} deprecated={false}>
+
+The UUID of the desktop instance to retrieve
+
+<span>Example: `"a1b2c3d4-e5f6-7890-1234-567890abcdef"`</span>
+
+<span>Format: `"uuid"`</span>
+
+</Property>
+
+### Header Parameters
+
+<Property name={"x-api-key"} type={"string"} required={true} deprecated={false}>
+
+API key for authentication
+
+<span>Example: `"api_12345"`</span>
+
+</Property>
+
+| Status code | Description |
+| ----------- | ----------- |
+| `200` | Desktop instance details retrieved successfully |
+| `400` | The server cannot or will not process the request due to something that is perceived to be a client error (e.g., malformed request syntax, invalid request message framing, or deceptive request routing). |
+| `401` | Although the HTTP standard specifies "unauthorized", semantically this response means "unauthenticated". That is, the client must authenticate itself to get the requested response. |
+| `403` | The client does not have access rights to the content; that is, it is unauthorized, so the server is refusing to give the requested resource. Unlike 401 Unauthorized, the client's identity is known to the server. |
+| `404` | The server cannot find the requested resource. In the browser, this means the URL is not recognized. In an API, this can also mean that the endpoint is valid but the resource itself does not exist. Servers may also send this response instead of 403 Forbidden to hide the existence of a resource from an unauthorized client. This response code is probably the most well known due to its frequent occurrence on the web. |
+| `409` | This response is sent when a request conflicts with the current state of the server. |
+| `429` | The user has sent too many requests in a given amount of time ("rate limiting") |
+| `500` | The server has encountered a situation it does not know how to handle. |
+
+</APIInfo>
+
+<APIExample>
+
+<Requests items={["cURL","JavaScript"]}>
+
+<Request value={"cURL"}>
+
+```bash
+curl -X GET "https://api.cyberdesk.io/v1/desktop/:id" \
+  -H "x-api-key: api_12345"
+```
+
+</Request>
+
+<Request value={"JavaScript"}>
+
+```js
+fetch("https://api.cyberdesk.io/v1/desktop/:id", {
+  method: "GET",
+  headers: {
+  "x-api-key": "api_12345"
+}
+});
+```
+
+</Request>
+
+</Requests>
+
+<Responses items={["200","400","401","403","404","409","429","500"]}>
+
+<Response value={"200"}>
+
+<ResponseTypes>
+
+<ExampleResponse>
+
+```json
+{
+  "id": "a1b2c3d4-e5f6-7890-1234-567890abcdef",
+  "status": "running",
+  "createdAt": "2023-10-27T10:00:00Z",
+  "timeoutAt": "2023-10-28T10:00:00Z"
+}
+```
+
+</ExampleResponse>
+
+<TypeScriptResponse>
+
+```ts
+export interface Response {
+  /**
+   * Unique identifier for the desktop instance
+   */
+  id: string;
+  /**
+   * Current status of the desktop instance
+   */
+  status: "pending" | "running" | "terminated" | "error";
+  /**
+   * Timestamp when the instance was created
+   */
+  createdAt: string;
+  /**
+   * Timestamp when the instance will automatically time out
+   */
+  timeoutAt: string;
+}
+```
+
+</TypeScriptResponse>
+
+</ResponseTypes>
+
+</Response>
+
+<Response value={"400"}>
+
+<ResponseTypes>
+
+<ExampleResponse>
+
+```json
+{
+  "message": "string",
+  "docs": "string"
+}
+```
+
+</ExampleResponse>
+
+<TypeScriptResponse>
+
+```ts
+export interface Response {
+  message: string;
+  docs: string;
+}
+```
+
+</TypeScriptResponse>
+
+</ResponseTypes>
+
+</Response>
+
+<Response value={"401"}>
+
+<ResponseTypes>
+
+<ExampleResponse>
+
+```json
+{
+  "message": "string",
+  "docs": "string"
+}
+```
+
+</ExampleResponse>
+
+<TypeScriptResponse>
+
+```ts
+export interface Response {
+  message: string;
+  docs: string;
+}
+```
+
+</TypeScriptResponse>
+
+</ResponseTypes>
+
+</Response>
+
+<Response value={"403"}>
+
+<ResponseTypes>
+
+<ExampleResponse>
+
+```json
+{
+  "message": "string",
+  "docs": "string"
+}
+```
+
+</ExampleResponse>
+
+<TypeScriptResponse>
+
+```ts
+export interface Response {
+  message: string;
+  docs: string;
+}
+```
+
+</TypeScriptResponse>
+
+</ResponseTypes>
+
+</Response>
+
+<Response value={"404"}>
+
+<ResponseTypes>
+
+<ExampleResponse>
+
+```json
+{
+  "message": "string",
+  "docs": "string"
+}
+```
+
+</ExampleResponse>
+
+<TypeScriptResponse>
+
+```ts
+export interface Response {
+  message: string;
+  docs: string;
+}
+```
+
+</TypeScriptResponse>
+
+</ResponseTypes>
+
+</Response>
+
+<Response value={"409"}>
+
+<ResponseTypes>
+
+<ExampleResponse>
+
+```json
+{
+  "message": "string",
+  "docs": "string"
+}
+```
+
+</ExampleResponse>
+
+<TypeScriptResponse>
+
+```ts
+export interface Response {
+  message: string;
+  docs: string;
+}
+```
+
+</TypeScriptResponse>
+
+</ResponseTypes>
+
+</Response>
+
+<Response value={"429"}>
+
+<ResponseTypes>
+
+<ExampleResponse>
+
+```json
+{
+  "message": "string",
+  "docs": "string"
+}
+```
+
+</ExampleResponse>
+
+<TypeScriptResponse>
+
+```ts
+export interface Response {
+  message: string;
+  docs: string;
+}
+```
+
+</TypeScriptResponse>
+
+</ResponseTypes>
+
+</Response>
+
+<Response value={"500"}>
+
+<ResponseTypes>
+
+<ExampleResponse>
+
+```json
+{
+  "message": "string",
+  "docs": "string"
+}
+```
+
+</ExampleResponse>
+
+<TypeScriptResponse>
+
+```ts
+export interface Response {
+  message: string;
+  docs: string;
+}
+```
+
+</TypeScriptResponse>
+
+</ResponseTypes>
+
+</Response>
+
+</Responses>
+
+</APIExample>
+
+</API>
+
+<API>
+
+<APIInfo method={"POST"} route={"/v1/desktop"}>
+
+## Create a new virtual desktop instance
+
+Creates a new virtual desktop instance and returns its ID and stream URL
+
+### Request Body (Optional)
+
+<Property name={"timeoutMs"} type={"integer"} required={false} deprecated={undefined}>
+
+Timeout in milliseconds for the desktop session
+
+<span>Example: `3600000`</span>
+
+</Property>
+
+### Header Parameters
+
+<Property name={"x-api-key"} type={"string"} required={true} deprecated={false}>
+
+API key for authentication
+
+<span>Example: `"api_12345"`</span>
+
+</Property>
+
+| Status code | Description |
+| ----------- | ----------- |
+| `200` | Desktop created successfully |
+| `400` | The server cannot or will not process the request due to something that is perceived to be a client error (e.g., malformed request syntax, invalid request message framing, or deceptive request routing). |
+| `401` | Although the HTTP standard specifies "unauthorized", semantically this response means "unauthenticated". That is, the client must authenticate itself to get the requested response. |
+| `403` | The client does not have access rights to the content; that is, it is unauthorized, so the server is refusing to give the requested resource. Unlike 401 Unauthorized, the client's identity is known to the server. |
+| `404` | The server cannot find the requested resource. In the browser, this means the URL is not recognized. In an API, this can also mean that the endpoint is valid but the resource itself does not exist. Servers may also send this response instead of 403 Forbidden to hide the existence of a resource from an unauthorized client. This response code is probably the most well known due to its frequent occurrence on the web. |
+| `409` | This response is sent when a request conflicts with the current state of the server. |
+| `429` | The user has sent too many requests in a given amount of time ("rate limiting") |
+| `500` | The server has encountered a situation it does not know how to handle. |
+
+</APIInfo>
+
+<APIExample>
+
+<Requests items={["cURL","JavaScript"]}>
+
+<Request value={"cURL"}>
+
+```bash
+curl -X POST "https://api.cyberdesk.io/v1/desktop" \
+  -H "x-api-key: api_12345" \
+  -d '{
+  "timeoutMs": 3600000
+}'
+```
+
+</Request>
+
+<Request value={"JavaScript"}>
+
+```js
+fetch("https://api.cyberdesk.io/v1/desktop", {
+  method: "POST",
+  headers: {
+  "x-api-key": "api_12345"
+}
+});
+```
+
+</Request>
+
+</Requests>
+
+<Responses items={["200","400","401","403","404","409","429","500"]}>
+
+<Response value={"200"}>
+
+<ResponseTypes>
+
+<ExampleResponse>
+
+```json
+{
+  "id": "desktop_12345",
+  "streamUrl": "https://stream.example.com"
+}
+```
+
+</ExampleResponse>
+
+<TypeScriptResponse>
+
+```ts
+export interface Response {
+  /**
+   * Unique identifier for the desktop instance
+   */
+  id: string;
+  /**
+   * URL to stream the desktop via VNC
+   */
+  streamUrl: string;
+}
+```
+
+</TypeScriptResponse>
+
+</ResponseTypes>
+
+</Response>
+
+<Response value={"400"}>
+
+<ResponseTypes>
+
+<ExampleResponse>
+
+```json
+{
+  "message": "string",
+  "docs": "string"
+}
+```
+
+</ExampleResponse>
+
+<TypeScriptResponse>
+
+```ts
+export interface Response {
+  message: string;
+  docs: string;
+}
+```
+
+</TypeScriptResponse>
+
+</ResponseTypes>
+
+</Response>
+
+<Response value={"401"}>
+
+<ResponseTypes>
+
+<ExampleResponse>
+
+```json
+{
+  "message": "string",
+  "docs": "string"
+}
+```
+
+</ExampleResponse>
+
+<TypeScriptResponse>
+
+```ts
+export interface Response {
+  message: string;
+  docs: string;
+}
+```
+
+</TypeScriptResponse>
+
+</ResponseTypes>
+
+</Response>
+
+<Response value={"403"}>
+
+<ResponseTypes>
+
+<ExampleResponse>
+
+```json
+{
+  "message": "string",
+  "docs": "string"
+}
+```
+
+</ExampleResponse>
+
+<TypeScriptResponse>
+
+```ts
+export interface Response {
+  message: string;
+  docs: string;
+}
+```
+
+</TypeScriptResponse>
+
+</ResponseTypes>
+
+</Response>
+
+<Response value={"404"}>
+
+<ResponseTypes>
+
+<ExampleResponse>
+
+```json
+{
+  "message": "string",
+  "docs": "string"
+}
+```
+
+</ExampleResponse>
+
+<TypeScriptResponse>
+
+```ts
+export interface Response {
+  message: string;
+  docs: string;
+}
+```
+
+</TypeScriptResponse>
+
+</ResponseTypes>
+
+</Response>
+
+<Response value={"409"}>
+
+<ResponseTypes>
+
+<ExampleResponse>
+
+```json
+{
+  "message": "string",
+  "docs": "string"
+}
+```
+
+</ExampleResponse>
+
+<TypeScriptResponse>
+
+```ts
+export interface Response {
+  message: string;
+  docs: string;
+}
+```
+
+</TypeScriptResponse>
+
+</ResponseTypes>
+
+</Response>
+
+<Response value={"429"}>
+
+<ResponseTypes>
+
+<ExampleResponse>
+
+```json
+{
+  "message": "string",
+  "docs": "string"
+}
+```
+
+</ExampleResponse>
+
+<TypeScriptResponse>
+
+```ts
+export interface Response {
+  message: string;
+  docs: string;
+}
+```
+
+</TypeScriptResponse>
+
+</ResponseTypes>
+
+</Response>
+
+<Response value={"500"}>
+
+<ResponseTypes>
+
+<ExampleResponse>
+
+```json
+{
+  "message": "string",
+  "docs": "string"
+}
+```
+
+</ExampleResponse>
+
+<TypeScriptResponse>
+
+```ts
+export interface Response {
+  message: string;
+  docs: string;
+}
+```
+
+</TypeScriptResponse>
+
+</ResponseTypes>
+
+</Response>
+
+</Responses>
+
+</APIExample>
+
+</API>
+
+<API>
+
+<APIInfo method={"POST"} route={"/v1/desktop/:id/stop"}>
+
+## Stop a running desktop instance
+
+Stops a running desktop instance and cleans up resources
+
+### Path Parameters
+
+<Property name={"id"} type={"string"} required={true} deprecated={false}>
+
+Desktop instance ID to stop
+
+<span>Example: `"desktop_12345"`</span>
+
+</Property>
+
+### Header Parameters
+
+<Property name={"x-api-key"} type={"string"} required={true} deprecated={false}>
+
+API key for authentication
+
+<span>Example: `"api_12345"`</span>
+
+</Property>
+
+| Status code | Description |
+| ----------- | ----------- |
+| `200` | Desktop stopped successfully |
+| `400` | The server cannot or will not process the request due to something that is perceived to be a client error (e.g., malformed request syntax, invalid request message framing, or deceptive request routing). |
+| `401` | Although the HTTP standard specifies "unauthorized", semantically this response means "unauthenticated". That is, the client must authenticate itself to get the requested response. |
+| `403` | The client does not have access rights to the content; that is, it is unauthorized, so the server is refusing to give the requested resource. Unlike 401 Unauthorized, the client's identity is known to the server. |
+| `404` | The server cannot find the requested resource. In the browser, this means the URL is not recognized. In an API, this can also mean that the endpoint is valid but the resource itself does not exist. Servers may also send this response instead of 403 Forbidden to hide the existence of a resource from an unauthorized client. This response code is probably the most well known due to its frequent occurrence on the web. |
+| `409` | This response is sent when a request conflicts with the current state of the server. |
+| `429` | The user has sent too many requests in a given amount of time ("rate limiting") |
+| `500` | The server has encountered a situation it does not know how to handle. |
+
+</APIInfo>
+
+<APIExample>
+
+<Requests items={["cURL","JavaScript"]}>
+
+<Request value={"cURL"}>
+
+```bash
+curl -X POST "https://api.cyberdesk.io/v1/desktop/:id/stop" \
+  -H "x-api-key: api_12345"
+```
+
+</Request>
+
+<Request value={"JavaScript"}>
+
+```js
+fetch("https://api.cyberdesk.io/v1/desktop/:id/stop", {
+  method: "POST",
+  headers: {
+  "x-api-key": "api_12345"
+}
+});
+```
+
+</Request>
+
+</Requests>
+
+<Responses items={["200","400","401","403","404","409","429","500"]}>
+
+<Response value={"200"}>
+
+<ResponseTypes>
+
+<ExampleResponse>
+
+```json
+{
+  "status": "success",
+  "image": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAA...",
+  "cursorPosition": {
+    "x": 500,
+    "y": 300
+  }
+}
+```
+
+</ExampleResponse>
+
+<TypeScriptResponse>
+
+```ts
+export interface Response {
+  /**
+   * Status of the operation
+   */
+  status: string;
+  /**
+   * Base64 encoded image data (only returned for screenshot actions)
+   */
+  image?: string;
+  /**
+   * Current cursor coordinates (only returned for get_cursor_position action)
+   */
+  cursorPosition?: {
+    /**
+     * X coordinate on the screen
+     */
+    x?: number;
+    /**
+     * Y coordinate on the screen
+     */
+    y?: number;
+  };
+}
+```
+
+</TypeScriptResponse>
+
+</ResponseTypes>
+
+</Response>
+
+<Response value={"400"}>
+
+<ResponseTypes>
+
+<ExampleResponse>
+
+```json
+{
+  "message": "string",
+  "docs": "string"
+}
+```
+
+</ExampleResponse>
+
+<TypeScriptResponse>
+
+```ts
+export interface Response {
+  message: string;
+  docs: string;
+}
+```
+
+</TypeScriptResponse>
+
+</ResponseTypes>
+
+</Response>
+
+<Response value={"401"}>
+
+<ResponseTypes>
+
+<ExampleResponse>
+
+```json
+{
+  "message": "string",
+  "docs": "string"
+}
+```
+
+</ExampleResponse>
+
+<TypeScriptResponse>
+
+```ts
+export interface Response {
+  message: string;
+  docs: string;
+}
+```
+
+</TypeScriptResponse>
+
+</ResponseTypes>
+
+</Response>
+
+<Response value={"403"}>
+
+<ResponseTypes>
+
+<ExampleResponse>
+
+```json
+{
+  "message": "string",
+  "docs": "string"
+}
+```
+
+</ExampleResponse>
+
+<TypeScriptResponse>
+
+```ts
+export interface Response {
+  message: string;
+  docs: string;
+}
+```
+
+</TypeScriptResponse>
+
+</ResponseTypes>
+
+</Response>
+
+<Response value={"404"}>
+
+<ResponseTypes>
+
+<ExampleResponse>
+
+```json
+{
+  "message": "string",
+  "docs": "string"
+}
+```
+
+</ExampleResponse>
+
+<TypeScriptResponse>
+
+```ts
+export interface Response {
+  message: string;
+  docs: string;
+}
+```
+
+</TypeScriptResponse>
+
+</ResponseTypes>
+
+</Response>
+
+<Response value={"409"}>
+
+<ResponseTypes>
+
+<ExampleResponse>
+
+```json
+{
+  "message": "string",
+  "docs": "string"
+}
+```
+
+</ExampleResponse>
+
+<TypeScriptResponse>
+
+```ts
+export interface Response {
+  message: string;
+  docs: string;
+}
+```
+
+</TypeScriptResponse>
+
+</ResponseTypes>
+
+</Response>
+
+<Response value={"429"}>
+
+<ResponseTypes>
+
+<ExampleResponse>
+
+```json
+{
+  "message": "string",
+  "docs": "string"
+}
+```
+
+</ExampleResponse>
+
+<TypeScriptResponse>
+
+```ts
+export interface Response {
+  message: string;
+  docs: string;
+}
+```
+
+</TypeScriptResponse>
+
+</ResponseTypes>
+
+</Response>
+
+<Response value={"500"}>
+
+<ResponseTypes>
+
+<ExampleResponse>
+
+```json
+{
+  "message": "string",
+  "docs": "string"
+}
+```
+
+</ExampleResponse>
+
+<TypeScriptResponse>
+
+```ts
+export interface Response {
+  message: string;
+  docs: string;
+}
+```
+
+</TypeScriptResponse>
+
+</ResponseTypes>
+
+</Response>
+
+</Responses>
+
+</APIExample>
+
+</API>
+
+<API>
+
+<APIInfo method={"POST"} route={"/v1/desktop/:id/computer-action"}>
+
+## Perform an action on the desktop
+
+Executes a computer action such as mouse clicks, keyboard input, or screenshots on the desktop
+
+### Request Body (Optional)
+
+<Property name={"body"} type={"Click Mouse Action | Scroll Action | Move Mouse Action | Drag Mouse Action | Type Text Action | Press Keys Action | Wait Action | Screenshot Action | Get Cursor Position Action"} required={false} deprecated={undefined}>
+
+<ObjectCollapsible name={"Click Mouse Action"}>
+
+<Property name={"type"} type={"string"} required={true} deprecated={undefined}>
+
+Perform a mouse action: click, press (down), or release (up). Defaults to a single left click at the current position.
+
+<span>Example: `"click_mouse"`</span>
+
+<span>Value in: `"click_mouse"`</span>
+
+</Property>
+
+<Property name={"x"} type={"integer"} required={false} deprecated={undefined}>
+
+X coordinate for the action (optional, uses current position if omitted)
+
+<span>Example: `500`</span>
+
+</Property>
+
+<Property name={"y"} type={"integer"} required={false} deprecated={undefined}>
+
+Y coordinate for the action (optional, uses current position if omitted)
+
+<span>Example: `300`</span>
+
+</Property>
+
+<Property name={"button"} type={"string"} required={false} deprecated={undefined}>
+
+Mouse button to use (optional, defaults to 'left')
+
+<span>Example: `"left"`</span>
+
+<span>Value in: `"left" | "right" | "middle"`</span>
+
+</Property>
+
+<Property name={"num_of_clicks"} type={"integer"} required={false} deprecated={undefined}>
+
+Number of clicks to perform (optional, defaults to 1, only applicable for 'click' type)
+
+<span>Example: `1`</span>
+
+<span>Minimum: `0`</span>
+
+</Property>
+
+<Property name={"click_type"} type={"string"} required={false} deprecated={undefined}>
+
+Type of mouse action (optional, defaults to 'click')
+
+<span>Example: `"click"`</span>
+
+<span>Value in: `"click" | "down" | "up"`</span>
+
+</Property>
+
+</ObjectCollapsible>
+
+<ObjectCollapsible name={"Scroll Action"}>
+
+<Property name={"type"} type={"string"} required={true} deprecated={undefined}>
+
+Scroll the mouse wheel in the specified direction
+
+<span>Example: `"scroll"`</span>
+
+<span>Value in: `"scroll"`</span>
+
+</Property>
+
+<Property name={"direction"} type={"string"} required={true} deprecated={undefined}>
+
+Direction to scroll
+
+<span>Example: `"down"`</span>
+
+<span>Value in: `"up" | "down" | "left" | "right"`</span>
+
+</Property>
+
+<Property name={"amount"} type={"integer"} required={true} deprecated={undefined}>
+
+Amount to scroll in pixels
+
+<span>Example: `100`</span>
+
+</Property>
+
+</ObjectCollapsible>
+
+<ObjectCollapsible name={"Move Mouse Action"}>
+
+<Property name={"type"} type={"string"} required={true} deprecated={undefined}>
+
+Move the mouse cursor to the specified coordinates
+
+<span>Example: `"move_mouse"`</span>
+
+<span>Value in: `"move_mouse"`</span>
+
+</Property>
+
+<Property name={"x"} type={"integer"} required={true} deprecated={undefined}>
+
+X coordinate to move to
+
+<span>Example: `500`</span>
+
+</Property>
+
+<Property name={"y"} type={"integer"} required={true} deprecated={undefined}>
+
+Y coordinate to move to
+
+<span>Example: `300`</span>
+
+</Property>
+
+</ObjectCollapsible>
+
+<ObjectCollapsible name={"Drag Mouse Action"}>
+
+<Property name={"type"} type={"string"} required={true} deprecated={undefined}>
+
+Drag the mouse from start to end coordinates
+
+<span>Example: `"drag_mouse"`</span>
+
+<span>Value in: `"drag_mouse"`</span>
+
+</Property>
+
+<Property name={"start"} type={"object"} required={true} deprecated={undefined}>
+
+Starting coordinates for the drag operation
+
+<span>Example: `{"x":100,"y":100}`</span>
+
+<ObjectCollapsible name={"start"}>
+
+<Property name={"x"} type={"integer"} required={true} deprecated={undefined}>
+
+X coordinate on the screen
+
+<span>Example: `500`</span>
+
+</Property>
+
+<Property name={"y"} type={"integer"} required={true} deprecated={undefined}>
+
+Y coordinate on the screen
+
+<span>Example: `300`</span>
+
+</Property>
+
+</ObjectCollapsible>
+
+</Property>
+
+<Property name={"end"} type={"object"} required={true} deprecated={undefined}>
+
+Ending coordinates for the drag operation
+
+<span>Example: `{"x":300,"y":300}`</span>
+
+<ObjectCollapsible name={"end"}>
+
+<Property name={"x"} type={"integer"} required={true} deprecated={undefined}>
+
+X coordinate on the screen
+
+<span>Example: `500`</span>
+
+</Property>
+
+<Property name={"y"} type={"integer"} required={true} deprecated={undefined}>
+
+Y coordinate on the screen
+
+<span>Example: `300`</span>
+
+</Property>
+
+</ObjectCollapsible>
+
+</Property>
+
+</ObjectCollapsible>
+
+<ObjectCollapsible name={"Type Text Action"}>
+
+<Property name={"type"} type={"string"} required={true} deprecated={undefined}>
+
+Type text at the current cursor position
+
+<span>Example: `"type"`</span>
+
+<span>Value in: `"type"`</span>
+
+</Property>
+
+<Property name={"text"} type={"string"} required={true} deprecated={undefined}>
+
+Text to type
+
+<span>Example: `"Hello, World!"`</span>
+
+</Property>
+
+</ObjectCollapsible>
+
+<ObjectCollapsible name={"Press Keys Action"}>
+
+<Property name={"type"} type={"string"} required={true} deprecated={undefined}>
+
+Press, hold down, or release one or more keyboard keys. Defaults to a single press and release.
+
+<span>Example: `"press_keys"`</span>
+
+<span>Value in: `"press_keys"`</span>
+
+</Property>
+
+<Property name={"keys"} type={"Any properties in string, array<string>"} required={true} deprecated={undefined}>
+
+<ObjectCollapsible name={"Object 1"}>
+
+<Property name={"element"} type={"array<string>"} required={false} deprecated={undefined}>
+
+Multiple keys to press simultaneously
+
+<span>Example: `["Control","c"]`</span>
+
+</Property>
+
+</ObjectCollapsible>
+
+</Property>
+
+<Property name={"key_action_type"} type={"string"} required={false} deprecated={undefined}>
+
+Type of key action (optional, defaults to 'press' which is a down and up action)
+
+<span>Example: `"press"`</span>
+
+<span>Value in: `"press" | "down" | "up"`</span>
+
+</Property>
+
+</ObjectCollapsible>
+
+<ObjectCollapsible name={"Wait Action"}>
+
+<Property name={"type"} type={"string"} required={true} deprecated={undefined}>
+
+Wait for the specified number of milliseconds
+
+<span>Example: `"wait"`</span>
+
+<span>Value in: `"wait"`</span>
+
+</Property>
+
+<Property name={"ms"} type={"integer"} required={true} deprecated={undefined}>
+
+Time to wait in milliseconds
+
+<span>Example: `1000`</span>
+
+</Property>
+
+</ObjectCollapsible>
+
+<ObjectCollapsible name={"Screenshot Action"}>
+
+<Property name={"type"} type={"string"} required={true} deprecated={undefined}>
+
+Take a screenshot of the desktop
+
+<span>Example: `"screenshot"`</span>
+
+<span>Value in: `"screenshot"`</span>
+
+</Property>
+
+</ObjectCollapsible>
+
+<ObjectCollapsible name={"Get Cursor Position Action"}>
+
+<Property name={"type"} type={"string"} required={true} deprecated={undefined}>
+
+Get the current mouse cursor position
+
+<span>Example: `"get_cursor_position"`</span>
+
+<span>Value in: `"get_cursor_position"`</span>
+
+</Property>
+
+</ObjectCollapsible>
+
+</Property>
+
+### Path Parameters
+
+<Property name={"id"} type={"string"} required={true} deprecated={false}>
+
+Desktop instance ID to perform the action on
+
+<span>Example: `"desktop_12345"`</span>
+
+</Property>
+
+### Header Parameters
+
+<Property name={"x-api-key"} type={"string"} required={true} deprecated={false}>
+
+API key for authentication
+
+<span>Example: `"api_12345"`</span>
+
+</Property>
+
+| Status code | Description |
+| ----------- | ----------- |
+| `200` | Action executed successfully |
+| `400` | The server cannot or will not process the request due to something that is perceived to be a client error (e.g., malformed request syntax, invalid request message framing, or deceptive request routing). |
+| `401` | Although the HTTP standard specifies "unauthorized", semantically this response means "unauthenticated". That is, the client must authenticate itself to get the requested response. |
+| `403` | The client does not have access rights to the content; that is, it is unauthorized, so the server is refusing to give the requested resource. Unlike 401 Unauthorized, the client's identity is known to the server. |
+| `404` | The server cannot find the requested resource. In the browser, this means the URL is not recognized. In an API, this can also mean that the endpoint is valid but the resource itself does not exist. Servers may also send this response instead of 403 Forbidden to hide the existence of a resource from an unauthorized client. This response code is probably the most well known due to its frequent occurrence on the web. |
+| `409` | This response is sent when a request conflicts with the current state of the server. |
+| `429` | The user has sent too many requests in a given amount of time ("rate limiting") |
+| `500` | The server has encountered a situation it does not know how to handle. |
+
+</APIInfo>
+
+<APIExample>
+
+<Requests items={["cURL","JavaScript"]}>
+
+<Request value={"cURL"}>
+
+```bash
+curl -X POST "https://api.cyberdesk.io/v1/desktop/:id/computer-action" \
+  -H "x-api-key: api_12345" \
+  -d '{
+  "type": "click_mouse",
+  "x": 500,
+  "y": 300,
+  "button": "left",
+  "num_of_clicks": 1,
+  "click_type": "click"
+}'
+```
+
+</Request>
+
+<Request value={"JavaScript"}>
+
+```js
+fetch("https://api.cyberdesk.io/v1/desktop/:id/computer-action", {
+  method: "POST",
+  headers: {
+  "x-api-key": "api_12345"
+}
+});
+```
+
+</Request>
+
+</Requests>
+
+<Responses items={["200","400","401","403","404","409","429","500"]}>
+
+<Response value={"200"}>
+
+<ResponseTypes>
+
+<ExampleResponse>
+
+```json
+{
+  "status": "success",
+  "image": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAA...",
+  "cursorPosition": {
+    "x": 500,
+    "y": 300
+  }
+}
+```
+
+</ExampleResponse>
+
+<TypeScriptResponse>
+
+```ts
+export interface Response {
+  /**
+   * Status of the operation
+   */
+  status: string;
+  /**
+   * Base64 encoded image data (only returned for screenshot actions)
+   */
+  image?: string;
+  /**
+   * Current cursor coordinates (only returned for get_cursor_position action)
+   */
+  cursorPosition?: {
+    /**
+     * X coordinate on the screen
+     */
+    x?: number;
+    /**
+     * Y coordinate on the screen
+     */
+    y?: number;
+  };
+}
+```
+
+</TypeScriptResponse>
+
+</ResponseTypes>
+
+</Response>
+
+<Response value={"400"}>
+
+<ResponseTypes>
+
+<ExampleResponse>
+
+```json
+{
+  "message": "string",
+  "docs": "string"
+}
+```
+
+</ExampleResponse>
+
+<TypeScriptResponse>
+
+```ts
+export interface Response {
+  message: string;
+  docs: string;
+}
+```
+
+</TypeScriptResponse>
+
+</ResponseTypes>
+
+</Response>
+
+<Response value={"401"}>
+
+<ResponseTypes>
+
+<ExampleResponse>
+
+```json
+{
+  "message": "string",
+  "docs": "string"
+}
+```
+
+</ExampleResponse>
+
+<TypeScriptResponse>
+
+```ts
+export interface Response {
+  message: string;
+  docs: string;
+}
+```
+
+</TypeScriptResponse>
+
+</ResponseTypes>
+
+</Response>
+
+<Response value={"403"}>
+
+<ResponseTypes>
+
+<ExampleResponse>
+
+```json
+{
+  "message": "string",
+  "docs": "string"
+}
+```
+
+</ExampleResponse>
+
+<TypeScriptResponse>
+
+```ts
+export interface Response {
+  message: string;
+  docs: string;
+}
+```
+
+</TypeScriptResponse>
+
+</ResponseTypes>
+
+</Response>
+
+<Response value={"404"}>
+
+<ResponseTypes>
+
+<ExampleResponse>
+
+```json
+{
+  "message": "string",
+  "docs": "string"
+}
+```
+
+</ExampleResponse>
+
+<TypeScriptResponse>
+
+```ts
+export interface Response {
+  message: string;
+  docs: string;
+}
+```
+
+</TypeScriptResponse>
+
+</ResponseTypes>
+
+</Response>
+
+<Response value={"409"}>
+
+<ResponseTypes>
+
+<ExampleResponse>
+
+```json
+{
+  "message": "string",
+  "docs": "string"
+}
+```
+
+</ExampleResponse>
+
+<TypeScriptResponse>
+
+```ts
+export interface Response {
+  message: string;
+  docs: string;
+}
+```
+
+</TypeScriptResponse>
+
+</ResponseTypes>
+
+</Response>
+
+<Response value={"429"}>
+
+<ResponseTypes>
+
+<ExampleResponse>
+
+```json
+{
+  "message": "string",
+  "docs": "string"
+}
+```
+
+</ExampleResponse>
+
+<TypeScriptResponse>
+
+```ts
+export interface Response {
+  message: string;
+  docs: string;
+}
+```
+
+</TypeScriptResponse>
+
+</ResponseTypes>
+
+</Response>
+
+<Response value={"500"}>
+
+<ResponseTypes>
+
+<ExampleResponse>
+
+```json
+{
+  "message": "string",
+  "docs": "string"
+}
+```
+
+</ExampleResponse>
+
+<TypeScriptResponse>
+
+```ts
+export interface Response {
+  message: string;
+  docs: string;
+}
+```
+
+</TypeScriptResponse>
+
+</ResponseTypes>
+
+</Response>
+
+</Responses>
+
+</APIExample>
+
+</API>
+
+<API>
+
+<APIInfo method={"POST"} route={"/v1/desktop/:id/bash-action"}>
+
+## Execute a bash command on the desktop
+
+Runs a bash command on the desktop and returns the command output
+
+### Request Body (Optional)
+
+<Property name={"command"} type={"string"} required={true} deprecated={undefined}>
+
+Bash command to execute
+
+<span>Example: `"echo 'Hello, World!'"`</span>
+
+</Property>
+
+### Path Parameters
+
+<Property name={"id"} type={"string"} required={true} deprecated={false}>
+
+Desktop instance ID to run the command on
+
+<span>Example: `"desktop_12345"`</span>
+
+</Property>
+
+### Header Parameters
+
+<Property name={"x-api-key"} type={"string"} required={true} deprecated={false}>
+
+API key for authentication
+
+<span>Example: `"api_12345"`</span>
+
+</Property>
+
+| Status code | Description |
+| ----------- | ----------- |
+| `200` | Command executed successfully |
+| `400` | The server cannot or will not process the request due to something that is perceived to be a client error (e.g., malformed request syntax, invalid request message framing, or deceptive request routing). |
+| `401` | Although the HTTP standard specifies "unauthorized", semantically this response means "unauthenticated". That is, the client must authenticate itself to get the requested response. |
+| `403` | The client does not have access rights to the content; that is, it is unauthorized, so the server is refusing to give the requested resource. Unlike 401 Unauthorized, the client's identity is known to the server. |
+| `404` | The server cannot find the requested resource. In the browser, this means the URL is not recognized. In an API, this can also mean that the endpoint is valid but the resource itself does not exist. Servers may also send this response instead of 403 Forbidden to hide the existence of a resource from an unauthorized client. This response code is probably the most well known due to its frequent occurrence on the web. |
+| `409` | This response is sent when a request conflicts with the current state of the server. |
+| `429` | The user has sent too many requests in a given amount of time ("rate limiting") |
+| `500` | The server has encountered a situation it does not know how to handle. |
+
+</APIInfo>
+
+<APIExample>
+
+<Requests items={["cURL","JavaScript"]}>
+
+<Request value={"cURL"}>
+
+```bash
+curl -X POST "https://api.cyberdesk.io/v1/desktop/:id/bash-action" \
+  -H "x-api-key: api_12345" \
+  -d '{
+  "command": "echo 'Hello, World!'"
+}'
+```
+
+</Request>
+
+<Request value={"JavaScript"}>
+
+```js
+fetch("https://api.cyberdesk.io/v1/desktop/:id/bash-action", {
+  method: "POST",
+  headers: {
+  "x-api-key": "api_12345"
+}
+});
+```
+
+</Request>
+
+</Requests>
+
+<Responses items={["200","400","401","403","404","409","429","500"]}>
+
+<Response value={"200"}>
+
+<ResponseTypes>
+
+<ExampleResponse>
+
+```json
+{
+  "status": "success",
+  "output": "Hello, World!"
+}
+```
+
+</ExampleResponse>
+
+<TypeScriptResponse>
+
+```ts
+export interface Response {
+  /**
+   * Status of the bash command execution
+   */
+  status: string;
+  /**
+   * Output from the bash command execution
+   */
+  output: string;
+}
+```
+
+</TypeScriptResponse>
+
+</ResponseTypes>
+
+</Response>
+
+<Response value={"400"}>
+
+<ResponseTypes>
+
+<ExampleResponse>
+
+```json
+{
+  "message": "string",
+  "docs": "string"
+}
+```
+
+</ExampleResponse>
+
+<TypeScriptResponse>
+
+```ts
+export interface Response {
+  message: string;
+  docs: string;
+}
+```
+
+</TypeScriptResponse>
+
+</ResponseTypes>
+
+</Response>
+
+<Response value={"401"}>
+
+<ResponseTypes>
+
+<ExampleResponse>
+
+```json
+{
+  "message": "string",
+  "docs": "string"
+}
+```
+
+</ExampleResponse>
+
+<TypeScriptResponse>
+
+```ts
+export interface Response {
+  message: string;
+  docs: string;
+}
+```
+
+</TypeScriptResponse>
+
+</ResponseTypes>
+
+</Response>
+
+<Response value={"403"}>
+
+<ResponseTypes>
+
+<ExampleResponse>
+
+```json
+{
+  "message": "string",
+  "docs": "string"
+}
+```
+
+</ExampleResponse>
+
+<TypeScriptResponse>
+
+```ts
+export interface Response {
+  message: string;
+  docs: string;
+}
+```
+
+</TypeScriptResponse>
+
+</ResponseTypes>
+
+</Response>
+
+<Response value={"404"}>
+
+<ResponseTypes>
+
+<ExampleResponse>
+
+```json
+{
+  "message": "string",
+  "docs": "string"
+}
+```
+
+</ExampleResponse>
+
+<TypeScriptResponse>
+
+```ts
+export interface Response {
+  message: string;
+  docs: string;
+}
+```
+
+</TypeScriptResponse>
+
+</ResponseTypes>
+
+</Response>
+
+<Response value={"409"}>
+
+<ResponseTypes>
+
+<ExampleResponse>
+
+```json
+{
+  "message": "string",
+  "docs": "string"
+}
+```
+
+</ExampleResponse>
+
+<TypeScriptResponse>
+
+```ts
+export interface Response {
+  message: string;
+  docs: string;
+}
+```
+
+</TypeScriptResponse>
+
+</ResponseTypes>
+
+</Response>
+
+<Response value={"429"}>
+
+<ResponseTypes>
+
+<ExampleResponse>
+
+```json
+{
+  "message": "string",
+  "docs": "string"
+}
+```
+
+</ExampleResponse>
+
+<TypeScriptResponse>
+
+```ts
+export interface Response {
+  message: string;
+  docs: string;
+}
+```
+
+</TypeScriptResponse>
+
+</ResponseTypes>
+
+</Response>
+
+<Response value={"500"}>
+
+<ResponseTypes>
+
+<ExampleResponse>
+
+```json
+{
+  "message": "string",
+  "docs": "string"
+}
+```
+
+</ExampleResponse>
+
+<TypeScriptResponse>
+
+```ts
+export interface Response {
+  message: string;
+  docs: string;
+}
+```
+
+</TypeScriptResponse>
+
+</ResponseTypes>
+
+</Response>
+
+</Responses>
+
+</APIExample>
+
+</API>
+
+</Root>

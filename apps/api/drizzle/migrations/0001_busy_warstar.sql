@@ -1,0 +1,1 @@
+ALTER TABLE "desktop_instances" ADD COLUMN "remote_id" varchar(255);
