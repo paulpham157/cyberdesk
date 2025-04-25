@@ -70,31 +70,31 @@ resource "azurerm_network_security_rule" "allow_outbound" {
   network_security_group_name = azurerm_network_security_group.aks_nsg.name
 }
 
-# Add a rule to allow inbound HTTP traffic from the internet.
+# Add a rule to allow inbound HTTP traffic from specific sources.
 resource "azurerm_network_security_rule" "allow_inbound_http" {
-  name                        = "AllowInboundHttp"
+  name                        = "AllowInboundHttpFromTrusted"
   priority                    = 110 # Needs a different priority than the outbound rule
   direction                   = "Inbound"
   access                      = "Allow"
   protocol                    = "Tcp"
   source_port_range           = "*"
   destination_port_range      = "80" # Allow traffic to port 80
-  source_address_prefix       = "Internet" # Allow traffic from any internet source
+  source_address_prefixes     = concat(var.developer_api_ips, var.developer_vpn_ips) # Allow traffic from Developer API and Developer VPN
   destination_address_prefix  = "*"       # Allow traffic to any destination within the NSG scope (our subnet)
   resource_group_name         = azurerm_resource_group.rg.name
   network_security_group_name = azurerm_network_security_group.aks_nsg.name
 }
 
-# Add a rule to allow inbound HTTPS traffic from the internet.
+# Add a rule to allow inbound HTTPS traffic from specific sources.
 resource "azurerm_network_security_rule" "allow_inbound_https" {
-  name                        = "AllowInboundHttps"
+  name                        = "AllowInboundHttpsFromTrusted"
   priority                    = 120 # Needs a different priority than the other rules
   direction                   = "Inbound"
   access                      = "Allow"
   protocol                    = "Tcp"
   source_port_range           = "*"
   destination_port_range      = "443" # Allow traffic to port 443
-  source_address_prefix       = "Internet" # Allow traffic from any internet source
+  source_address_prefixes     = concat(var.developer_api_ips, var.developer_vpn_ips) # Allow traffic from Developer API and Developer VPN
   destination_address_prefix  = "*"       # Allow traffic to any destination within the NSG scope (our subnet)
   resource_group_name         = azurerm_resource_group.rg.name
   network_security_group_name = azurerm_network_security_group.aks_nsg.name
@@ -141,4 +141,14 @@ resource "azurerm_role_assignment" "aks_subnet_role" {
   scope                = azurerm_subnet.aks.id
   role_definition_name = "Network Contributor"
   principal_id         = azurerm_kubernetes_cluster.aks.identity[0].principal_id
+}
+
+# Grant the AKS managed identity permissions to manage route tables if using Azure CNI
+# Required for Azure CNI with network policies or custom routes
+resource "azurerm_role_assignment" "aks_routetable_role" {
+  scope                = azurerm_resource_group.rg.id # Assign at the resource group level
+  role_definition_name = "Network Contributor"        # Or a more specific custom role if needed
+  principal_id         = azurerm_kubernetes_cluster.aks.identity[0].principal_id
+  # Depends on the VNet being created first
+  depends_on = [azurerm_virtual_network.vnet]
 }
