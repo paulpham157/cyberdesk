@@ -13,11 +13,11 @@ rules:
   resources: ["virtualmachineinstances/vnc"]
   verbs: ["get"]
 - apiGroups: [""] # Core API group
-  resources: ["services"]
-  verbs: ["get", "list", "watch"] # Add permissions to get service status
-- apiGroups: [""]
-  resources: ["services/status"]
-  verbs: ["get"]
+  resources: ["services", "services/status"] # Combined service permissions
+  verbs: ["get", "list", "watch"] # Permissions needed for service status and IP lookup
+- apiGroups: ["cyberdesk.io"] # Add permissions for Cyberdesk CRs
+  resources: ["cyberdesks"]
+  verbs: ["create", "delete", "get", "list", "patch", "update", "watch"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
