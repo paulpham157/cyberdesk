@@ -28,7 +28,8 @@ Initialize and apply the Terraform configuration:
 terraform init
 terraform validate
 terraform plan
-terraform apply -auto-approve
+terraform apply -var-file=dev.tfvars -auto-approve # For dev environment
+terraform apply -var-file=prod.tfvars -auto-approve # For prod environment
 ```
 
 ### 2. Configure Kubernetes Access
