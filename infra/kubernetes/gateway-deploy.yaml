@@ -49,7 +49,7 @@ spec:
       serviceAccountName: gateway
       containers:
       - name: gateway
-        image: cyberdesk/gateway:v0.1.10
+        image: cyberdesk/gateway:v0.1.11
         envFrom:
         - secretRef:
             name: supabase-credentials
