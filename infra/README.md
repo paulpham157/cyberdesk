@@ -35,8 +35,14 @@ terraform apply -auto-approve
 
 Once the AKS cluster is deployed, configure your local kubectl to access it:
 
+Production:
 ```bash
 az aks get-credentials --resource-group rg-p-scu-kubevirt --name aks-p-scu-kubevirt
+```
+
+Development:
+```bash
+az aks get-credentials --resource-group rg-d-scu-kubevirt --name aks-d-scu-kubevirt
 ```
 
 ### 3. Deploy KubeVirt
@@ -57,34 +63,9 @@ kubectl apply -f ../kubevirt/kubevirt-cr.yaml
 
 CDI is required to use KubeVirt features like cloning PersistentVolumeClaims (PVCs) or importing disk images into PVCs. This is the recommended way to create VM root disks with specific sizes.
 
-**Bash (Linux/macOS):**
-
 ```bash
-# Get the latest CDI version
-export VERSION=$(curl -s https://api.github.com/repos/kubevirt/containerized-data-importer/releases/latest | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/')
-
-# Deploy CDI Operator
-kubectl create -f https://github.com/kubevirt/containerized-data-importer/releases/download/$VERSION/cdi-operator.yaml
-
-# Deploy CDI Custom Resource
-kubectl create -f https://github.com/kubevirt/containerized-data-importer/releases/download/$VERSION/cdi-cr.yaml
-
-# Wait for CDI pods to be ready (optional check)
-kubectl wait --for=condition=Ready pod -l app.kubernetes.io/component=cdi-operator -n cdi --timeout=300s
-kubectl wait --for=condition=Ready pod -l cdi.kubevirt.io -n cdi --timeout=300s
-```
-
-**PowerShell (Windows):**
-
-```powershell
-# Get the latest CDI version
-$VERSION = (Invoke-RestMethod -Uri "https://api.github.com/repos/kubevirt/containerized-data-importer/releases/latest").tag_name
-
-# Deploy CDI Operator
-kubectl create -f "https://github.com/kubevirt/containerized-data-importer/releases/download/$VERSION/cdi-operator.yaml"
-
-# Deploy CDI Custom Resource
-kubectl create -f "https://github.com/kubevirt/containerized-data-importer/releases/download/$VERSION/cdi-cr.yaml"
+kubectl apply -f ../kubevirt/cdi-operator.yaml
+kubectl apply -f ../kubevirt/cdi-cr.yaml
 
 # Wait for CDI pods to be ready (optional check)
 kubectl wait --for=condition=Ready pod -l app.kubernetes.io/component=cdi-operator -n cdi --timeout=300s

@@ -117,6 +117,7 @@ resource "azurerm_kubernetes_cluster" "aks" {
     name                = "default"
     node_count          = 1 # Note: node_count is often managed by autoscaler if enabled. Consider removing if not needed or set to min_count.
     vm_size             = var.aks_default_node_pool_vm_size
+    temporary_name_for_rotation = "tempnodepool"
     auto_scaling_enabled = true
     min_count           = var.aks_default_node_pool_min_count
     max_count           = var.aks_default_node_pool_max_count
