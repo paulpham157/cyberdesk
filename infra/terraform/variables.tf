@@ -35,3 +35,15 @@ variable "aks_default_node_pool_max_count" {
   type        = number
   default     = 2
 }
+
+variable "developer_api_ips" {
+  type        = list(string)
+  description = "List of dedicated public IP addresses/CIDRs for the Developer-facing API app."
+  default     = ["0.0.0.0/0"]
+}
+
+variable "developer_vpn_ips" {
+  type        = list(string)
+  description = "List of public IP addresses/CIDRs for the developer VPN (for secure local access to the cluster)"
+  default     = ["0.0.0.0/0"]
+}
