@@ -1,0 +1,37 @@
+{
+  "compilerOptions": {
+    /* Base Options: */
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "target": "ES2016", // Or a later version like ES2020, ESNext
+    "allowJs": true,
+    "resolveJsonModule": true,
+    "moduleDetection": "force",
+    "isolatedModules": true,
+
+    /* Strictness */
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "noImplicitAny": true,
+
+    /* If NOT transpiling code: */
+    // These lines were removed as we need to emit JS for the SDK build.
+
+    /* If your code runs in the DOM: */
+    // "lib": ["es2022", "dom", "dom.iterable"],
+
+    /* If your code DOES NOT run in the DOM: */
+    "lib": ["ES2022"], // Adjust target lib as needed (e.g., ES2016)
+
+    /* Publishing Options */
+    "declaration": true, // Generate .d.ts files
+    "outDir": "./dist", // Output directory for compiled files
+    "rootDir": "./src", // Root directory of source files
+
+    /* Module Resolution */
+    "module": "CommonJS", // Or ESNext, NodeNext depending on target environment
+    "moduleResolution": "node" // How modules get resolved
+  },
+  "include": ["src/**/*"], // Which files to include in compilation
+  "exclude": ["node_modules", "dist", "**/*.test.ts"] // Which files to exclude
+} 

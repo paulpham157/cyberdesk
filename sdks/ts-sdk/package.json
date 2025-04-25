@@ -1,0 +1,34 @@
+{
+  "name": "cyberdesk",
+  "version": "0.1.1",
+  "description": "The official TypeScript SDK for Cyberdesk",
+  "main": "dist/client/index.js",
+  "types": "dist/client/index.d.ts",
+  "files": [
+    "dist",
+    "LICENSE",
+    "README.md"
+  ],
+  "scripts": {
+    "generate": "openapi-ts",
+    "build": "npm run generate && tsc",
+    "prepublishOnly": "npm run build"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/cyberdesk-hq/cyberdesk.git"
+  },
+  "license": "MIT",
+  "author": "Cyberdesk Team <dev@cyberdesk.io>",
+  "bugs": {
+    "url": "https://github.com/cyberdesk-hq/cyberdesk/issues"
+  },
+  "homepage": "https://github.com/cyberdesk-hq/cyberdesk#readme",
+  "dependencies": {
+    "@hey-api/client-fetch": "^0.10.0"
+  },
+  "devDependencies": {
+    "@hey-api/openapi-ts": "^0.66.6",
+    "typescript": "^5.0.0"
+  }
+}

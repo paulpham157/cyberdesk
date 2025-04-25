@@ -3,7 +3,7 @@ import * as OpenAPI from "fumadocs-openapi";
 import * as Typescript from "fumadocs-typescript";
 
 void OpenAPI.generateFiles({
-  input: ["./scripts/*.json"],
+  input: ["../../sdks/openapi.json"],
   output: "./content/docs/",
   frontmatter: (title) => ({
     toc: false,

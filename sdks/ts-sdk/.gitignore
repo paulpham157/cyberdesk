@@ -1,0 +1,23 @@
+# Logs
+*.log
+
+# Dependency directories
+node_modules/
+
+# Compiled TypeScript output
+dist/
+
+# Optional: IDE directories
+.vscode/
+.idea/
+
+# Optional: OS generated files
+.DS_Store
+Thumbs.db
+
+# Optional: Environment variables file
+.env*
+!/.env.example
+
+# Optional: Test coverage
+coverage/
