@@ -263,7 +263,7 @@ async def proxy_vnc(websocket: WebSocket, vm_id: str) -> None:
             k8s_url,
             subprotocols=["binary.kubevirt.io"],
             ssl=ssl_ctx,
-            extra_headers=[("Authorization", f"Bearer {token}")],
+            additional_headers=[("Authorization", f"Bearer {token}")],
         ) as kube_ws:
 
             async def _relay(
