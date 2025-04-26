@@ -3,6 +3,10 @@ kind: VirtualMachine
 metadata:
   name: test-vm
   namespace: kubevirt
+  labels:
+    app: cyberdesk
+    cyberdesk-instance: test-instance
+    managed-by: operator
 spec:
   runStrategy: Always
   dataVolumeTemplates:
@@ -32,7 +36,6 @@ spec:
         cpu:
           cores: 1
         devices:
-          autoattachGraphicsDevice: true
           disks:
             # the root disk populated directly by CDI
             - name: rootdisk
@@ -45,6 +48,10 @@ spec:
           interfaces:
             - name: default
               masquerade: {}
+          inputs:
+            - type: tablet
+              name: tablet1
+              bus: usb
         resources:
           requests:
             memory: 2Gi
