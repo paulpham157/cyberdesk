@@ -1,7 +1,7 @@
 import { eq, and, sql } from "drizzle-orm";
 import type { PostgresJsDatabase } from "drizzle-orm/postgres-js";
-import { schema } from "./index.js";
-import { instanceStatusEnum } from "./supabase.js";
+import { schema } from "../index.js";
+import { InstanceStatus, instanceStatusEnum } from "./schema.js";
 
 /**
  * Creates a new Cyberdesk instance for a user.
@@ -21,7 +21,7 @@ export async function addDbInstance(
     .insert(schema.cyberdeskInstances)
     .values({
       userId,
-      status: 'pending',
+      status: InstanceStatus.Pending,
       timeoutAt: sql`NOW() + interval '${sql.raw(timeoutInterval)}'`,
     })
     .returning({
@@ -44,7 +44,7 @@ export async function updateDbInstanceStatus(
   db: PostgresJsDatabase<typeof schema>,
   id: string,
   userId: string,
-  status: typeof instanceStatusEnum.enumValues[number]
+  status: InstanceStatus
 ) {
   const [updatedInstance] = await db
     .update(schema.cyberdeskInstances)

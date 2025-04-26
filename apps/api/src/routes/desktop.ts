@@ -2,7 +2,8 @@ import { OpenAPIHono } from "@hono/zod-openapi";
 import { env } from 'hono/adapter';
 import { unkey, type UnkeyContext } from "@unkey/hono";
 import { z } from "@hono/zod-openapi";
-
+import axios from "axios";
+import { profiles, cyberdeskInstances, InstanceStatus } from "../db/schema.js";
 import {
   bashAction,
   computerAction,
@@ -12,12 +13,12 @@ import {
   CreateDesktopParamsSchema,
   getDesktop,
 } from "../schema/desktop.js";
-import { db } from "../database.js";
-import { 
+import { db } from "../db/index.js";
+import {
   addDbInstance,
   getDbInstanceDetails,
   updateDbInstanceStatus,
-} from "../db/dbHelpers.js";
+} from "../db/dbActions.js";
 
 // Type definitions
 type EnvVars = {
@@ -26,6 +27,7 @@ type EnvVars = {
   SUPABASE_ANON_KEY: string;
   SUPABASE_CONNECTION_STRING?: string;
   WEB_URL: string;
+  GATEWAY_EXTERNAL_IP: string;
 };
 
 // Use the schema type for computer actions
@@ -35,7 +37,7 @@ type CreateDesktopParams = z.infer<typeof CreateDesktopParamsSchema>;
 
 // Create Hono instance
 const desktop = new OpenAPIHono<{
-  Variables: { 
+  Variables: {
     unkey: UnkeyContext;
     userId: string;
   };
@@ -66,12 +68,12 @@ const unauthorizedResponse = (c: any) => {
 // API key verification middleware
 desktop.use("*", async (c, next) => {
   const { UNKEY_API_ID } = env<EnvVars>(c);
-  
+
   const handler = unkey({
     apiId: UNKEY_API_ID,
     getKey: (c) => c.req.header("x-api-key"),
   });
-  
+
   await handler(c, next);
 });
 
@@ -92,9 +94,9 @@ desktop.use("*", async (c, next) => {
       401
     );
   }
-  
+
   c.set("userId", userId);
-  
+
   await next();
 });
 
@@ -126,25 +128,36 @@ desktop.openapi(getDesktop, async (c) => {
 
 // Route for creating a new desktop instance
 desktop.openapi(createDesktop, async (c) => {
+  const { GATEWAY_EXTERNAL_IP } = env<EnvVars>(c);
   const userId = c.get("userId");
-  
+
   try {
     // Get timeout from request body if provided
     const body = await c.req.json().catch(() => ({}));
     const params = CreateDesktopParamsSchema.parse(body);
-    
+
     // Create a new desktop instance using the helper
     const newInstance = await addDbInstance(db, userId, params.timeoutMs);
 
-    // TODO: Actually provision the instance based on the newInstance ID
+    try {
+      const provisioningUrl = `http://${GATEWAY_EXTERNAL_IP}/cyberdesk/${newInstance.id}`;
+      const response = await axios.post(provisioningUrl, {
+        timeoutMs: params.timeoutMs
+      });
+      console.log('Provisioning request successful:', response.data);
 
-    return c.json(
-      {
-        id: newInstance.id,
-        status: newInstance.status,
-      },
-      200
-    );
+      return c.json(
+        {
+          id: newInstance.id,
+          status: newInstance.status,
+        },
+        200
+      );
+    } catch (provisioningError) {
+      console.error('Error calling provisioning service:', provisioningError);
+      await updateDbInstanceStatus(db, newInstance.id, userId, InstanceStatus.Error);
+      throw new Error('Failed to initiate provisioning of Cyberdesk resource via Gateway for instance ' + newInstance.id);
+    }
   } catch (error) {
     return handleApiError(c, error, "Failed to create desktop instance");
   }
@@ -154,10 +167,10 @@ desktop.openapi(createDesktop, async (c) => {
 desktop.openapi(stopDesktop, async (c) => {
   const userId = c.get("userId");
   const id = c.req.param("id");
-  
+  const { GATEWAY_EXTERNAL_IP } = env<EnvVars>(c);
   try {
     // Stop the Cyberdesk instance (update status to terminated)
-    const updatedInstance = await updateDbInstanceStatus(db, id, userId, "terminated");
+    const updatedInstance = await updateDbInstanceStatus(db, id, userId, InstanceStatus.Terminated);
 
     if (!updatedInstance) {
       return c.json(
@@ -168,8 +181,14 @@ desktop.openapi(stopDesktop, async (c) => {
         404
       );
     }
-    
-    // TODO: Trigger deprovisioning logic here based on the id
+
+    try {
+      const provisioningUrl = `http://${GATEWAY_EXTERNAL_IP}/cyberdesk/${id}/stop`;
+      const response = await axios.post(provisioningUrl);
+      console.log('Stopping request successful:', response.data);
+    } catch (provisioningError) {
+      console.error('Error calling provisioning service:', provisioningError);
+    }
 
     return c.json(
       {
@@ -203,11 +222,11 @@ desktop.openapi(computerAction, async (c) => {
   const userId = c.get("userId");
   const id = c.req.param("id");
   const action = await c.req.json() as ComputerAction;
-  
+
   // Execute the appropriate action
   try {
     const result = await executeComputerAction(id, userId, action);
-    
+
     // If it's a screenshot action, return the image data
     if (action.type === "screenshot" && result) {
       return c.json(
@@ -218,7 +237,7 @@ desktop.openapi(computerAction, async (c) => {
         200
       );
     }
-    
+
     return c.json(
       {
         status: "success",
@@ -235,14 +254,14 @@ desktop.openapi(computerAction, async (c) => {
     );
   }
 })
-   
+
 
 // Route for executing a bash command on a desktop
 desktop.openapi(bashAction, async (c) => {
   const userId = c.get("userId");
   const id = c.req.param("id");
   const { command } = await c.req.json();
-  
+
   try {
     // Get the DB instance of this id
     const dbInstance = await getDbInstanceDetails(db, id, userId);

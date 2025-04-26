@@ -20,6 +20,7 @@
     "@unkey/cache": "^1.0.2",
     "@unkey/hono": "^1.2.0",
     "@unkey/ratelimit": "^0.1.12",
+    "axios": "^1.9.0",
     "dotenv": "^16.4.7",
     "drizzle-orm": "^0.30.10",
     "hono": "^4.4.7",

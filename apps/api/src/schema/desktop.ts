@@ -1,7 +1,7 @@
 import { createRoute, z } from "@hono/zod-openapi";
 
 import { openApiErrorResponses } from "./errors.js";
-import { instanceStatusEnum } from "../db/supabase.js";
+import { instanceStatusEnum } from "../db/schema.js";
 
 // Header schema for API key authentication
 const HeadersSchema = z.object({
