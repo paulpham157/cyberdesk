@@ -4,14 +4,14 @@ cyberdesk_api.py
 FastAPI micro-gateway that:
 
 1. Serves the noVNC static front-end.
-2. Proxies a browser WebSocket to the KubeVirt VNC sub-resource.
+2. Proxies a browser WebSocket to a websockify instance (port 5901) in the VM pod.
 3. Creates / deletes *Cyberdesk* custom resources via the Kubernetes API.
 4. Proxies terminal commands to the desired VM, via the execDaemon.
 
 Designed to run either:
 
 * Inside a Kubernetes cluster (uses ServiceAccount & in-cluster DNS), **or**
-* Locally, picking up ~/.kube/config for dev workflows.
+* Locally, picking up ~/.kube/config for dev workflows. Requires manual port-forwarding for VNC.
 """
 
 from __future__ import annotations
@@ -40,6 +40,7 @@ from pydantic import BaseModel, Field
 from supabase import create_client, Client
 from dotenv import load_dotenv
 import json
+import socket
 
 # --------------------------------------------------------------------------- #
 # Logging
@@ -316,64 +317,74 @@ PING_INTERVAL = 20  # seconds
 @app.websocket("/vnc/ws/{vm_id}")
 async def proxy_vnc(websocket: WebSocket, vm_id: str) -> None:
     """
-    Bidirectional proxy between the browser and KubeVirt's VNC sub-resource.
+    Bidirectional proxy between the browser and the websockify VNC service (port 5901)
+    running inside the target VM pod.
 
     Life-cycle
     ----------
     1. Browser connects – we accept instantly.
-    2. Determine VNC connection parameters (URL, SSL, Auth) based on environment.
-    3. Dial KubeVirt VNC sub-resource with sub-protocol ``binary.kubevirt.io``.
+    2. Determine websockify target URL based on environment (in-cluster DNS or local port-forward).
+    3. Dial the websockify target URL.
     4. Spawn three tasks:
-         * browser → k8s relay
-         * k8s → browser relay
+         * browser → pod relay
+         * pod → browser relay
          * periodic Ping task
     5. When any task finishes, cancel the others and close gracefully.
     """
     await websocket.accept()
 
-    k8s_url: Optional[str] = None
-    ssl_ctx: Optional[ssl.SSLContext] = None
-    headers: list[tuple[str, str]] = []
+    target_ws_url: Optional[str] = None
+    websockify_port = 5901 # Default websockify port configured in cloud-init
 
     try:
         # Check if we are running in-cluster by checking for the token file
         token_path = Path("/var/run/secrets/kubernetes.io/serviceaccount/token")
         if token_path.exists():
-            k8s_url, ssl_ctx, headers = _get_in_cluster_vnc_config(vm_id)
+            LOG.info("Configuring VNC proxy for in-cluster environment via websockify.")
+            # Construct internal DNS name for the pod's service endpoint
+            # Assuming a headless service named 'kubevirt-vm-headless' exists for pods
+            vm_service_name = "kubevirt-vm-headless" # Adjust if your headless service name differs
+            target_fqdn = f"{vm_id}.{vm_service_name}.{VMI_NAMESPACE}.svc.cluster.local"
+            target_ws_url = f"ws://{target_fqdn}:{websockify_port}"
+            tcp_test_host = target_fqdn # For potential future testing in-cluster
         else:
-            k8s_url, ssl_ctx, headers = _get_local_vnc_config(vm_id)
+            LOG.info("Configuring VNC proxy for local environment (Docker) via websockify.")
+            # --- Docker Host Note ---
+            # Use host.docker.internal to connect from container to host
+            # Ensure `kubectl port-forward <pod-name> 5901:5901 -n kubevirt` runs on the HOST.
+            docker_host_ip = "host.docker.internal"
+            target_ws_url = f"ws://{docker_host_ip}:{websockify_port}"
+            tcp_test_host = docker_host_ip # Use the same for TCP test
 
-    except RuntimeError as e:
-        LOG.error(f"Failed to configure VNC proxy: {e}")
-        await websocket.close(code=status.WS_1011_INTERNAL_ERROR, reason=f"Proxy config error: {e}")
-        return
     except Exception as e: # Catch unexpected configuration errors
          LOG.exception(f"Unexpected error during VNC proxy configuration: {e}")
          await websocket.close(code=status.WS_1011_INTERNAL_ERROR, reason="Unexpected proxy config error")
          return
 
     # Ensure configuration succeeded
-    if not k8s_url or not ssl_ctx:
+    if not target_ws_url:
         # Should have been caught above, but defensive check
-        LOG.error("Configuration resulted in missing K8s URL or SSL context.")
+        LOG.error("Configuration resulted in missing target websocket URL.")
         await websocket.close(code=status.WS_1011_INTERNAL_ERROR, reason="Proxy config error")
         return
 
-    LOG.info(f"Attempting WebSocket connection to KubeVirt VNC at {k8s_url}")
+    LOG.info(f"Attempting WebSocket connection to websockify at {target_ws_url}")
     try:
+        # Restore original websockets.connect code
         async with websockets.connect(
-            k8s_url,
-            subprotocols=["binary.kubevirt.io"],
-            ssl=ssl_ctx,
-            additional_headers=headers,
-            # Consider adding timeouts for connect/disconnect/transfer if needed
-            # open_timeout=10, close_timeout=10, ping_timeout=20
-        ) as kube_ws:
-            LOG.info(f"WebSocket connection established to {k8s_url}")
+            target_ws_url,
+            subprotocols=["binary", "base64"], # Common for noVNC/websockify
+            ssl=None, # Assuming plain ws:// connection to websockify
+            additional_headers=None, # No K8s auth needed for websockify
+            open_timeout=15, # Slightly longer timeout
+            close_timeout=10,
+            ping_timeout=30 # Align with PING_INTERVAL slightly higher
+        ) as pod_ws:
+            LOG.info(f"WebSocket connection established to {target_ws_url}")
             tasks = {
-                asyncio.create_task(_relay(websocket.receive_bytes, kube_ws.send)),
-                asyncio.create_task(_relay(kube_ws.recv, websocket.send_bytes)),
-                asyncio.create_task(_ping(kube_ws)),
+                asyncio.create_task(_relay(websocket.receive_bytes, pod_ws.send), name=f"relay_browser_to_pod_{vm_id}"),
+                asyncio.create_task(_relay(pod_ws.recv, websocket.send_bytes), name=f"relay_pod_to_browser_{vm_id}"),
+                asyncio.create_task(_ping(pod_ws), name=f"ping_pod_{vm_id}"),
             }
 
             done, pending = await asyncio.wait(
@@ -406,16 +417,15 @@ async def proxy_vnc(websocket: WebSocket, vm_id: str) -> None:
     # ----- WebSocket Connection & Proxy Error Handling ---------------------- #
 
     except ssl.SSLCertVerificationError as exc:
-        LOG.error("TLS verification failed connecting to KubeVirt VNC: %s", exc)
+        # This error should now be less likely unless connecting to localhost wss://
+        LOG.error("TLS verification failed connecting to Websockify (unexpected): %s", exc)
         reason = f"TLS verification failed ({exc.reason if hasattr(exc, 'reason') else 'unknown'}). Check CA or server certificate."
-        if not ssl_ctx.check_hostname:
-             reason += " Hostname verification was disabled."
         await websocket.close(code=status.WS_1011_INTERNAL_ERROR, reason=reason)
 
     except websockets.exceptions.InvalidStatusCode as exc:
-        LOG.error("Upstream KubeVirt VNC endpoint refused connection: %s", exc)
-        reason = f"KubeVirt VNC connection failed ({exc.status_code}). Check permissions or VM status."
-        if hasattr(exc, 'response') and exc.response and exc.response.body and len(exc.response.body) < 100:
+        LOG.error(f"Websockify endpoint refused connection: {exc.status_code}", exc_info=True)
+        reason = f"Websockify connection failed ({exc.status_code}). Check pod service/websockify status."
+        if hasattr(exc, 'response') and exc.response and hasattr(exc.response, 'body') and exc.response.body and len(exc.response.body) < 100:
             try:
                 reason += f" Body: {exc.response.body.decode()}"
             except UnicodeDecodeError:
@@ -423,15 +433,18 @@ async def proxy_vnc(websocket: WebSocket, vm_id: str) -> None:
         await websocket.close(code=status.WS_1011_INTERNAL_ERROR, reason=reason)
 
     except websockets.exceptions.ConnectionClosedError as exc:
-         LOG.error(f"Connection closed unexpectedly during VNC proxy handshake: {exc.code} {exc.reason}")
-         await websocket.close(code=status.WS_1011_INTERNAL_ERROR, reason=f"VNC Connection closed: {exc.reason}")
+         LOG.error(f"Connection closed unexpectedly during Websockify proxy handshake: {exc.code} {exc.reason}")
+         await websocket.close(code=status.WS_1011_INTERNAL_ERROR, reason=f"Websockify Connection closed: {exc.reason}")
 
     except ConnectionRefusedError as exc:
-        LOG.error(f"Connection refused connecting to KubeVirt VNC at {k8s_url}: {exc}")
-        await websocket.close(code=status.WS_1011_INTERNAL_ERROR, reason="Connection refused by K8s API server.")
+        LOG.error(f"Connection refused connecting to Websockify at {target_ws_url}: {exc}")
+        detail = "Connection refused by pod (is websockify running/port-forward correct?)."
+        if "localhost" in target_ws_url:
+            detail += " Ensure 'kubectl port-forward' is active."
+        await websocket.close(code=status.WS_1011_INTERNAL_ERROR, reason=detail)
 
     except OSError as exc: # Catch potential socket/network errors like timeout during connect
-         LOG.error(f"Network error connecting to KubeVirt VNC at {k8s_url}: {exc}")
+         LOG.error(f"Network error connecting to Websockify at {target_ws_url}: {exc}")
          await websocket.close(code=status.WS_1011_INTERNAL_ERROR, reason=f"Network error: {exc}")
 
     except Exception as exc:  # Catch any other unexpected errors during connect/proxy
