@@ -71,3 +71,14 @@ These instructions explain how to run the gateway service locally on your machin
 
 4.  **Access the Service:**
     The gateway should now be running and accessible at `http://localhost:3001` on your host machine. You can test endpoints like `http://localhost:3001/healthz`.
+
+5.  **For the noVNC stream, you need to run the following command:**
+    ```bash
+    kubectl get pods -n kubevirt
+
+    # Find the pod with id 'virt-launcher-<vm-id>-<pod-id>'
+
+    kubectl port-forward <pod-id> 5901:5901 -n kubevirt
+    ```
+
+    This will forward port 5901 on your host machine to port 5901 on the pod that runs the Kubevirt VM. This allows you to connect to the VM's desktop environment via the noVNC stream via the URL: `http://localhost:3001/vnc/<vm-id>`.

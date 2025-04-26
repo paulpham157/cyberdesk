@@ -3,6 +3,10 @@ kind: VirtualMachine
 metadata:
   name: test-vm-2
   namespace: kubevirt
+  labels:
+    app: cyberdesk
+    cyberdesk-instance: test-instance-2
+    managed-by: operator
 spec:
   runStrategy: Always
   dataVolumeTemplates:
@@ -22,7 +26,7 @@ spec:
     metadata:
       labels:
         app: cyberdesk
-        cyberdesk-instance: test-instance
+        cyberdesk-instance: test-instance-2
         managed-by: operator
         kubevirt.io/domain: test-vm-2
     spec:
@@ -45,6 +49,10 @@ spec:
           interfaces:
             - name: default
               masquerade: {}
+          inputs:
+            - type: tablet
+              name: tablet1
+              bus: usb
         resources:
           requests:
             memory: 2Gi
