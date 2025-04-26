@@ -1,7 +1,3 @@
-# Radiant
-
-Radiant is a [Tailwind Plus](https://tailwindcss.com/plus) site template built using [Tailwind CSS](https://tailwindcss.com) and [Next.js](https://nextjs.org), with a blog powered by [Sanity](https://www.sanity.io).
-
 ## Getting started
 
 To get started with this template, first install the npm dependencies:
@@ -33,10 +29,6 @@ npm run dev
 Finally, open [http://localhost:3000](http://localhost:3000) in your browser to view the website.
 
 To manage your blog content, visit the embedded Sanity Studio at [http://localhost:3000/studio](http://localhost:3000/studio).
-
-## Customizing
-
-You can start editing this template by modifying the files in the `/src` folder. The site will auto-update as you edit these files.
 
 ## License
 

@@ -175,6 +175,10 @@ data:
               interfaces:
                 - name: default
                   masquerade: {} # TODO: Add specific ports
+              inputs:
+                - type: tablet
+                  name: tablet1
+                  bus: usb                  
             resources:
               requests:
                 memory: 2Gi
