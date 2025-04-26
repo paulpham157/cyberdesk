@@ -188,6 +188,7 @@ desktop.openapi(stopDesktop, async (c) => {
       console.log('Stopping request successful:', response.data);
     } catch (provisioningError) {
       console.error('Error calling provisioning service:', provisioningError);
+      throw new Error('Failed to stop Cyberdesk resource via Gateway for instance ' + id);
     }
 
     return c.json(
