@@ -76,31 +76,45 @@ export async function executeComputerAction(
     switch (action) {
       case 'left_click':
         requestBody = {
-          type: 'left_click',
-          x: coordinate?.x || 0,
-          y: coordinate?.y || 0
+          type: 'click_mouse',
+          x: coordinate?.x,
+          y: coordinate?.y,
+          button: 'left',
+          click_type: 'click',
+          num_of_clicks: 1
         };
         break;
         
       case 'right_click':
         requestBody = {
-          type: 'right_click',
-          x: coordinate?.x || 0,
-          y: coordinate?.y || 0
+          type: 'click_mouse',
+          x: coordinate?.x,
+          y: coordinate?.y,
+          button: 'right',
+          click_type: 'click',
+          num_of_clicks: 1
         };
         break;
         
       case 'middle_click':
         requestBody = {
-          type: 'middle_click',
-          x: coordinate?.x || 0,
-          y: coordinate?.y || 0
+          type: 'click_mouse',
+          x: coordinate?.x,
+          y: coordinate?.y,
+          button: 'middle',
+          click_type: 'click',
+          num_of_clicks: 1
         };
         break;
         
       case 'double_click':
-        requestBody = {
-          type: 'double_click'
+         requestBody = {
+          type: 'click_mouse',
+          x: coordinate?.x,
+          y: coordinate?.y,
+          button: 'left',
+          click_type: 'click',
+          num_of_clicks: 2
         };
         break;
         
@@ -114,15 +128,17 @@ export async function executeComputerAction(
         
       case 'left_mouse_down':
         requestBody = {
-          type: 'mouse_press',
-          button: 'left'
+          type: 'click_mouse',
+          button: 'left',
+          click_type: 'down'
         };
         break;
         
       case 'left_mouse_up':
         requestBody = {
-          type: 'mouse_release',
-          button: 'left'
+          type: 'click_mouse',
+          button: 'left',
+          click_type: 'up'
         };
         break;
         
@@ -136,22 +152,23 @@ export async function executeComputerAction(
         
       case 'type':
         requestBody = {
-          type: 'write',
+          type: 'type',
           text: text || ''
         };
         break;
         
       case 'key':
         requestBody = {
-          type: 'press',
-          keys: text || ''
+          type: 'press_keys',
+          keys: text || '',
+          key_action_type: 'press'
         };
         break;
         
       case 'left_click_drag':
         if (start_coordinate && coordinate) {
           requestBody = {
-            type: 'drag',
+            type: 'drag_mouse',
             start: {
               x: start_coordinate.x,
               y: start_coordinate.y
@@ -161,25 +178,20 @@ export async function executeComputerAction(
               y: coordinate.y
             }
           };
+        } else {
+          throw new Error("Start and end coordinates are required for drag action.");
         }
         break;
         
       case 'wait':
         requestBody = {
           type: 'wait',
-          ms: (duration || 1) * 1000 // Convert seconds to milliseconds
+          ms: (duration || 1) * 1000
         };
         break;
         
-      case 'screenshot':
-        requestBody = {
-          type: 'screenshot'
-        };
-        break;
-        
-      default:
-        throw new Error(`Unsupported action: ${action}`);
-    }
+      }    
+
 
     const response = await fetch(`${baseUrl}/desktop/${desktopId}/computer-action`, {
       method: 'POST',

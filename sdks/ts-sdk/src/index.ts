@@ -5,6 +5,16 @@ import * as apiMethods from './client/sdk.gen'; // Import the generated methods
 // Re-export all types from types.gen for user convenience
 export * from './client/types.gen';
 
+// Import the specific data types used by the SDK methods
+import { 
+    type GetV1DesktopIdData, 
+    type PostV1DesktopData,
+    type PostV1DesktopIdStopData,
+    type PostV1DesktopIdComputerActionData,
+    type PostV1DesktopIdBashActionData
+    // Add other necessary *Data types if more methods are added
+} from './client/types.gen';
+
 // Define a type for the fetch function to avoid global dependency issues
 type FetchFn = (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;
 
@@ -23,16 +33,26 @@ export interface CyberdeskClientOptions {
     clientOptions?: Partial<ClientOptions>;
 }
 
+// Helper type: Defines the options expected from the SDK user for a given method.
+// It omits properties that are handled internally by the createCyberdeskClient wrapper.
+// It focuses on the known structure of the *Data types (body, path, query).
+// We make headers optional here to allow overrides, even if the main type omits it.
+type SdkMethodOptions<TData> = Omit<TData, 'headers' | 'url'> & { 
+    headers?: Record<string, string>; // Make headers optional for potential overrides
+    // We don't include 'client' here as it's purely internal
+};
+
 // Define the type for the SDK object returned by the factory function.
-// This maps the original method names to their corresponding function types
-// from the generated sdk.gen module.
+// Use Omit on the generated method's parameters directly, excluding headers/client/url.
+// Use the specific *Data types for clarity.
+// The input type for the user is essentially the *Data type minus headers/url
 export type CyberdeskSdk = {
-    getV1DesktopId: typeof apiMethods.getV1DesktopId;
-    postV1Desktop: typeof apiMethods.postV1Desktop;
-    postV1DesktopIdStop: typeof apiMethods.postV1DesktopIdStop;
-    postV1DesktopIdComputerAction: typeof apiMethods.postV1DesktopIdComputerAction;
-    postV1DesktopIdBashAction: typeof apiMethods.postV1DesktopIdBashAction;
-    // Add other methods exported from sdk.gen.ts here if they exist
+    getV1DesktopId: (opts: Omit<GetV1DesktopIdData, 'headers' | 'url'>) => ReturnType<typeof apiMethods.getV1DesktopId>;
+    postV1Desktop: (opts: Omit<PostV1DesktopData, 'headers' | 'url'>) => ReturnType<typeof apiMethods.postV1Desktop>;
+    postV1DesktopIdStop: (opts: Omit<PostV1DesktopIdStopData, 'headers' | 'url'>) => ReturnType<typeof apiMethods.postV1DesktopIdStop>;
+    postV1DesktopIdComputerAction: (opts: Omit<PostV1DesktopIdComputerActionData, 'headers' | 'url'>) => ReturnType<typeof apiMethods.postV1DesktopIdComputerAction>;
+    postV1DesktopIdBashAction: (opts: Omit<PostV1DesktopIdBashActionData, 'headers' | 'url'>) => ReturnType<typeof apiMethods.postV1DesktopIdBashAction>;
+    // Add other methods exported from sdk.gen.ts here following the same pattern
 };
 
 const DEFAULT_BASE_URL = 'https://api.cyberdesk.io'; // Replace if needed
@@ -43,7 +63,8 @@ const DEFAULT_BASE_URL = 'https://api.cyberdesk.io'; // Replace if needed
  * @param options - Configuration options including the API key.
  * @returns An SDK instance with methods ready to be called.
  */
-export function createCyberdeskSdk(options: CyberdeskClientOptions): CyberdeskSdk {
+
+export function createCyberdeskClient(options: CyberdeskClientOptions): CyberdeskSdk {
     const { apiKey, baseUrl = DEFAULT_BASE_URL, fetch: customFetch, clientOptions = {} } = options;
 
     if (!apiKey) {
@@ -56,6 +77,7 @@ export function createCyberdeskSdk(options: CyberdeskClientOptions): CyberdeskSd
     // Prepare headers, merging defaults with any provided in clientOptions
     const mergedHeaders = {
         'x-api-key': apiKey,
+        'Content-Type': 'application/json',
         ...(clientOptions.headers || {}),
     };
 
@@ -76,11 +98,32 @@ export function createCyberdeskSdk(options: CyberdeskClientOptions): CyberdeskSd
 
     // Return an object where each method is pre-configured with the client instance
     return {
-        getV1DesktopId: (opts) => apiMethods.getV1DesktopId({ ...opts, client: configuredClient }),
-        postV1Desktop: (opts) => apiMethods.postV1Desktop({ ...opts, client: configuredClient }),
-        postV1DesktopIdStop: (opts) => apiMethods.postV1DesktopIdStop({ ...opts, client: configuredClient }),
-        postV1DesktopIdComputerAction: (opts) => apiMethods.postV1DesktopIdComputerAction({ ...opts, client: configuredClient }),
-        postV1DesktopIdBashAction: (opts) => apiMethods.postV1DesktopIdBashAction({ ...opts, client: configuredClient }),
+        getV1DesktopId: (opts) => apiMethods.getV1DesktopId({
+            ...(opts as GetV1DesktopIdData), // Cast opts to allow potential headers
+            client: configuredClient,
+            // Merge client headers with potentially provided headers from opts
+            headers: { ...mergedHeaders, ...(opts as GetV1DesktopIdData).headers }
+        }),
+        postV1Desktop: (opts) => apiMethods.postV1Desktop({
+            ...(opts as PostV1DesktopData),
+            client: configuredClient,
+            headers: { ...mergedHeaders, ...(opts as PostV1DesktopData).headers }
+        }),
+        postV1DesktopIdStop: (opts) => apiMethods.postV1DesktopIdStop({
+            ...(opts as PostV1DesktopIdStopData),
+            client: configuredClient,
+            headers: { ...mergedHeaders, ...(opts as PostV1DesktopIdStopData).headers }
+        }),
+        postV1DesktopIdComputerAction: (opts) => apiMethods.postV1DesktopIdComputerAction({
+            ...(opts as PostV1DesktopIdComputerActionData),
+            client: configuredClient,
+            headers: { ...mergedHeaders, ...(opts as PostV1DesktopIdComputerActionData).headers }
+        }),
+        postV1DesktopIdBashAction: (opts) => apiMethods.postV1DesktopIdBashAction({
+            ...(opts as PostV1DesktopIdBashActionData),
+            client: configuredClient,
+            headers: { ...mergedHeaders, ...(opts as PostV1DesktopIdBashActionData).headers }
+        }),
         // Add bindings for other generated methods here following the same pattern
     };
 }
