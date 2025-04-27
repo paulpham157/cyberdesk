@@ -8,7 +8,9 @@ spec:
   certificateRotateStrategy: {}
   configuration:
     developerConfiguration:
-      featureGates: []
+      featureGates: [
+        "Snapshot"
+      ]
   customizeComponents: {}
   imagePullPolicy: IfNotPresent
   workloadUpdateStrategy: {}

@@ -43,6 +43,7 @@ from kubernetes.client import (  # noqa: WPS433 — explicit import list for typ
     CoreV1Api,
     CustomObjectsApi,
     ApiextensionsV1Api,
+    ApiException,
 )
 from supabase import Client, create_client
 
@@ -71,13 +72,6 @@ KUBEVIRT_VMI_PLURAL = "virtualmachineinstances"
 
 MANAGED_BY = "cyberdesk-operator"
 CYBERDESK_NAMESPACE = os.getenv("CYBERDESK_NAMESPACE", "cyberdesk-system")
-
-# Template search paths (first wins)
-VM_TEMPLATE_PATHS = (
-    Path("/app/kubevirt-vm-cr.yaml"),                                      # prod: mounted ConfigMap
-    Path(__file__).parent.parent / "tests" / "test-vm-template.yaml",  # dev / unit‑tests
-)
-USER_DATA_TEMPLATE_PATH = Path(__file__).parent.parent / "tests" / "test-user-data.yaml"
 
 # ---------------------------------------------------------------------------
 # Enums ----------------------------------------------------------------------
@@ -113,6 +107,14 @@ VMI_PHASE_TO_SUPABASE_STATUS: Dict[KubeVirtVMIPhase, SupabaseInstanceStatus] = {
     KubeVirtVMIPhase.FAILED: SupabaseInstanceStatus.ERROR,
     KubeVirtVMIPhase.UNKNOWN: SupabaseInstanceStatus.ERROR,
 }
+
+CLONE_GROUP = "clone.kubevirt.io"
+CLONE_VERSION = "v1beta1"
+CLONE_PLURAL = "virtualmachineclones"
+GOLDEN_SNAPSHOT_NAME = "snapshot-golden-vm" # Name of the golden snapshot source
+SNAPSHOT_GROUP = "snapshot.kubevirt.io" # Correct API group for VirtualMachineSnapshot
+SNAPSHOT_VERSION = "v1beta1" # Correct version for VirtualMachineSnapshot
+SNAPSHOT_PLURAL = "virtualmachinesnapshots"
 
 # ---------------------------------------------------------------------------
 # Bootstrap helpers ----------------------------------------------------------
@@ -157,26 +159,6 @@ SUPABASE: Client = _init_supabase()
 CORE_V1_API, CUSTOM_OBJECTS_API, APIEXT_V1_API = _init_kubernetes_clients()
 
 # ---------------------------------------------------------------------------
-# Templating helpers ---------------------------------------------------------
-# ---------------------------------------------------------------------------
-
-def _load_first_existing(path_candidates: tuple[Path, ...]) -> str:
-    """Return content of the first existing file from *path_candidates*."""
-    for path in path_candidates:
-        try:
-            if path.exists():
-                content = path.read_text()
-                logger.info("Loaded template from %s", path)
-                return content
-        except Exception as exc:  # noqa: BLE001 — continue to next candidate
-            logger.warning("Reading %s failed: %s", path, exc)
-    raise kopf.PermanentError("No template file found in provided paths")
-
-
-USER_DATA_TEMPLATE: str = os.getenv("USER_DATA_TEMPLATE") or _load_first_existing((USER_DATA_TEMPLATE_PATH,))
-VM_TEMPLATE_RAW: str = _load_first_existing(VM_TEMPLATE_PATHS)
-
-# ---------------------------------------------------------------------------
 # Supabase helpers -----------------------------------------------------------
 # ---------------------------------------------------------------------------
 
@@ -206,43 +188,6 @@ def update_instance_status(instance_id: str, vmi_phase: str) -> None:
         logger.info("Supabase status for %s set to %s", instance_id, target.value)
     except Exception as exc:  # noqa: BLE001
         logger.error("Supabase update failed for %s: %s", instance_id, exc)
-
-# ---------------------------------------------------------------------------
-# Kubernetes helpers ---------------------------------------------------------
-# ---------------------------------------------------------------------------
-
-def create_cloudinit_secret(vm_name: str, namespace: str) -> None:
-    """Create or ensure a cloud‑init secret containing *USER_DATA_TEMPLATE*."""
-    secret_name = f"cloud-init-{vm_name}"
-
-    secret_body = kubernetes.client.V1Secret(
-        metadata=kubernetes.client.V1ObjectMeta(name=secret_name, namespace=namespace, labels={"managed-by": MANAGED_BY}),
-        type="Opaque",
-        string_data={"userdata": USER_DATA_TEMPLATE},
-    )
-
-    try:
-        CORE_V1_API.create_namespaced_secret(namespace=namespace, body=secret_body)
-        logger.info("Created cloud‑init secret %s in %s", secret_name, namespace)
-    except kubernetes.client.rest.ApiException as exc:
-        if exc.status == 409:  # already exists
-            logger.debug("Secret %s already exists", secret_name)
-        else:
-            raise
-
-
-# ---------------------------------------------------------------------------
-# VM template rendering ------------------------------------------------------
-# ---------------------------------------------------------------------------
-
-def render_vm_manifest(vm_name: str) -> dict:
-    """Return a KubeVirt VM manifest for *vm_name* based on ``VM_TEMPLATE_RAW``."""
-    rendered_yaml = string.Template(VM_TEMPLATE_RAW).substitute(
-        vm_name=vm_name,
-        cyberdesk_name=vm_name,
-        managed_by=MANAGED_BY,
-    )
-    return yaml.safe_load(rendered_yaml)
 
 # ---------------------------------------------------------------------------
 # CRD definition -------------------------------------------------------------
@@ -297,11 +242,41 @@ CYBERDESK_CRD_MANIFEST: dict = {
 # Kopf handlers --------------------------------------------------------------
 # ---------------------------------------------------------------------------
 
+def ensure_golden_snapshot_exists():
+    """Check if the required golden VirtualMachineSnapshot exists."""
+    logger.info(f"Checking for golden snapshot: {GOLDEN_SNAPSHOT_NAME} in {KUBEVIRT_NAMESPACE}")
+    try:
+        CUSTOM_OBJECTS_API.get_namespaced_custom_object(
+            group=SNAPSHOT_GROUP,
+            version=SNAPSHOT_VERSION,
+            namespace=KUBEVIRT_NAMESPACE,
+            plural=SNAPSHOT_PLURAL,
+            name=GOLDEN_SNAPSHOT_NAME,
+        )
+        logger.info(f"Golden snapshot '{GOLDEN_SNAPSHOT_NAME}' found.")
+    except ApiException as e:
+        if e.status == 404:
+            msg = f"Required golden snapshot '{GOLDEN_SNAPSHOT_NAME}' not found in namespace '{KUBEVIRT_NAMESPACE}'."
+            logger.critical(msg)
+            raise kopf.PermanentError(msg)
+        else:
+            msg = f"Error checking for golden snapshot '{GOLDEN_SNAPSHOT_NAME}': {e.status} {e.reason}"
+            logger.error(msg)
+            # Treat other errors as temporary to allow retries after potential cluster issues
+            raise kopf.TemporaryError(msg, delay=30) from e
+    except Exception as e:
+        msg = f"Unexpected error checking for golden snapshot '{GOLDEN_SNAPSHOT_NAME}': {e}"
+        logger.error(msg)
+        raise kopf.TemporaryError(msg, delay=30) from e
+
+
 @kopf.on.startup()
 def configure_kopf(settings: OperatorSettings, **_: Dict[str, object]) -> None:
-    """Tune watch timeouts to avoid idle disconnects seen in some clusters."""
+    """Tune watch timeouts and ensure golden snapshot exists."""
     settings.watching.server_timeout = 210  # seconds
     logger.info("Kopf watch server_timeout set to %s", settings.watching.server_timeout)
+    # Check for snapshot on startup - operator won't function without it.
+    ensure_golden_snapshot_exists()
 
 
 @kopf.on.create(CYBERDESK_GROUP, CYBERDESK_VERSION, START_OPERATOR_PLURAL)
@@ -319,36 +294,271 @@ def crd_bootstrap(spec: dict, meta: dict, **_: Dict[str, object]) -> None:
             raise kopf.PermanentError(f"CRD creation failed: {exc.status} {exc.reason}") from exc
 
 
-@kopf.on.create(CYBERDESK_GROUP, CYBERDESK_VERSION, CYBERDESK_PLURAL)
-def cyberdesk_create(spec: dict, meta: dict, status: dict, **_: Dict[str, object]):  # noqa: WPS231 — complex but explicit
-    """Reconcile a new *Cyberdesk* → create VM & cloud‑init secret."""
-    vm_name = meta["name"]
-    timeout_ms = spec.get("timeoutMs", 3_600_000)  # default: 1h
-
-    # Idempotency: bail if VM exists already
+def _ensure_vm_patched_and_running(vm_name: str, namespace: str, logger: kopf.Logger) -> None:
+    """Fetch the VM and apply the required patches (metadata, spec, runStrategy)."""
+    logger.info(f"Ensuring VM '{vm_name}' is patched and set to run.")
+    # Labels intended for the VMI must go into spec.template.metadata.labels
+    # Labels only relevant to the VM object itself can stay at the top level.
+    patch_body = {
+        "metadata": {
+            "labels": {
+                # Optional: Keep labels specific to the VM object itself here if needed.
+                # For instance, if you wanted to label the VM resource differently than the VMI.
+                "managed-by": MANAGED_BY, # Can be useful on the VM too
+            }
+            # Add top-level annotations for the VM if needed
+        },
+        "spec": {
+            "runStrategy": "Always", # Ensure VM is set to run
+            "template": {
+                "metadata": { # <--- Ensure metadata exists here
+                    "labels": { # <--- Labels for the VMI go here
+                        "app": "cyberdesk",
+                        "cyberdesk-instance": vm_name,
+                        "managed-by": MANAGED_BY, # Also label the VMI for consistency
+                        "kubevirt.io/domain": vm_name, # This is often set here
+                    }
+                    # Add annotations for the VMI if needed
+                },
+                "spec": {
+                    "hostname": vm_name,
+                    "subdomain": "kubevirt-vm-headless"
+                }
+            }
+        }
+    }
     try:
-        CUSTOM_OBJECTS_API.get_namespaced_custom_object(
-            KUBEVIRT_GROUP, KUBEVIRT_VERSION, KUBEVIRT_NAMESPACE, KUBEVIRT_VM_PLURAL, vm_name
+        CUSTOM_OBJECTS_API.patch_namespaced_custom_object(
+            group=KUBEVIRT_GROUP,
+            version=KUBEVIRT_VERSION,
+            namespace=namespace,
+            plural=KUBEVIRT_VM_PLURAL,
+            name=vm_name,
+            body=patch_body
         )
-        logger.info("VM %s already exists — skipping creation", vm_name)
-        return {"virtualMachineRef": vm_name}
-    except kubernetes.client.rest.ApiException as exc:
-        if exc.status != 404:
-            raise kopf.TemporaryError("VM existence check failed", delay=10) from exc
+        logger.info(f"Successfully patched VM '{vm_name}' metadata, spec, and runStrategy.")
+    except ApiException as e:
+        logger.error(f"Error patching VM '{vm_name}': {e.status} {e.reason}")
+        # If patching fails, it's likely temporary or the VM was deleted.
+        raise kopf.TemporaryError(f"Failed to patch VM {vm_name}", delay=10) from e
 
-    # Ensure cloud‑init secret exists before creating the VM -----------------
-    create_cloudinit_secret(vm_name, KUBEVIRT_NAMESPACE)
 
-    vm_manifest = render_vm_manifest(vm_name)
-    CUSTOM_OBJECTS_API.create_namespaced_custom_object(
-        KUBEVIRT_GROUP, KUBEVIRT_VERSION, KUBEVIRT_NAMESPACE, KUBEVIRT_VM_PLURAL, vm_manifest
-    )
+@kopf.on.create(CYBERDESK_GROUP, CYBERDESK_VERSION, CYBERDESK_PLURAL)
+def cyberdesk_create(spec: dict, meta: dict, status: dict, logger: kopf.Logger, patch: kopf.Patch, body: dict, **_: Dict[str, object]): # noqa: WPS211, WPS231
+    """Reconcile a new Cyberdesk CR: Clone VM from golden snapshot, patch, and start."""
+    vm_name = meta["name"] # Target VM name is the Cyberdesk CR name
+    namespace = KUBEVIRT_NAMESPACE # Target VM namespace
+    timeout_ms = spec.get("timeoutMs", 3_600_000)  # default: 1h
+    clone_operation_name = f"clone-for-{vm_name}"
+    max_clone_wait_retries = 20 # Approx 5 minutes with 15s delay
+    clone_wait_delay = 15 # seconds
 
+    logger.info(f"Reconciling Cyberdesk CR '{vm_name}'")
+
+    # --- Idempotency Check 1: Target VM Existence ---
+    try:
+        # Check if VM exists. If get_namespaced_custom_object succeeds, the VM exists.
+        CUSTOM_OBJECTS_API.get_namespaced_custom_object(
+            KUBEVIRT_GROUP, KUBEVIRT_VERSION, namespace, KUBEVIRT_VM_PLURAL, vm_name
+        )
+        logger.info(f"Target VM '{vm_name}' already exists. Ensuring it is patched and running.")
+        # Ensure the existing VM has the correct patches and is set to run
+        _ensure_vm_patched_and_running(vm_name, namespace, logger)
+
+        # Return existing status if available, otherwise basic info
+        existing_status = body.get("status", {}).get("cyberdesk_create", {})
+        if existing_status:
+            # Make sure startTime and expiryTime are present if status exists
+            if "startTime" not in existing_status or "expiryTime" not in existing_status:
+                 logger.warning(f"Existing status for {vm_name} is incomplete. Re-populating.")
+                 # If status exists but is incomplete, repopulate it.
+                 # This could happen if the operator restarted after status was partially set.
+                 now = datetime.now(UTC)
+                 expiry = now + timedelta(milliseconds=timeout_ms)
+                 patch.status["cyberdesk_create"] = {
+                      "virtualMachineRef": vm_name,
+                      "startTime": now.isoformat(),
+                      "expiryTime": expiry.isoformat(),
+                      "lastPhase": "Running" # Assume running if VM exists and patched
+                 }
+            else:
+                 patch.status.update(existing_status) # Restore full existing status
+        else:
+            # If no status exists, create a minimal one. We can't know the original start time.
+            logger.warning(f"VM {vm_name} exists but no status found on CR. Creating minimal status.")
+            now = datetime.now(UTC)
+            expiry = now + timedelta(milliseconds=timeout_ms) # Recalculate expiry based on current time
+            patch.status["cyberdesk_create"] = {
+                 "virtualMachineRef": vm_name,
+                 "startTime": now.isoformat(), # Set start time to now
+                 "expiryTime": expiry.isoformat(),
+                 "lastPhase": "Running" # Assume running
+            }
+
+        # Clean up old top-level status fields if they still exist
+        if "virtualMachineRef" in patch.status: del patch.status["virtualMachineRef"]
+        if "startTime" in patch.status: del patch.status["startTime"]
+        if "expiryTime" in patch.status: del patch.status["expiryTime"]
+
+        return # Stop reconciliation for this CR
+
+    except ApiException as e:
+        if e.status != 404:
+            logger.error(f"Error checking for existing VM '{vm_name}': {e.status} {e.reason}")
+            raise kopf.TemporaryError(f"VM check failed for {vm_name}", delay=10) from e
+        # VM Not found, proceed with cloning
+        logger.info(f"Target VM '{vm_name}' not found. Proceeding with clone.")
+
+    # --- Define and Create/Get VirtualMachineClone ---
+    clone_body = {
+        "apiVersion": f"{CLONE_GROUP}/{CLONE_VERSION}",
+        "kind": "VirtualMachineClone",
+        "metadata": {
+            "name": clone_operation_name,
+            "namespace": namespace,
+             "labels": {"managed-by": MANAGED_BY, "cyberdesk-instance": vm_name}, # Add labels for tracking
+        },
+        "spec": {
+            "source": {
+                "apiGroup": SNAPSHOT_GROUP,
+                "kind": "VirtualMachineSnapshot",
+                "name": GOLDEN_SNAPSHOT_NAME,
+            },
+            "target": {
+                "apiGroup": KUBEVIRT_GROUP,
+                "kind": "VirtualMachine",
+                "name": vm_name, # Target VM name
+            },
+        },
+    }
+
+    try:
+        logger.info(f"Creating/getting VirtualMachineClone '{clone_operation_name}'")
+        clone_obj = CUSTOM_OBJECTS_API.create_namespaced_custom_object(
+            group=CLONE_GROUP,
+            version=CLONE_VERSION,
+            namespace=namespace,
+            plural=CLONE_PLURAL,
+            body=clone_body,
+        )
+        logger.info(f"VirtualMachineClone '{clone_operation_name}' created.")
+    except ApiException as e:
+        if e.status == 409: # Conflict - clone object already exists
+             logger.info(f"VirtualMachineClone '{clone_operation_name}' already exists. Checking status.")
+             try:
+                 clone_obj = CUSTOM_OBJECTS_API.get_namespaced_custom_object(
+                     group=CLONE_GROUP, version=CLONE_VERSION, namespace=namespace, plural=CLONE_PLURAL, name=clone_operation_name
+                 )
+             except ApiException as get_exc:
+                 logger.error(f"Failed to get existing clone '{clone_operation_name}': {get_exc.status} {get_exc.reason}")
+                 raise kopf.TemporaryError(f"Failed to get existing clone {clone_operation_name}", delay=10) from get_exc
+        else:
+            logger.error(f"Error creating VirtualMachineClone '{clone_operation_name}': {e.status} {e.reason}")
+            raise kopf.TemporaryError(f"Clone creation failed for {vm_name}", delay=10) from e
+
+    # --- Wait for Clone Completion (Polling with retries) ---
+    for attempt in range(max_clone_wait_retries):
+        try:
+            # Refresh clone object status
+            current_clone_status = clone_obj.get("status", {})
+            clone_phase = current_clone_status.get("phase")
+            logger.info(f"Clone '{clone_operation_name}' phase: {clone_phase} (Attempt {attempt + 1}/{max_clone_wait_retries})")
+
+            if clone_phase == "Succeeded":
+                logger.info(f"Clone '{clone_operation_name}' succeeded.")
+                # --- Ensure the newly created VM is patched and running ---
+                _ensure_vm_patched_and_running(vm_name, namespace, logger)
+                break # Exit loop
+            elif clone_phase == "Failed":
+                logger.error(f"Clone '{clone_operation_name}' failed. Check clone object status for details.")
+                # Clean up failed clone object? Maybe not, leave it for inspection.
+                raise kopf.PermanentError(f"Clone {clone_operation_name} failed.")
+            elif clone_phase == "Unknown":
+                 logger.warning(f"Clone '{clone_operation_name}' phase is Unknown. Retrying...")
+                 raise kopf.TemporaryError(f"Clone {clone_operation_name} phase Unknown.", delay=clone_wait_delay)
+            else: # InProgress phases (SnapshotInProgress, CreatingTargetVM, RestoreInProgress)
+                # Get potentially updated clone object for next status check
+                # Place this *inside* the else block before raising TemporaryError
+                try:
+                     clone_obj = CUSTOM_OBJECTS_API.get_namespaced_custom_object(
+                          group=CLONE_GROUP, version=CLONE_VERSION, namespace=namespace, plural=CLONE_PLURAL, name=clone_operation_name
+                     )
+                except ApiException as get_exc:
+                     logger.warning(f"Failed to get clone '{clone_operation_name}' status during wait: {get_exc.reason}")
+                     # Continue retry loop even if getting status fails temporarily
+                raise kopf.TemporaryError(f"Clone {clone_operation_name} in progress ({clone_phase}). Waiting...", delay=clone_wait_delay)
+
+        except kopf.TemporaryError:
+             # Re-raise TemporaryError to trigger Kopf retry with delay
+             if attempt + 1 == max_clone_wait_retries:
+                  logger.error(f"Clone '{clone_operation_name}' did not succeed within the timeout.")
+                  # Potentially delete the clone object if it's stuck?
+                  try:
+                      CUSTOM_OBJECTS_API.delete_namespaced_custom_object(CLONE_GROUP, CLONE_VERSION, namespace, CLONE_PLURAL, clone_operation_name)
+                      logger.info(f"Deleted timed-out clone object '{clone_operation_name}'.")
+                  except ApiException as del_exc:
+                      if del_exc.status != 404:
+                           logger.warning(f"Failed to delete timed-out clone object '{clone_operation_name}': {del_exc.reason}")
+                  raise kopf.PermanentError(f"Clone {clone_operation_name} timed out.")
+             # Get potentially updated clone object for next status check (moved to else block)
+             # try:
+             #      clone_obj = CUSTOM_OBJECTS_API.get_namespaced_custom_object(
+             #           group=CLONE_GROUP, version=CLONE_VERSION, namespace=namespace, plural=CLONE_PLURAL, name=clone_operation_name
+             #      )
+             # except ApiException as get_exc:
+             #      logger.warning(f"Failed to get clone '{clone_operation_name}' status during wait: {get_exc.reason}")
+                  # Continue retry loop, maybe the clone object will reappear or the status will resolve
+             raise # Re-raise the kopf.TemporaryError
+
+        except ApiException as e:
+             logger.error(f"API error checking clone '{clone_operation_name}' status: {e.reason}")
+             raise kopf.TemporaryError(f"API error checking clone {clone_operation_name}", delay=clone_wait_delay) from e
+
+
+    # --- Patch the newly created VM --- ## Clone succeeded, VM should exist
+    # logger.info(f"Patching target VM '{vm_name}' with required metadata and spec")
+    # patch_body = { ... } # REMOVED - Now handled by _ensure_vm_patched_and_running
+    # try:
+    #     CUSTOM_OBJECTS_API.patch_namespaced_custom_object(...) # REMOVED
+    #     logger.info(f"Successfully patched VM '{vm_name}' metadata and spec.")
+    # except ApiException as e:
+    #     # ... REMOVED ...
+    #     raise kopf.TemporaryError(f"Failed to patch VM {vm_name} after clone success", delay=10) from e
+
+
+    # --- Start the VM --- ## VM exists and is patched
+    # logger.info(f"Patching VM '{vm_name}' to set runStrategy=Always")
+    # start_patch = {"spec": {"runStrategy": "Always"}} # REMOVED - Now handled by _ensure_vm_patched_and_running
+    # try:
+    #     CUSTOM_OBJECTS_API.patch_namespaced_custom_object(...) # REMOVED
+    #     logger.info(f"VM '{vm_name}' patched to start.")
+    # except ApiException as e:
+    #     # ... REMOVED ...
+    #     raise kopf.TemporaryError(f"Failed to patch VM {vm_name} to start", delay=10) from e
+
+    # --- Update Status --- ## VM exists, patched, and set to run
+    # This part only runs if the VM was *just* created via the clone process
+    # If the idempotency check handled an existing VM, the handler returned earlier.
     now = datetime.now(UTC)
     expiry = now + timedelta(milliseconds=timeout_ms)
-    logger.info("VM %s created, expires at %s", vm_name, expiry.isoformat())
+    logger.info(f"Cyberdesk '{vm_name}' reconciled successfully (newly created), expires at {expiry.isoformat()}")
 
-    return {"virtualMachineRef": vm_name, "startTime": now.isoformat(), "expiryTime": expiry.isoformat()}
+    # Use patch object provided by Kopf to update status safely
+    # Ensure the 'cyberdesk_create' key exists if updating specific fields
+    if "cyberdesk_create" not in patch.status:
+         patch.status["cyberdesk_create"] = {}
+    patch.status["cyberdesk_create"]["virtualMachineRef"] = vm_name
+    patch.status["cyberdesk_create"]["startTime"] = now.isoformat()
+    patch.status["cyberdesk_create"]["expiryTime"] = expiry.isoformat()
+    patch.status["cyberdesk_create"]["lastPhase"] = "Created" # Changed from "Started" to reflect it was just created
+
+    # Remove the old direct status fields if they exist from previous versions
+    if "virtualMachineRef" in patch.status:
+        del patch.status["virtualMachineRef"]
+    if "startTime" in patch.status:
+        del patch.status["startTime"]
+    if "expiryTime" in patch.status:
+        del patch.status["expiryTime"]
 
 
 @kopf.on.field(KUBEVIRT_GROUP, KUBEVIRT_VERSION, KUBEVIRT_VMI_PLURAL, field="status.phase")
