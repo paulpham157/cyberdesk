@@ -1,0 +1,8 @@
+apiVersion: snapshot.storage.k8s.io/v1
+kind: VolumeSnapshotClass
+metadata:
+  name: csi-azure-disk-snapshot-class
+  annotations:
+    snapshot.storage.kubernetes.io/is-default-class: "true" # Make this the default
+driver: disk.csi.azure.com
+deletionPolicy: Delete # Options: Delete, Retain. Delete removes the underlying snapshot when this object is deleted. Retain keeps it. 

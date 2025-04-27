@@ -1,0 +1,10 @@
+apiVersion: snapshot.kubevirt.io/v1beta1
+kind: VirtualMachineSnapshot
+metadata:
+  name: snapshot-golden-vm
+  namespace: kubevirt # Assuming golden-vm is in the kubevirt namespace
+spec:
+  source:
+    apiGroup: kubevirt.io
+    kind: VirtualMachine
+    name: golden-vm 
