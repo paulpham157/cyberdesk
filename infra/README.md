@@ -111,7 +111,43 @@ docker push cyberdesk/cyberdesk-operator:NEW_VERSION_TAG_HERE
 cd ../../infra
 ```
 
-#### 4.2 Apply the Supabase Secret (Manual Step)
+#### 4.2 Build and Push the Gateway Image (If necessary)
+
+If you have made changes to the gateway code, you need to rebuild and push the image with a **unique, specific tag** (e.g., `v0.1.16` or a Git commit SHA). **Avoid using the `:latest` tag**.
+
+```bash
+# Navigate to the gateway directory
+cd ../services/gateway
+
+# Build the docker image with a specific tag (ensure Docker daemon is running)
+docker build -t cyberdesk/gateway:NEW_GATEWAY_TAG_HERE .
+
+# Push the image to Docker Hub
+docker push cyberdesk/gateway:NEW_GATEWAY_TAG_HERE
+
+```
+
+**PowerShell:**
+```powershell
+# Navigate to the gateway directory
+cd ../services/gateway
+
+# Build the docker image with a specific tag (ensure Docker daemon is running)
+docker build -t "cyberdesk/gateway:NEW_GATEWAY_TAG_HERE" .
+
+# Push the image to Docker Hub
+docker push cyberdesk/gateway:NEW_GATEWAY_TAG_HERE
+
+```
+
+**Important:** After building and pushing, you **must update** the `image:` field in `../infra/kubernetes/gateway-deploy.yaml` to reference the **specific tag** you just used (e.g., `image: cyberdesk/gateway:v0.1.16`).
+
+```bash
+# Navigate back to the infra directory
+cd ../../infra
+```
+
+#### 4.3 Apply the Supabase Secret (Manual Step)
 
 Before deploying the operator, you **must** apply the Kubernetes Secret containing the Supabase credentials. This secret is intentionally kept in a separate file (`infra/kubernetes/cyberdesk-secret.yaml`) and excluded via `.gitignore` to prevent committing sensitive data to version control. Ask a team member for the file.
 
@@ -125,7 +161,7 @@ kubectl apply -f ./kubernetes/cyberdesk-secret.yaml
 
 This command creates the `supabase-credentials` Secret object in the `cyberdesk-system` namespace, which the operator deployment requires.
 
-#### 4.3 Deploy the Operator and Core Resources
+#### 4.4 Deploy the Operator and Core Resources
 
 Now that the secret exists in the cluster, deploy the main operator manifest. This single manifest contains the Namespace, ServiceAccount, RBAC rules, the Deployment for the operator, the ConfigMap for the VM template, and the trigger CRD (`StartCyberdeskOperator`).
 
@@ -143,7 +179,34 @@ kubectl get deployment -n cyberdesk-system cyberdesk-operator
 kubectl get pods -n cyberdesk-system -l app=cyberdesk-operator
 ```
 
-#### 4.4 Trigger Operator Setup
+#### 4.5 Deploy the Gateway Service
+
+This deploys the API Gateway which handles user authentication, VM creation requests, and proxys VNC connections. It requires the `supabase-credentials` secret created earlier.
+
+Make sure the `image:` tag in `gateway-deploy.yaml` matches the image you built and pushed (if applicable).
+
+```bash
+kubectl apply -f ./kubernetes/gateway-deploy.yaml
+```
+
+Verify the gateway deployment starts:
+
+```bash
+kubectl get deployment -n cyberdesk-system gateway
+# Wait for AVAILABLE replicas to be 1
+kubectl get pods -n cyberdesk-system -l app=gateway
+kubectl get service -n cyberdesk-system gateway # Check LoadBalancer IP
+```
+
+#### 4.6 Deploy the Headless Service for VMs
+
+This headless service allows the gateway (and potentially other internal services) to discover and connect to individual VM pods via their pod DNS names (e.g., `vm-pod-name.kubevirt-vm-headless.kubevirt.svc.cluster.local`). It selects pods based on the `app: cyberdesk` label, which should be applied to your KubeVirt VM resources by the Cyberdesk operator.
+
+```bash
+kubectl apply -f ./kubernetes/headless-service.yaml
+```
+
+#### 4.7 Trigger Operator Setup
 
 Apply the `StartCyberdeskOperator` custom resource. This signals the running operator to perform its initial setup, primarily creating the `Cyberdesk` CRD.
 
@@ -250,7 +313,14 @@ kubectl delete -f ./kubernetes/kubevirt-cr.yaml
 kubectl delete -f ./kubernetes/kubevirt-operator.yaml
 ```
 
-7. Destroy the infrastructure:
+7. Delete Gateway resources:
+
+```bash
+kubectl delete -f ./kubernetes/gateway-deploy.yaml
+kubectl delete -f ./kubernetes/headless-service.yaml
+```
+
+8. Destroy the infrastructure:
 
 ```bash
 cd ./terraform

@@ -35,6 +35,7 @@ user-data-base64.txt
 # Kubernetes secrets - DO NOT COMMIT REAL CREDENTIALS
 infra/kubernetes/cyberdesk-secret.yaml
 infra/kubernetes/checkpoint-cyberdesk-secret.yaml
+infra/kubernetes/golden-vm-deploy.yaml
 
 # Local development environment variables
 .env
