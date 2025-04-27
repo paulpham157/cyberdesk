@@ -23,50 +23,81 @@ export type GetV1DesktopIdErrors = {
      * The server cannot or will not process the request due to something that is perceived to be a client error (e.g., malformed request syntax, invalid request message framing, or deceptive request routing).
      */
     400: {
-        message: string;
-        docs: string;
+        status: 'error';
+        /**
+         * Error message detailing what went wrong
+         */
+        error: string;
     };
     /**
      * Although the HTTP standard specifies "unauthorized", semantically this response means "unauthenticated". That is, the client must authenticate itself to get the requested response.
      */
     401: {
-        message: string;
-        docs: string;
+        status: 'error';
+        /**
+         * Error message detailing what went wrong
+         */
+        error: string;
     };
     /**
      * The client does not have access rights to the content; that is, it is unauthorized, so the server is refusing to give the requested resource. Unlike 401 Unauthorized, the client's identity is known to the server.
      */
     403: {
-        message: string;
-        docs: string;
+        status: 'error';
+        /**
+         * Error message detailing what went wrong
+         */
+        error: string;
     };
     /**
      * The server cannot find the requested resource. In the browser, this means the URL is not recognized. In an API, this can also mean that the endpoint is valid but the resource itself does not exist. Servers may also send this response instead of 403 Forbidden to hide the existence of a resource from an unauthorized client. This response code is probably the most well known due to its frequent occurrence on the web.
      */
     404: {
-        message: string;
-        docs: string;
+        status: 'error';
+        /**
+         * Error message detailing what went wrong
+         */
+        error: string;
     };
     /**
      * This response is sent when a request conflicts with the current state of the server.
      */
     409: {
-        message: string;
-        docs: string;
+        status: 'error';
+        /**
+         * Error message detailing what went wrong
+         */
+        error: string;
     };
     /**
      * The user has sent too many requests in a given amount of time ("rate limiting")
      */
     429: {
-        message: string;
-        docs: string;
+        status: 'error';
+        /**
+         * Error message detailing what went wrong
+         */
+        error: string;
     };
     /**
      * The server has encountered a situation it does not know how to handle.
      */
     500: {
-        message: string;
-        docs: string;
+        status: 'error';
+        /**
+         * Error message detailing what went wrong
+         */
+        error: string;
+    };
+    /**
+     * The server, while acting as a gateway or proxy, received an invalid response from the upstream server.
+     */
+    502: {
+        status: 'error';
+        /**
+         * Error message detailing what went wrong
+         */
+        error: string;
     };
 };
 
@@ -121,50 +152,81 @@ export type PostV1DesktopErrors = {
      * The server cannot or will not process the request due to something that is perceived to be a client error (e.g., malformed request syntax, invalid request message framing, or deceptive request routing).
      */
     400: {
-        message: string;
-        docs: string;
+        status: 'error';
+        /**
+         * Error message detailing what went wrong
+         */
+        error: string;
     };
     /**
      * Although the HTTP standard specifies "unauthorized", semantically this response means "unauthenticated". That is, the client must authenticate itself to get the requested response.
      */
     401: {
-        message: string;
-        docs: string;
+        status: 'error';
+        /**
+         * Error message detailing what went wrong
+         */
+        error: string;
     };
     /**
      * The client does not have access rights to the content; that is, it is unauthorized, so the server is refusing to give the requested resource. Unlike 401 Unauthorized, the client's identity is known to the server.
      */
     403: {
-        message: string;
-        docs: string;
+        status: 'error';
+        /**
+         * Error message detailing what went wrong
+         */
+        error: string;
     };
     /**
      * The server cannot find the requested resource. In the browser, this means the URL is not recognized. In an API, this can also mean that the endpoint is valid but the resource itself does not exist. Servers may also send this response instead of 403 Forbidden to hide the existence of a resource from an unauthorized client. This response code is probably the most well known due to its frequent occurrence on the web.
      */
     404: {
-        message: string;
-        docs: string;
+        status: 'error';
+        /**
+         * Error message detailing what went wrong
+         */
+        error: string;
     };
     /**
      * This response is sent when a request conflicts with the current state of the server.
      */
     409: {
-        message: string;
-        docs: string;
+        status: 'error';
+        /**
+         * Error message detailing what went wrong
+         */
+        error: string;
     };
     /**
      * The user has sent too many requests in a given amount of time ("rate limiting")
      */
     429: {
-        message: string;
-        docs: string;
+        status: 'error';
+        /**
+         * Error message detailing what went wrong
+         */
+        error: string;
     };
     /**
      * The server has encountered a situation it does not know how to handle.
      */
     500: {
-        message: string;
-        docs: string;
+        status: 'error';
+        /**
+         * Error message detailing what went wrong
+         */
+        error: string;
+    };
+    /**
+     * The server, while acting as a gateway or proxy, received an invalid response from the upstream server.
+     */
+    502: {
+        status: 'error';
+        /**
+         * Error message detailing what went wrong
+         */
+        error: string;
     };
 };
 
@@ -172,7 +234,7 @@ export type PostV1DesktopError = PostV1DesktopErrors[keyof PostV1DesktopErrors];
 
 export type PostV1DesktopResponses = {
     /**
-     * Desktop created successfully
+     * Desktop creation initiated successfully
      */
     200: {
         /**
@@ -180,9 +242,9 @@ export type PostV1DesktopResponses = {
          */
         id: string;
         /**
-         * URL to stream the desktop via VNC
+         * Initial status of the desktop instance after creation request
          */
-        streamUrl: string;
+        status: 'pending' | 'running' | 'terminated' | 'error';
     };
 };
 
@@ -211,50 +273,81 @@ export type PostV1DesktopIdStopErrors = {
      * The server cannot or will not process the request due to something that is perceived to be a client error (e.g., malformed request syntax, invalid request message framing, or deceptive request routing).
      */
     400: {
-        message: string;
-        docs: string;
+        status: 'error';
+        /**
+         * Error message detailing what went wrong
+         */
+        error: string;
     };
     /**
      * Although the HTTP standard specifies "unauthorized", semantically this response means "unauthenticated". That is, the client must authenticate itself to get the requested response.
      */
     401: {
-        message: string;
-        docs: string;
+        status: 'error';
+        /**
+         * Error message detailing what went wrong
+         */
+        error: string;
     };
     /**
      * The client does not have access rights to the content; that is, it is unauthorized, so the server is refusing to give the requested resource. Unlike 401 Unauthorized, the client's identity is known to the server.
      */
     403: {
-        message: string;
-        docs: string;
+        status: 'error';
+        /**
+         * Error message detailing what went wrong
+         */
+        error: string;
     };
     /**
      * The server cannot find the requested resource. In the browser, this means the URL is not recognized. In an API, this can also mean that the endpoint is valid but the resource itself does not exist. Servers may also send this response instead of 403 Forbidden to hide the existence of a resource from an unauthorized client. This response code is probably the most well known due to its frequent occurrence on the web.
      */
     404: {
-        message: string;
-        docs: string;
+        status: 'error';
+        /**
+         * Error message detailing what went wrong
+         */
+        error: string;
     };
     /**
      * This response is sent when a request conflicts with the current state of the server.
      */
     409: {
-        message: string;
-        docs: string;
+        status: 'error';
+        /**
+         * Error message detailing what went wrong
+         */
+        error: string;
     };
     /**
      * The user has sent too many requests in a given amount of time ("rate limiting")
      */
     429: {
-        message: string;
-        docs: string;
+        status: 'error';
+        /**
+         * Error message detailing what went wrong
+         */
+        error: string;
     };
     /**
      * The server has encountered a situation it does not know how to handle.
      */
     500: {
-        message: string;
-        docs: string;
+        status: 'error';
+        /**
+         * Error message detailing what went wrong
+         */
+        error: string;
+    };
+    /**
+     * The server, while acting as a gateway or proxy, received an invalid response from the upstream server.
+     */
+    502: {
+        status: 'error';
+        /**
+         * Error message detailing what went wrong
+         */
+        error: string;
     };
 };
 
@@ -266,26 +359,9 @@ export type PostV1DesktopIdStopResponses = {
      */
     200: {
         /**
-         * Status of the operation
+         * Status of the desktop instance after stopping
          */
-        status: string;
-        /**
-         * Base64 encoded image data (only returned for screenshot actions)
-         */
-        image?: string;
-        /**
-         * Current cursor coordinates (only returned for get_cursor_position action)
-         */
-        cursorPosition?: {
-            /**
-             * X coordinate on the screen
-             */
-            x?: number;
-            /**
-             * Y coordinate on the screen
-             */
-            y?: number;
-        };
+        status: 'pending' | 'running' | 'terminated' | 'error';
     };
 };
 
@@ -434,50 +510,81 @@ export type PostV1DesktopIdComputerActionErrors = {
      * The server cannot or will not process the request due to something that is perceived to be a client error (e.g., malformed request syntax, invalid request message framing, or deceptive request routing).
      */
     400: {
-        message: string;
-        docs: string;
+        status: 'error';
+        /**
+         * Error message detailing what went wrong
+         */
+        error: string;
     };
     /**
      * Although the HTTP standard specifies "unauthorized", semantically this response means "unauthenticated". That is, the client must authenticate itself to get the requested response.
      */
     401: {
-        message: string;
-        docs: string;
+        status: 'error';
+        /**
+         * Error message detailing what went wrong
+         */
+        error: string;
     };
     /**
      * The client does not have access rights to the content; that is, it is unauthorized, so the server is refusing to give the requested resource. Unlike 401 Unauthorized, the client's identity is known to the server.
      */
     403: {
-        message: string;
-        docs: string;
+        status: 'error';
+        /**
+         * Error message detailing what went wrong
+         */
+        error: string;
     };
     /**
      * The server cannot find the requested resource. In the browser, this means the URL is not recognized. In an API, this can also mean that the endpoint is valid but the resource itself does not exist. Servers may also send this response instead of 403 Forbidden to hide the existence of a resource from an unauthorized client. This response code is probably the most well known due to its frequent occurrence on the web.
      */
     404: {
-        message: string;
-        docs: string;
+        status: 'error';
+        /**
+         * Error message detailing what went wrong
+         */
+        error: string;
     };
     /**
      * This response is sent when a request conflicts with the current state of the server.
      */
     409: {
-        message: string;
-        docs: string;
+        status: 'error';
+        /**
+         * Error message detailing what went wrong
+         */
+        error: string;
     };
     /**
      * The user has sent too many requests in a given amount of time ("rate limiting")
      */
     429: {
-        message: string;
-        docs: string;
+        status: 'error';
+        /**
+         * Error message detailing what went wrong
+         */
+        error: string;
     };
     /**
      * The server has encountered a situation it does not know how to handle.
      */
     500: {
-        message: string;
-        docs: string;
+        status: 'error';
+        /**
+         * Error message detailing what went wrong
+         */
+        error: string;
+    };
+    /**
+     * The server, while acting as a gateway or proxy, received an invalid response from the upstream server.
+     */
+    502: {
+        status: 'error';
+        /**
+         * Error message detailing what went wrong
+         */
+        error: string;
     };
 };
 
@@ -485,30 +592,21 @@ export type PostV1DesktopIdComputerActionError = PostV1DesktopIdComputerActionEr
 
 export type PostV1DesktopIdComputerActionResponses = {
     /**
-     * Action executed successfully
+     * Action executed successfully. Response may contain output or image data depending on the action.
      */
     200: {
         /**
-         * Status of the operation
+         * Raw string output from the executed command (if any)
          */
-        status: string;
+        output?: string;
+        /**
+         * Error message if the operation failed (also indicated by non-2xx HTTP status)
+         */
+        error?: string;
         /**
          * Base64 encoded image data (only returned for screenshot actions)
          */
-        image?: string;
-        /**
-         * Current cursor coordinates (only returned for get_cursor_position action)
-         */
-        cursorPosition?: {
-            /**
-             * X coordinate on the screen
-             */
-            x?: number;
-            /**
-             * Y coordinate on the screen
-             */
-            y?: number;
-        };
+        base64_image?: string;
     };
 };
 
@@ -542,50 +640,81 @@ export type PostV1DesktopIdBashActionErrors = {
      * The server cannot or will not process the request due to something that is perceived to be a client error (e.g., malformed request syntax, invalid request message framing, or deceptive request routing).
      */
     400: {
-        message: string;
-        docs: string;
+        status: 'error';
+        /**
+         * Error message detailing what went wrong
+         */
+        error: string;
     };
     /**
      * Although the HTTP standard specifies "unauthorized", semantically this response means "unauthenticated". That is, the client must authenticate itself to get the requested response.
      */
     401: {
-        message: string;
-        docs: string;
+        status: 'error';
+        /**
+         * Error message detailing what went wrong
+         */
+        error: string;
     };
     /**
      * The client does not have access rights to the content; that is, it is unauthorized, so the server is refusing to give the requested resource. Unlike 401 Unauthorized, the client's identity is known to the server.
      */
     403: {
-        message: string;
-        docs: string;
+        status: 'error';
+        /**
+         * Error message detailing what went wrong
+         */
+        error: string;
     };
     /**
      * The server cannot find the requested resource. In the browser, this means the URL is not recognized. In an API, this can also mean that the endpoint is valid but the resource itself does not exist. Servers may also send this response instead of 403 Forbidden to hide the existence of a resource from an unauthorized client. This response code is probably the most well known due to its frequent occurrence on the web.
      */
     404: {
-        message: string;
-        docs: string;
+        status: 'error';
+        /**
+         * Error message detailing what went wrong
+         */
+        error: string;
     };
     /**
      * This response is sent when a request conflicts with the current state of the server.
      */
     409: {
-        message: string;
-        docs: string;
+        status: 'error';
+        /**
+         * Error message detailing what went wrong
+         */
+        error: string;
     };
     /**
      * The user has sent too many requests in a given amount of time ("rate limiting")
      */
     429: {
-        message: string;
-        docs: string;
+        status: 'error';
+        /**
+         * Error message detailing what went wrong
+         */
+        error: string;
     };
     /**
      * The server has encountered a situation it does not know how to handle.
      */
     500: {
-        message: string;
-        docs: string;
+        status: 'error';
+        /**
+         * Error message detailing what went wrong
+         */
+        error: string;
+    };
+    /**
+     * The server, while acting as a gateway or proxy, received an invalid response from the upstream server.
+     */
+    502: {
+        status: 'error';
+        /**
+         * Error message detailing what went wrong
+         */
+        error: string;
     };
 };
 
@@ -593,17 +722,21 @@ export type PostV1DesktopIdBashActionError = PostV1DesktopIdBashActionErrors[key
 
 export type PostV1DesktopIdBashActionResponses = {
     /**
-     * Command executed successfully
+     * Command executed successfully. Response contains command output.
      */
     200: {
         /**
-         * Status of the bash command execution
+         * Raw string output from the executed command (if any)
          */
-        status: string;
+        output?: string;
         /**
-         * Output from the bash command execution
+         * Error message if the operation failed (also indicated by non-2xx HTTP status)
          */
-        output: string;
+        error?: string;
+        /**
+         * Base64 encoded image data (only returned for screenshot actions)
+         */
+        base64_image?: string;
     };
 };
 

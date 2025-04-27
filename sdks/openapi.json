@@ -1,8 +1,8 @@
 {
-    "openapi": "3.0.0",
+    "openapi": "3.1.0",
     "info": {
         "title": "API Reference",
-        "version": "1.0.0",
+        "version": "1.1.0",
         "description": "API for Cyberdesk, to create, control, and manage virtual desktop instances."
     },
     "servers": [
@@ -108,16 +108,22 @@
                                 "schema": {
                                     "type": "object",
                                     "properties": {
-                                        "message": {
-                                            "type": "string"
+                                        "status": {
+                                            "type": "string",
+                                            "enum": [
+                                                "error"
+                                            ],
+                                            "example": "error"
                                         },
-                                        "docs": {
-                                            "type": "string"
+                                        "error": {
+                                            "type": "string",
+                                            "description": "Error message detailing what went wrong",
+                                            "example": "Instance not found or unauthorized"
                                         }
                                     },
                                     "required": [
-                                        "message",
-                                        "docs"
+                                        "status",
+                                        "error"
                                     ]
                                 }
                             }
@@ -130,16 +136,22 @@
                                 "schema": {
                                     "type": "object",
                                     "properties": {
-                                        "message": {
-                                            "type": "string"
+                                        "status": {
+                                            "type": "string",
+                                            "enum": [
+                                                "error"
+                                            ],
+                                            "example": "error"
                                         },
-                                        "docs": {
-                                            "type": "string"
+                                        "error": {
+                                            "type": "string",
+                                            "description": "Error message detailing what went wrong",
+                                            "example": "Instance not found or unauthorized"
                                         }
                                     },
                                     "required": [
-                                        "message",
-                                        "docs"
+                                        "status",
+                                        "error"
                                     ]
                                 }
                             }
@@ -152,16 +164,22 @@
                                 "schema": {
                                     "type": "object",
                                     "properties": {
-                                        "message": {
-                                            "type": "string"
+                                        "status": {
+                                            "type": "string",
+                                            "enum": [
+                                                "error"
+                                            ],
+                                            "example": "error"
                                         },
-                                        "docs": {
-                                            "type": "string"
+                                        "error": {
+                                            "type": "string",
+                                            "description": "Error message detailing what went wrong",
+                                            "example": "Instance not found or unauthorized"
                                         }
                                     },
                                     "required": [
-                                        "message",
-                                        "docs"
+                                        "status",
+                                        "error"
                                     ]
                                 }
                             }
@@ -174,16 +192,22 @@
                                 "schema": {
                                     "type": "object",
                                     "properties": {
-                                        "message": {
-                                            "type": "string"
+                                        "status": {
+                                            "type": "string",
+                                            "enum": [
+                                                "error"
+                                            ],
+                                            "example": "error"
                                         },
-                                        "docs": {
-                                            "type": "string"
+                                        "error": {
+                                            "type": "string",
+                                            "description": "Error message detailing what went wrong",
+                                            "example": "Instance not found or unauthorized"
                                         }
                                     },
                                     "required": [
-                                        "message",
-                                        "docs"
+                                        "status",
+                                        "error"
                                     ]
                                 }
                             }
@@ -196,16 +220,22 @@
                                 "schema": {
                                     "type": "object",
                                     "properties": {
-                                        "message": {
-                                            "type": "string"
+                                        "status": {
+                                            "type": "string",
+                                            "enum": [
+                                                "error"
+                                            ],
+                                            "example": "error"
                                         },
-                                        "docs": {
-                                            "type": "string"
+                                        "error": {
+                                            "type": "string",
+                                            "description": "Error message detailing what went wrong",
+                                            "example": "Instance not found or unauthorized"
                                         }
                                     },
                                     "required": [
-                                        "message",
-                                        "docs"
+                                        "status",
+                                        "error"
                                     ]
                                 }
                             }
@@ -218,16 +248,22 @@
                                 "schema": {
                                     "type": "object",
                                     "properties": {
-                                        "message": {
-                                            "type": "string"
+                                        "status": {
+                                            "type": "string",
+                                            "enum": [
+                                                "error"
+                                            ],
+                                            "example": "error"
                                         },
-                                        "docs": {
-                                            "type": "string"
+                                        "error": {
+                                            "type": "string",
+                                            "description": "Error message detailing what went wrong",
+                                            "example": "Instance not found or unauthorized"
                                         }
                                     },
                                     "required": [
-                                        "message",
-                                        "docs"
+                                        "status",
+                                        "error"
                                     ]
                                 }
                             }
@@ -240,16 +276,50 @@
                                 "schema": {
                                     "type": "object",
                                     "properties": {
-                                        "message": {
-                                            "type": "string"
+                                        "status": {
+                                            "type": "string",
+                                            "enum": [
+                                                "error"
+                                            ],
+                                            "example": "error"
                                         },
-                                        "docs": {
-                                            "type": "string"
+                                        "error": {
+                                            "type": "string",
+                                            "description": "Error message detailing what went wrong",
+                                            "example": "Instance not found or unauthorized"
                                         }
                                     },
                                     "required": [
-                                        "message",
-                                        "docs"
+                                        "status",
+                                        "error"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "502": {
+                        "description": "The server, while acting as a gateway or proxy, received an invalid response from the upstream server.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "status": {
+                                            "type": "string",
+                                            "enum": [
+                                                "error"
+                                            ],
+                                            "example": "error"
+                                        },
+                                        "error": {
+                                            "type": "string",
+                                            "description": "Error message detailing what went wrong",
+                                            "example": "Instance not found or unauthorized"
+                                        }
+                                    },
+                                    "required": [
+                                        "status",
+                                        "error"
                                     ]
                                 }
                             }
@@ -295,7 +365,7 @@
                 },
                 "responses": {
                     "200": {
-                        "description": "Desktop created successfully",
+                        "description": "Desktop creation initiated successfully",
                         "content": {
                             "application/json": {
                                 "schema": {
@@ -306,15 +376,21 @@
                                             "description": "Unique identifier for the desktop instance",
                                             "example": "desktop_12345"
                                         },
-                                        "streamUrl": {
+                                        "status": {
                                             "type": "string",
-                                            "description": "URL to stream the desktop via VNC",
-                                            "example": "https://stream.example.com"
+                                            "enum": [
+                                                "pending",
+                                                "running",
+                                                "terminated",
+                                                "error"
+                                            ],
+                                            "description": "Initial status of the desktop instance after creation request",
+                                            "example": "pending"
                                         }
                                     },
                                     "required": [
                                         "id",
-                                        "streamUrl"
+                                        "status"
                                     ]
                                 }
                             }
@@ -327,16 +403,22 @@
                                 "schema": {
                                     "type": "object",
                                     "properties": {
-                                        "message": {
-                                            "type": "string"
+                                        "status": {
+                                            "type": "string",
+                                            "enum": [
+                                                "error"
+                                            ],
+                                            "example": "error"
                                         },
-                                        "docs": {
-                                            "type": "string"
+                                        "error": {
+                                            "type": "string",
+                                            "description": "Error message detailing what went wrong",
+                                            "example": "Instance not found or unauthorized"
                                         }
                                     },
                                     "required": [
-                                        "message",
-                                        "docs"
+                                        "status",
+                                        "error"
                                     ]
                                 }
                             }
@@ -349,16 +431,22 @@
                                 "schema": {
                                     "type": "object",
                                     "properties": {
-                                        "message": {
-                                            "type": "string"
+                                        "status": {
+                                            "type": "string",
+                                            "enum": [
+                                                "error"
+                                            ],
+                                            "example": "error"
                                         },
-                                        "docs": {
-                                            "type": "string"
+                                        "error": {
+                                            "type": "string",
+                                            "description": "Error message detailing what went wrong",
+                                            "example": "Instance not found or unauthorized"
                                         }
                                     },
                                     "required": [
-                                        "message",
-                                        "docs"
+                                        "status",
+                                        "error"
                                     ]
                                 }
                             }
@@ -371,16 +459,22 @@
                                 "schema": {
                                     "type": "object",
                                     "properties": {
-                                        "message": {
-                                            "type": "string"
+                                        "status": {
+                                            "type": "string",
+                                            "enum": [
+                                                "error"
+                                            ],
+                                            "example": "error"
                                         },
-                                        "docs": {
-                                            "type": "string"
+                                        "error": {
+                                            "type": "string",
+                                            "description": "Error message detailing what went wrong",
+                                            "example": "Instance not found or unauthorized"
                                         }
                                     },
                                     "required": [
-                                        "message",
-                                        "docs"
+                                        "status",
+                                        "error"
                                     ]
                                 }
                             }
@@ -393,16 +487,22 @@
                                 "schema": {
                                     "type": "object",
                                     "properties": {
-                                        "message": {
-                                            "type": "string"
+                                        "status": {
+                                            "type": "string",
+                                            "enum": [
+                                                "error"
+                                            ],
+                                            "example": "error"
                                         },
-                                        "docs": {
-                                            "type": "string"
+                                        "error": {
+                                            "type": "string",
+                                            "description": "Error message detailing what went wrong",
+                                            "example": "Instance not found or unauthorized"
                                         }
                                     },
                                     "required": [
-                                        "message",
-                                        "docs"
+                                        "status",
+                                        "error"
                                     ]
                                 }
                             }
@@ -415,16 +515,22 @@
                                 "schema": {
                                     "type": "object",
                                     "properties": {
-                                        "message": {
-                                            "type": "string"
+                                        "status": {
+                                            "type": "string",
+                                            "enum": [
+                                                "error"
+                                            ],
+                                            "example": "error"
                                         },
-                                        "docs": {
-                                            "type": "string"
+                                        "error": {
+                                            "type": "string",
+                                            "description": "Error message detailing what went wrong",
+                                            "example": "Instance not found or unauthorized"
                                         }
                                     },
                                     "required": [
-                                        "message",
-                                        "docs"
+                                        "status",
+                                        "error"
                                     ]
                                 }
                             }
@@ -437,16 +543,22 @@
                                 "schema": {
                                     "type": "object",
                                     "properties": {
-                                        "message": {
-                                            "type": "string"
+                                        "status": {
+                                            "type": "string",
+                                            "enum": [
+                                                "error"
+                                            ],
+                                            "example": "error"
                                         },
-                                        "docs": {
-                                            "type": "string"
+                                        "error": {
+                                            "type": "string",
+                                            "description": "Error message detailing what went wrong",
+                                            "example": "Instance not found or unauthorized"
                                         }
                                     },
                                     "required": [
-                                        "message",
-                                        "docs"
+                                        "status",
+                                        "error"
                                     ]
                                 }
                             }
@@ -459,16 +571,50 @@
                                 "schema": {
                                     "type": "object",
                                     "properties": {
-                                        "message": {
-                                            "type": "string"
+                                        "status": {
+                                            "type": "string",
+                                            "enum": [
+                                                "error"
+                                            ],
+                                            "example": "error"
                                         },
-                                        "docs": {
-                                            "type": "string"
+                                        "error": {
+                                            "type": "string",
+                                            "description": "Error message detailing what went wrong",
+                                            "example": "Instance not found or unauthorized"
                                         }
                                     },
                                     "required": [
-                                        "message",
-                                        "docs"
+                                        "status",
+                                        "error"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "502": {
+                        "description": "The server, while acting as a gateway or proxy, received an invalid response from the upstream server.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "status": {
+                                            "type": "string",
+                                            "enum": [
+                                                "error"
+                                            ],
+                                            "example": "error"
+                                        },
+                                        "error": {
+                                            "type": "string",
+                                            "description": "Error message detailing what went wrong",
+                                            "example": "Instance not found or unauthorized"
+                                        }
+                                    },
+                                    "required": [
+                                        "status",
+                                        "error"
                                     ]
                                 }
                             }
@@ -516,33 +662,14 @@
                                     "properties": {
                                         "status": {
                                             "type": "string",
-                                            "description": "Status of the operation",
-                                            "example": "success"
-                                        },
-                                        "image": {
-                                            "type": "string",
-                                            "description": "Base64 encoded image data (only returned for screenshot actions)",
-                                            "example": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAA..."
-                                        },
-                                        "cursorPosition": {
-                                            "type": "object",
-                                            "properties": {
-                                                "x": {
-                                                    "type": "integer",
-                                                    "description": "X coordinate on the screen",
-                                                    "example": 500
-                                                },
-                                                "y": {
-                                                    "type": "integer",
-                                                    "description": "Y coordinate on the screen",
-                                                    "example": 300
-                                                }
-                                            },
-                                            "description": "Current cursor coordinates (only returned for get_cursor_position action)",
-                                            "example": {
-                                                "x": 500,
-                                                "y": 300
-                                            }
+                                            "enum": [
+                                                "pending",
+                                                "running",
+                                                "terminated",
+                                                "error"
+                                            ],
+                                            "description": "Status of the desktop instance after stopping",
+                                            "example": "terminated"
                                         }
                                     },
                                     "required": [
@@ -559,16 +686,22 @@
                                 "schema": {
                                     "type": "object",
                                     "properties": {
-                                        "message": {
-                                            "type": "string"
+                                        "status": {
+                                            "type": "string",
+                                            "enum": [
+                                                "error"
+                                            ],
+                                            "example": "error"
                                         },
-                                        "docs": {
-                                            "type": "string"
+                                        "error": {
+                                            "type": "string",
+                                            "description": "Error message detailing what went wrong",
+                                            "example": "Instance not found or unauthorized"
                                         }
                                     },
                                     "required": [
-                                        "message",
-                                        "docs"
+                                        "status",
+                                        "error"
                                     ]
                                 }
                             }
@@ -581,16 +714,22 @@
                                 "schema": {
                                     "type": "object",
                                     "properties": {
-                                        "message": {
-                                            "type": "string"
+                                        "status": {
+                                            "type": "string",
+                                            "enum": [
+                                                "error"
+                                            ],
+                                            "example": "error"
                                         },
-                                        "docs": {
-                                            "type": "string"
+                                        "error": {
+                                            "type": "string",
+                                            "description": "Error message detailing what went wrong",
+                                            "example": "Instance not found or unauthorized"
                                         }
                                     },
                                     "required": [
-                                        "message",
-                                        "docs"
+                                        "status",
+                                        "error"
                                     ]
                                 }
                             }
@@ -603,16 +742,22 @@
                                 "schema": {
                                     "type": "object",
                                     "properties": {
-                                        "message": {
-                                            "type": "string"
+                                        "status": {
+                                            "type": "string",
+                                            "enum": [
+                                                "error"
+                                            ],
+                                            "example": "error"
                                         },
-                                        "docs": {
-                                            "type": "string"
+                                        "error": {
+                                            "type": "string",
+                                            "description": "Error message detailing what went wrong",
+                                            "example": "Instance not found or unauthorized"
                                         }
                                     },
                                     "required": [
-                                        "message",
-                                        "docs"
+                                        "status",
+                                        "error"
                                     ]
                                 }
                             }
@@ -625,16 +770,22 @@
                                 "schema": {
                                     "type": "object",
                                     "properties": {
-                                        "message": {
-                                            "type": "string"
+                                        "status": {
+                                            "type": "string",
+                                            "enum": [
+                                                "error"
+                                            ],
+                                            "example": "error"
                                         },
-                                        "docs": {
-                                            "type": "string"
+                                        "error": {
+                                            "type": "string",
+                                            "description": "Error message detailing what went wrong",
+                                            "example": "Instance not found or unauthorized"
                                         }
                                     },
                                     "required": [
-                                        "message",
-                                        "docs"
+                                        "status",
+                                        "error"
                                     ]
                                 }
                             }
@@ -647,16 +798,22 @@
                                 "schema": {
                                     "type": "object",
                                     "properties": {
-                                        "message": {
-                                            "type": "string"
+                                        "status": {
+                                            "type": "string",
+                                            "enum": [
+                                                "error"
+                                            ],
+                                            "example": "error"
                                         },
-                                        "docs": {
-                                            "type": "string"
+                                        "error": {
+                                            "type": "string",
+                                            "description": "Error message detailing what went wrong",
+                                            "example": "Instance not found or unauthorized"
                                         }
                                     },
                                     "required": [
-                                        "message",
-                                        "docs"
+                                        "status",
+                                        "error"
                                     ]
                                 }
                             }
@@ -669,16 +826,22 @@
                                 "schema": {
                                     "type": "object",
                                     "properties": {
-                                        "message": {
-                                            "type": "string"
+                                        "status": {
+                                            "type": "string",
+                                            "enum": [
+                                                "error"
+                                            ],
+                                            "example": "error"
                                         },
-                                        "docs": {
-                                            "type": "string"
+                                        "error": {
+                                            "type": "string",
+                                            "description": "Error message detailing what went wrong",
+                                            "example": "Instance not found or unauthorized"
                                         }
                                     },
                                     "required": [
-                                        "message",
-                                        "docs"
+                                        "status",
+                                        "error"
                                     ]
                                 }
                             }
@@ -691,16 +854,50 @@
                                 "schema": {
                                     "type": "object",
                                     "properties": {
-                                        "message": {
-                                            "type": "string"
+                                        "status": {
+                                            "type": "string",
+                                            "enum": [
+                                                "error"
+                                            ],
+                                            "example": "error"
                                         },
-                                        "docs": {
-                                            "type": "string"
+                                        "error": {
+                                            "type": "string",
+                                            "description": "Error message detailing what went wrong",
+                                            "example": "Instance not found or unauthorized"
                                         }
                                     },
                                     "required": [
-                                        "message",
-                                        "docs"
+                                        "status",
+                                        "error"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "502": {
+                        "description": "The server, while acting as a gateway or proxy, received an invalid response from the upstream server.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "status": {
+                                            "type": "string",
+                                            "enum": [
+                                                "error"
+                                            ],
+                                            "example": "error"
+                                        },
+                                        "error": {
+                                            "type": "string",
+                                            "description": "Error message detailing what went wrong",
+                                            "example": "Instance not found or unauthorized"
+                                        }
+                                    },
+                                    "required": [
+                                        "status",
+                                        "error"
                                     ]
                                 }
                             }
@@ -1062,46 +1259,28 @@
                 },
                 "responses": {
                     "200": {
-                        "description": "Action executed successfully",
+                        "description": "Action executed successfully. Response may contain output or image data depending on the action.",
                         "content": {
                             "application/json": {
                                 "schema": {
                                     "type": "object",
                                     "properties": {
-                                        "status": {
+                                        "output": {
                                             "type": "string",
-                                            "description": "Status of the operation",
-                                            "example": "success"
+                                            "description": "Raw string output from the executed command (if any)",
+                                            "example": "X=500 Y=300"
                                         },
-                                        "image": {
+                                        "error": {
+                                            "type": "string",
+                                            "description": "Error message if the operation failed (also indicated by non-2xx HTTP status)",
+                                            "example": "Command failed with code 1: xdotool: command not found"
+                                        },
+                                        "base64_image": {
                                             "type": "string",
                                             "description": "Base64 encoded image data (only returned for screenshot actions)",
-                                            "example": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAA..."
-                                        },
-                                        "cursorPosition": {
-                                            "type": "object",
-                                            "properties": {
-                                                "x": {
-                                                    "type": "integer",
-                                                    "description": "X coordinate on the screen",
-                                                    "example": 500
-                                                },
-                                                "y": {
-                                                    "type": "integer",
-                                                    "description": "Y coordinate on the screen",
-                                                    "example": 300
-                                                }
-                                            },
-                                            "description": "Current cursor coordinates (only returned for get_cursor_position action)",
-                                            "example": {
-                                                "x": 500,
-                                                "y": 300
-                                            }
+                                            "example": "iVBORw0KGgoAAAANSUhEUgAA..."
                                         }
-                                    },
-                                    "required": [
-                                        "status"
-                                    ]
+                                    }
                                 }
                             }
                         }
@@ -1113,16 +1292,22 @@
                                 "schema": {
                                     "type": "object",
                                     "properties": {
-                                        "message": {
-                                            "type": "string"
+                                        "status": {
+                                            "type": "string",
+                                            "enum": [
+                                                "error"
+                                            ],
+                                            "example": "error"
                                         },
-                                        "docs": {
-                                            "type": "string"
+                                        "error": {
+                                            "type": "string",
+                                            "description": "Error message detailing what went wrong",
+                                            "example": "Instance not found or unauthorized"
                                         }
                                     },
                                     "required": [
-                                        "message",
-                                        "docs"
+                                        "status",
+                                        "error"
                                     ]
                                 }
                             }
@@ -1135,16 +1320,22 @@
                                 "schema": {
                                     "type": "object",
                                     "properties": {
-                                        "message": {
-                                            "type": "string"
+                                        "status": {
+                                            "type": "string",
+                                            "enum": [
+                                                "error"
+                                            ],
+                                            "example": "error"
                                         },
-                                        "docs": {
-                                            "type": "string"
+                                        "error": {
+                                            "type": "string",
+                                            "description": "Error message detailing what went wrong",
+                                            "example": "Instance not found or unauthorized"
                                         }
                                     },
                                     "required": [
-                                        "message",
-                                        "docs"
+                                        "status",
+                                        "error"
                                     ]
                                 }
                             }
@@ -1157,16 +1348,22 @@
                                 "schema": {
                                     "type": "object",
                                     "properties": {
-                                        "message": {
-                                            "type": "string"
+                                        "status": {
+                                            "type": "string",
+                                            "enum": [
+                                                "error"
+                                            ],
+                                            "example": "error"
                                         },
-                                        "docs": {
-                                            "type": "string"
+                                        "error": {
+                                            "type": "string",
+                                            "description": "Error message detailing what went wrong",
+                                            "example": "Instance not found or unauthorized"
                                         }
                                     },
                                     "required": [
-                                        "message",
-                                        "docs"
+                                        "status",
+                                        "error"
                                     ]
                                 }
                             }
@@ -1179,16 +1376,22 @@
                                 "schema": {
                                     "type": "object",
                                     "properties": {
-                                        "message": {
-                                            "type": "string"
+                                        "status": {
+                                            "type": "string",
+                                            "enum": [
+                                                "error"
+                                            ],
+                                            "example": "error"
                                         },
-                                        "docs": {
-                                            "type": "string"
+                                        "error": {
+                                            "type": "string",
+                                            "description": "Error message detailing what went wrong",
+                                            "example": "Instance not found or unauthorized"
                                         }
                                     },
                                     "required": [
-                                        "message",
-                                        "docs"
+                                        "status",
+                                        "error"
                                     ]
                                 }
                             }
@@ -1201,16 +1404,22 @@
                                 "schema": {
                                     "type": "object",
                                     "properties": {
-                                        "message": {
-                                            "type": "string"
+                                        "status": {
+                                            "type": "string",
+                                            "enum": [
+                                                "error"
+                                            ],
+                                            "example": "error"
                                         },
-                                        "docs": {
-                                            "type": "string"
+                                        "error": {
+                                            "type": "string",
+                                            "description": "Error message detailing what went wrong",
+                                            "example": "Instance not found or unauthorized"
                                         }
                                     },
                                     "required": [
-                                        "message",
-                                        "docs"
+                                        "status",
+                                        "error"
                                     ]
                                 }
                             }
@@ -1223,16 +1432,22 @@
                                 "schema": {
                                     "type": "object",
                                     "properties": {
-                                        "message": {
-                                            "type": "string"
+                                        "status": {
+                                            "type": "string",
+                                            "enum": [
+                                                "error"
+                                            ],
+                                            "example": "error"
                                         },
-                                        "docs": {
-                                            "type": "string"
+                                        "error": {
+                                            "type": "string",
+                                            "description": "Error message detailing what went wrong",
+                                            "example": "Instance not found or unauthorized"
                                         }
                                     },
                                     "required": [
-                                        "message",
-                                        "docs"
+                                        "status",
+                                        "error"
                                     ]
                                 }
                             }
@@ -1245,16 +1460,50 @@
                                 "schema": {
                                     "type": "object",
                                     "properties": {
-                                        "message": {
-                                            "type": "string"
+                                        "status": {
+                                            "type": "string",
+                                            "enum": [
+                                                "error"
+                                            ],
+                                            "example": "error"
                                         },
-                                        "docs": {
-                                            "type": "string"
+                                        "error": {
+                                            "type": "string",
+                                            "description": "Error message detailing what went wrong",
+                                            "example": "Instance not found or unauthorized"
                                         }
                                     },
                                     "required": [
-                                        "message",
-                                        "docs"
+                                        "status",
+                                        "error"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "502": {
+                        "description": "The server, while acting as a gateway or proxy, received an invalid response from the upstream server.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "status": {
+                                            "type": "string",
+                                            "enum": [
+                                                "error"
+                                            ],
+                                            "example": "error"
+                                        },
+                                        "error": {
+                                            "type": "string",
+                                            "description": "Error message detailing what went wrong",
+                                            "example": "Instance not found or unauthorized"
+                                        }
+                                    },
+                                    "required": [
+                                        "status",
+                                        "error"
                                     ]
                                 }
                             }
@@ -1313,27 +1562,28 @@
                 },
                 "responses": {
                     "200": {
-                        "description": "Command executed successfully",
+                        "description": "Command executed successfully. Response contains command output.",
                         "content": {
                             "application/json": {
                                 "schema": {
                                     "type": "object",
                                     "properties": {
-                                        "status": {
-                                            "type": "string",
-                                            "description": "Status of the bash command execution",
-                                            "example": "success"
-                                        },
                                         "output": {
                                             "type": "string",
-                                            "description": "Output from the bash command execution",
-                                            "example": "Hello, World!"
+                                            "description": "Raw string output from the executed command (if any)",
+                                            "example": "X=500 Y=300"
+                                        },
+                                        "error": {
+                                            "type": "string",
+                                            "description": "Error message if the operation failed (also indicated by non-2xx HTTP status)",
+                                            "example": "Command failed with code 1: xdotool: command not found"
+                                        },
+                                        "base64_image": {
+                                            "type": "string",
+                                            "description": "Base64 encoded image data (only returned for screenshot actions)",
+                                            "example": "iVBORw0KGgoAAAANSUhEUgAA..."
                                         }
-                                    },
-                                    "required": [
-                                        "status",
-                                        "output"
-                                    ]
+                                    }
                                 }
                             }
                         }
@@ -1345,16 +1595,22 @@
                                 "schema": {
                                     "type": "object",
                                     "properties": {
-                                        "message": {
-                                            "type": "string"
+                                        "status": {
+                                            "type": "string",
+                                            "enum": [
+                                                "error"
+                                            ],
+                                            "example": "error"
                                         },
-                                        "docs": {
-                                            "type": "string"
+                                        "error": {
+                                            "type": "string",
+                                            "description": "Error message detailing what went wrong",
+                                            "example": "Instance not found or unauthorized"
                                         }
                                     },
                                     "required": [
-                                        "message",
-                                        "docs"
+                                        "status",
+                                        "error"
                                     ]
                                 }
                             }
@@ -1367,16 +1623,22 @@
                                 "schema": {
                                     "type": "object",
                                     "properties": {
-                                        "message": {
-                                            "type": "string"
+                                        "status": {
+                                            "type": "string",
+                                            "enum": [
+                                                "error"
+                                            ],
+                                            "example": "error"
                                         },
-                                        "docs": {
-                                            "type": "string"
+                                        "error": {
+                                            "type": "string",
+                                            "description": "Error message detailing what went wrong",
+                                            "example": "Instance not found or unauthorized"
                                         }
                                     },
                                     "required": [
-                                        "message",
-                                        "docs"
+                                        "status",
+                                        "error"
                                     ]
                                 }
                             }
@@ -1389,16 +1651,22 @@
                                 "schema": {
                                     "type": "object",
                                     "properties": {
-                                        "message": {
-                                            "type": "string"
+                                        "status": {
+                                            "type": "string",
+                                            "enum": [
+                                                "error"
+                                            ],
+                                            "example": "error"
                                         },
-                                        "docs": {
-                                            "type": "string"
+                                        "error": {
+                                            "type": "string",
+                                            "description": "Error message detailing what went wrong",
+                                            "example": "Instance not found or unauthorized"
                                         }
                                     },
                                     "required": [
-                                        "message",
-                                        "docs"
+                                        "status",
+                                        "error"
                                     ]
                                 }
                             }
@@ -1411,16 +1679,22 @@
                                 "schema": {
                                     "type": "object",
                                     "properties": {
-                                        "message": {
-                                            "type": "string"
+                                        "status": {
+                                            "type": "string",
+                                            "enum": [
+                                                "error"
+                                            ],
+                                            "example": "error"
                                         },
-                                        "docs": {
-                                            "type": "string"
+                                        "error": {
+                                            "type": "string",
+                                            "description": "Error message detailing what went wrong",
+                                            "example": "Instance not found or unauthorized"
                                         }
                                     },
                                     "required": [
-                                        "message",
-                                        "docs"
+                                        "status",
+                                        "error"
                                     ]
                                 }
                             }
@@ -1433,16 +1707,22 @@
                                 "schema": {
                                     "type": "object",
                                     "properties": {
-                                        "message": {
-                                            "type": "string"
+                                        "status": {
+                                            "type": "string",
+                                            "enum": [
+                                                "error"
+                                            ],
+                                            "example": "error"
                                         },
-                                        "docs": {
-                                            "type": "string"
+                                        "error": {
+                                            "type": "string",
+                                            "description": "Error message detailing what went wrong",
+                                            "example": "Instance not found or unauthorized"
                                         }
                                     },
                                     "required": [
-                                        "message",
-                                        "docs"
+                                        "status",
+                                        "error"
                                     ]
                                 }
                             }
@@ -1455,16 +1735,22 @@
                                 "schema": {
                                     "type": "object",
                                     "properties": {
-                                        "message": {
-                                            "type": "string"
+                                        "status": {
+                                            "type": "string",
+                                            "enum": [
+                                                "error"
+                                            ],
+                                            "example": "error"
                                         },
-                                        "docs": {
-                                            "type": "string"
+                                        "error": {
+                                            "type": "string",
+                                            "description": "Error message detailing what went wrong",
+                                            "example": "Instance not found or unauthorized"
                                         }
                                     },
                                     "required": [
-                                        "message",
-                                        "docs"
+                                        "status",
+                                        "error"
                                     ]
                                 }
                             }
@@ -1477,16 +1763,50 @@
                                 "schema": {
                                     "type": "object",
                                     "properties": {
-                                        "message": {
-                                            "type": "string"
+                                        "status": {
+                                            "type": "string",
+                                            "enum": [
+                                                "error"
+                                            ],
+                                            "example": "error"
                                         },
-                                        "docs": {
-                                            "type": "string"
+                                        "error": {
+                                            "type": "string",
+                                            "description": "Error message detailing what went wrong",
+                                            "example": "Instance not found or unauthorized"
                                         }
                                     },
                                     "required": [
-                                        "message",
-                                        "docs"
+                                        "status",
+                                        "error"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "502": {
+                        "description": "The server, while acting as a gateway or proxy, received an invalid response from the upstream server.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "status": {
+                                            "type": "string",
+                                            "enum": [
+                                                "error"
+                                            ],
+                                            "example": "error"
+                                        },
+                                        "error": {
+                                            "type": "string",
+                                            "description": "Error message detailing what went wrong",
+                                            "example": "Instance not found or unauthorized"
+                                        }
+                                    },
+                                    "required": [
+                                        "status",
+                                        "error"
                                     ]
                                 }
                             }

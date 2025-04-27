@@ -49,6 +49,7 @@ API key for authentication
 | `409` | This response is sent when a request conflicts with the current state of the server. |
 | `429` | The user has sent too many requests in a given amount of time ("rate limiting") |
 | `500` | The server has encountered a situation it does not know how to handle. |
+| `502` | The server, while acting as a gateway or proxy, received an invalid response from the upstream server. |
 
 </APIInfo>
 
@@ -80,7 +81,7 @@ fetch("https://api.cyberdesk.io/v1/desktop/:id", {
 
 </Requests>
 
-<Responses items={["200","400","401","403","404","409","429","500"]}>
+<Responses items={["200","400","401","403","404","409","429","500","502"]}>
 
 <Response value={"200"}>
 
@@ -136,8 +137,8 @@ export interface Response {
 
 ```json
 {
-  "message": "string",
-  "docs": "string"
+  "status": "error",
+  "error": "Instance not found or unauthorized"
 }
 ```
 
@@ -147,8 +148,11 @@ export interface Response {
 
 ```ts
 export interface Response {
-  message: string;
-  docs: string;
+  status: "error";
+  /**
+   * Error message detailing what went wrong
+   */
+  error: string;
 }
 ```
 
@@ -166,8 +170,8 @@ export interface Response {
 
 ```json
 {
-  "message": "string",
-  "docs": "string"
+  "status": "error",
+  "error": "Instance not found or unauthorized"
 }
 ```
 
@@ -177,8 +181,11 @@ export interface Response {
 
 ```ts
 export interface Response {
-  message: string;
-  docs: string;
+  status: "error";
+  /**
+   * Error message detailing what went wrong
+   */
+  error: string;
 }
 ```
 
@@ -196,8 +203,8 @@ export interface Response {
 
 ```json
 {
-  "message": "string",
-  "docs": "string"
+  "status": "error",
+  "error": "Instance not found or unauthorized"
 }
 ```
 
@@ -207,8 +214,11 @@ export interface Response {
 
 ```ts
 export interface Response {
-  message: string;
-  docs: string;
+  status: "error";
+  /**
+   * Error message detailing what went wrong
+   */
+  error: string;
 }
 ```
 
@@ -226,8 +236,8 @@ export interface Response {
 
 ```json
 {
-  "message": "string",
-  "docs": "string"
+  "status": "error",
+  "error": "Instance not found or unauthorized"
 }
 ```
 
@@ -237,8 +247,11 @@ export interface Response {
 
 ```ts
 export interface Response {
-  message: string;
-  docs: string;
+  status: "error";
+  /**
+   * Error message detailing what went wrong
+   */
+  error: string;
 }
 ```
 
@@ -256,8 +269,8 @@ export interface Response {
 
 ```json
 {
-  "message": "string",
-  "docs": "string"
+  "status": "error",
+  "error": "Instance not found or unauthorized"
 }
 ```
 
@@ -267,8 +280,11 @@ export interface Response {
 
 ```ts
 export interface Response {
-  message: string;
-  docs: string;
+  status: "error";
+  /**
+   * Error message detailing what went wrong
+   */
+  error: string;
 }
 ```
 
@@ -286,8 +302,8 @@ export interface Response {
 
 ```json
 {
-  "message": "string",
-  "docs": "string"
+  "status": "error",
+  "error": "Instance not found or unauthorized"
 }
 ```
 
@@ -297,8 +313,11 @@ export interface Response {
 
 ```ts
 export interface Response {
-  message: string;
-  docs: string;
+  status: "error";
+  /**
+   * Error message detailing what went wrong
+   */
+  error: string;
 }
 ```
 
@@ -316,8 +335,8 @@ export interface Response {
 
 ```json
 {
-  "message": "string",
-  "docs": "string"
+  "status": "error",
+  "error": "Instance not found or unauthorized"
 }
 ```
 
@@ -327,8 +346,44 @@ export interface Response {
 
 ```ts
 export interface Response {
-  message: string;
-  docs: string;
+  status: "error";
+  /**
+   * Error message detailing what went wrong
+   */
+  error: string;
+}
+```
+
+</TypeScriptResponse>
+
+</ResponseTypes>
+
+</Response>
+
+<Response value={"502"}>
+
+<ResponseTypes>
+
+<ExampleResponse>
+
+```json
+{
+  "status": "error",
+  "error": "Instance not found or unauthorized"
+}
+```
+
+</ExampleResponse>
+
+<TypeScriptResponse>
+
+```ts
+export interface Response {
+  status: "error";
+  /**
+   * Error message detailing what went wrong
+   */
+  error: string;
 }
 ```
 
@@ -374,7 +429,7 @@ API key for authentication
 
 | Status code | Description |
 | ----------- | ----------- |
-| `200` | Desktop created successfully |
+| `200` | Desktop creation initiated successfully |
 | `400` | The server cannot or will not process the request due to something that is perceived to be a client error (e.g., malformed request syntax, invalid request message framing, or deceptive request routing). |
 | `401` | Although the HTTP standard specifies "unauthorized", semantically this response means "unauthenticated". That is, the client must authenticate itself to get the requested response. |
 | `403` | The client does not have access rights to the content; that is, it is unauthorized, so the server is refusing to give the requested resource. Unlike 401 Unauthorized, the client's identity is known to the server. |
@@ -382,6 +437,7 @@ API key for authentication
 | `409` | This response is sent when a request conflicts with the current state of the server. |
 | `429` | The user has sent too many requests in a given amount of time ("rate limiting") |
 | `500` | The server has encountered a situation it does not know how to handle. |
+| `502` | The server, while acting as a gateway or proxy, received an invalid response from the upstream server. |
 
 </APIInfo>
 
@@ -416,7 +472,7 @@ fetch("https://api.cyberdesk.io/v1/desktop", {
 
 </Requests>
 
-<Responses items={["200","400","401","403","404","409","429","500"]}>
+<Responses items={["200","400","401","403","404","409","429","500","502"]}>
 
 <Response value={"200"}>
 
@@ -427,7 +483,7 @@ fetch("https://api.cyberdesk.io/v1/desktop", {
 ```json
 {
   "id": "desktop_12345",
-  "streamUrl": "https://stream.example.com"
+  "status": "pending"
 }
 ```
 
@@ -442,9 +498,9 @@ export interface Response {
    */
   id: string;
   /**
-   * URL to stream the desktop via VNC
+   * Initial status of the desktop instance after creation request
    */
-  streamUrl: string;
+  status: "pending" | "running" | "terminated" | "error";
 }
 ```
 
@@ -462,8 +518,8 @@ export interface Response {
 
 ```json
 {
-  "message": "string",
-  "docs": "string"
+  "status": "error",
+  "error": "Instance not found or unauthorized"
 }
 ```
 
@@ -473,8 +529,11 @@ export interface Response {
 
 ```ts
 export interface Response {
-  message: string;
-  docs: string;
+  status: "error";
+  /**
+   * Error message detailing what went wrong
+   */
+  error: string;
 }
 ```
 
@@ -492,8 +551,8 @@ export interface Response {
 
 ```json
 {
-  "message": "string",
-  "docs": "string"
+  "status": "error",
+  "error": "Instance not found or unauthorized"
 }
 ```
 
@@ -503,8 +562,11 @@ export interface Response {
 
 ```ts
 export interface Response {
-  message: string;
-  docs: string;
+  status: "error";
+  /**
+   * Error message detailing what went wrong
+   */
+  error: string;
 }
 ```
 
@@ -522,8 +584,8 @@ export interface Response {
 
 ```json
 {
-  "message": "string",
-  "docs": "string"
+  "status": "error",
+  "error": "Instance not found or unauthorized"
 }
 ```
 
@@ -533,8 +595,11 @@ export interface Response {
 
 ```ts
 export interface Response {
-  message: string;
-  docs: string;
+  status: "error";
+  /**
+   * Error message detailing what went wrong
+   */
+  error: string;
 }
 ```
 
@@ -552,8 +617,8 @@ export interface Response {
 
 ```json
 {
-  "message": "string",
-  "docs": "string"
+  "status": "error",
+  "error": "Instance not found or unauthorized"
 }
 ```
 
@@ -563,8 +628,11 @@ export interface Response {
 
 ```ts
 export interface Response {
-  message: string;
-  docs: string;
+  status: "error";
+  /**
+   * Error message detailing what went wrong
+   */
+  error: string;
 }
 ```
 
@@ -582,8 +650,8 @@ export interface Response {
 
 ```json
 {
-  "message": "string",
-  "docs": "string"
+  "status": "error",
+  "error": "Instance not found or unauthorized"
 }
 ```
 
@@ -593,8 +661,11 @@ export interface Response {
 
 ```ts
 export interface Response {
-  message: string;
-  docs: string;
+  status: "error";
+  /**
+   * Error message detailing what went wrong
+   */
+  error: string;
 }
 ```
 
@@ -612,8 +683,8 @@ export interface Response {
 
 ```json
 {
-  "message": "string",
-  "docs": "string"
+  "status": "error",
+  "error": "Instance not found or unauthorized"
 }
 ```
 
@@ -623,8 +694,11 @@ export interface Response {
 
 ```ts
 export interface Response {
-  message: string;
-  docs: string;
+  status: "error";
+  /**
+   * Error message detailing what went wrong
+   */
+  error: string;
 }
 ```
 
@@ -642,8 +716,8 @@ export interface Response {
 
 ```json
 {
-  "message": "string",
-  "docs": "string"
+  "status": "error",
+  "error": "Instance not found or unauthorized"
 }
 ```
 
@@ -653,8 +727,44 @@ export interface Response {
 
 ```ts
 export interface Response {
-  message: string;
-  docs: string;
+  status: "error";
+  /**
+   * Error message detailing what went wrong
+   */
+  error: string;
+}
+```
+
+</TypeScriptResponse>
+
+</ResponseTypes>
+
+</Response>
+
+<Response value={"502"}>
+
+<ResponseTypes>
+
+<ExampleResponse>
+
+```json
+{
+  "status": "error",
+  "error": "Instance not found or unauthorized"
+}
+```
+
+</ExampleResponse>
+
+<TypeScriptResponse>
+
+```ts
+export interface Response {
+  status: "error";
+  /**
+   * Error message detailing what went wrong
+   */
+  error: string;
 }
 ```
 
@@ -708,6 +818,7 @@ API key for authentication
 | `409` | This response is sent when a request conflicts with the current state of the server. |
 | `429` | The user has sent too many requests in a given amount of time ("rate limiting") |
 | `500` | The server has encountered a situation it does not know how to handle. |
+| `502` | The server, while acting as a gateway or proxy, received an invalid response from the upstream server. |
 
 </APIInfo>
 
@@ -739,7 +850,7 @@ fetch("https://api.cyberdesk.io/v1/desktop/:id/stop", {
 
 </Requests>
 
-<Responses items={["200","400","401","403","404","409","429","500"]}>
+<Responses items={["200","400","401","403","404","409","429","500","502"]}>
 
 <Response value={"200"}>
 
@@ -749,12 +860,7 @@ fetch("https://api.cyberdesk.io/v1/desktop/:id/stop", {
 
 ```json
 {
-  "status": "success",
-  "image": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAA...",
-  "cursorPosition": {
-    "x": 500,
-    "y": 300
-  }
+  "status": "terminated"
 }
 ```
 
@@ -765,26 +871,9 @@ fetch("https://api.cyberdesk.io/v1/desktop/:id/stop", {
 ```ts
 export interface Response {
   /**
-   * Status of the operation
+   * Status of the desktop instance after stopping
    */
-  status: string;
-  /**
-   * Base64 encoded image data (only returned for screenshot actions)
-   */
-  image?: string;
-  /**
-   * Current cursor coordinates (only returned for get_cursor_position action)
-   */
-  cursorPosition?: {
-    /**
-     * X coordinate on the screen
-     */
-    x?: number;
-    /**
-     * Y coordinate on the screen
-     */
-    y?: number;
-  };
+  status: "pending" | "running" | "terminated" | "error";
 }
 ```
 
@@ -802,8 +891,8 @@ export interface Response {
 
 ```json
 {
-  "message": "string",
-  "docs": "string"
+  "status": "error",
+  "error": "Instance not found or unauthorized"
 }
 ```
 
@@ -813,8 +902,11 @@ export interface Response {
 
 ```ts
 export interface Response {
-  message: string;
-  docs: string;
+  status: "error";
+  /**
+   * Error message detailing what went wrong
+   */
+  error: string;
 }
 ```
 
@@ -832,8 +924,8 @@ export interface Response {
 
 ```json
 {
-  "message": "string",
-  "docs": "string"
+  "status": "error",
+  "error": "Instance not found or unauthorized"
 }
 ```
 
@@ -843,8 +935,11 @@ export interface Response {
 
 ```ts
 export interface Response {
-  message: string;
-  docs: string;
+  status: "error";
+  /**
+   * Error message detailing what went wrong
+   */
+  error: string;
 }
 ```
 
@@ -862,8 +957,8 @@ export interface Response {
 
 ```json
 {
-  "message": "string",
-  "docs": "string"
+  "status": "error",
+  "error": "Instance not found or unauthorized"
 }
 ```
 
@@ -873,8 +968,11 @@ export interface Response {
 
 ```ts
 export interface Response {
-  message: string;
-  docs: string;
+  status: "error";
+  /**
+   * Error message detailing what went wrong
+   */
+  error: string;
 }
 ```
 
@@ -892,8 +990,8 @@ export interface Response {
 
 ```json
 {
-  "message": "string",
-  "docs": "string"
+  "status": "error",
+  "error": "Instance not found or unauthorized"
 }
 ```
 
@@ -903,8 +1001,11 @@ export interface Response {
 
 ```ts
 export interface Response {
-  message: string;
-  docs: string;
+  status: "error";
+  /**
+   * Error message detailing what went wrong
+   */
+  error: string;
 }
 ```
 
@@ -922,8 +1023,8 @@ export interface Response {
 
 ```json
 {
-  "message": "string",
-  "docs": "string"
+  "status": "error",
+  "error": "Instance not found or unauthorized"
 }
 ```
 
@@ -933,8 +1034,11 @@ export interface Response {
 
 ```ts
 export interface Response {
-  message: string;
-  docs: string;
+  status: "error";
+  /**
+   * Error message detailing what went wrong
+   */
+  error: string;
 }
 ```
 
@@ -952,8 +1056,8 @@ export interface Response {
 
 ```json
 {
-  "message": "string",
-  "docs": "string"
+  "status": "error",
+  "error": "Instance not found or unauthorized"
 }
 ```
 
@@ -963,8 +1067,11 @@ export interface Response {
 
 ```ts
 export interface Response {
-  message: string;
-  docs: string;
+  status: "error";
+  /**
+   * Error message detailing what went wrong
+   */
+  error: string;
 }
 ```
 
@@ -982,8 +1089,8 @@ export interface Response {
 
 ```json
 {
-  "message": "string",
-  "docs": "string"
+  "status": "error",
+  "error": "Instance not found or unauthorized"
 }
 ```
 
@@ -993,8 +1100,44 @@ export interface Response {
 
 ```ts
 export interface Response {
-  message: string;
-  docs: string;
+  status: "error";
+  /**
+   * Error message detailing what went wrong
+   */
+  error: string;
+}
+```
+
+</TypeScriptResponse>
+
+</ResponseTypes>
+
+</Response>
+
+<Response value={"502"}>
+
+<ResponseTypes>
+
+<ExampleResponse>
+
+```json
+{
+  "status": "error",
+  "error": "Instance not found or unauthorized"
+}
+```
+
+</ExampleResponse>
+
+<TypeScriptResponse>
+
+```ts
+export interface Response {
+  status: "error";
+  /**
+   * Error message detailing what went wrong
+   */
+  error: string;
 }
 ```
 
@@ -1350,7 +1493,7 @@ API key for authentication
 
 | Status code | Description |
 | ----------- | ----------- |
-| `200` | Action executed successfully |
+| `200` | Action executed successfully. Response may contain output or image data depending on the action. |
 | `400` | The server cannot or will not process the request due to something that is perceived to be a client error (e.g., malformed request syntax, invalid request message framing, or deceptive request routing). |
 | `401` | Although the HTTP standard specifies "unauthorized", semantically this response means "unauthenticated". That is, the client must authenticate itself to get the requested response. |
 | `403` | The client does not have access rights to the content; that is, it is unauthorized, so the server is refusing to give the requested resource. Unlike 401 Unauthorized, the client's identity is known to the server. |
@@ -1358,6 +1501,7 @@ API key for authentication
 | `409` | This response is sent when a request conflicts with the current state of the server. |
 | `429` | The user has sent too many requests in a given amount of time ("rate limiting") |
 | `500` | The server has encountered a situation it does not know how to handle. |
+| `502` | The server, while acting as a gateway or proxy, received an invalid response from the upstream server. |
 
 </APIInfo>
 
@@ -1397,7 +1541,7 @@ fetch("https://api.cyberdesk.io/v1/desktop/:id/computer-action", {
 
 </Requests>
 
-<Responses items={["200","400","401","403","404","409","429","500"]}>
+<Responses items={["200","400","401","403","404","409","429","500","502"]}>
 
 <Response value={"200"}>
 
@@ -1407,12 +1551,9 @@ fetch("https://api.cyberdesk.io/v1/desktop/:id/computer-action", {
 
 ```json
 {
-  "status": "success",
-  "image": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAA...",
-  "cursorPosition": {
-    "x": 500,
-    "y": 300
-  }
+  "output": "X=500 Y=300",
+  "error": "Command failed with code 1: xdotool: command not found",
+  "base64_image": "iVBORw0KGgoAAAANSUhEUgAA..."
 }
 ```
 
@@ -1423,26 +1564,17 @@ fetch("https://api.cyberdesk.io/v1/desktop/:id/computer-action", {
 ```ts
 export interface Response {
   /**
-   * Status of the operation
+   * Raw string output from the executed command (if any)
    */
-  status: string;
+  output?: string;
+  /**
+   * Error message if the operation failed (also indicated by non-2xx HTTP status)
+   */
+  error?: string;
   /**
    * Base64 encoded image data (only returned for screenshot actions)
    */
-  image?: string;
-  /**
-   * Current cursor coordinates (only returned for get_cursor_position action)
-   */
-  cursorPosition?: {
-    /**
-     * X coordinate on the screen
-     */
-    x?: number;
-    /**
-     * Y coordinate on the screen
-     */
-    y?: number;
-  };
+  base64_image?: string;
 }
 ```
 
@@ -1460,8 +1592,8 @@ export interface Response {
 
 ```json
 {
-  "message": "string",
-  "docs": "string"
+  "status": "error",
+  "error": "Instance not found or unauthorized"
 }
 ```
 
@@ -1471,8 +1603,11 @@ export interface Response {
 
 ```ts
 export interface Response {
-  message: string;
-  docs: string;
+  status: "error";
+  /**
+   * Error message detailing what went wrong
+   */
+  error: string;
 }
 ```
 
@@ -1490,8 +1625,8 @@ export interface Response {
 
 ```json
 {
-  "message": "string",
-  "docs": "string"
+  "status": "error",
+  "error": "Instance not found or unauthorized"
 }
 ```
 
@@ -1501,8 +1636,11 @@ export interface Response {
 
 ```ts
 export interface Response {
-  message: string;
-  docs: string;
+  status: "error";
+  /**
+   * Error message detailing what went wrong
+   */
+  error: string;
 }
 ```
 
@@ -1520,8 +1658,8 @@ export interface Response {
 
 ```json
 {
-  "message": "string",
-  "docs": "string"
+  "status": "error",
+  "error": "Instance not found or unauthorized"
 }
 ```
 
@@ -1531,8 +1669,11 @@ export interface Response {
 
 ```ts
 export interface Response {
-  message: string;
-  docs: string;
+  status: "error";
+  /**
+   * Error message detailing what went wrong
+   */
+  error: string;
 }
 ```
 
@@ -1550,8 +1691,8 @@ export interface Response {
 
 ```json
 {
-  "message": "string",
-  "docs": "string"
+  "status": "error",
+  "error": "Instance not found or unauthorized"
 }
 ```
 
@@ -1561,8 +1702,11 @@ export interface Response {
 
 ```ts
 export interface Response {
-  message: string;
-  docs: string;
+  status: "error";
+  /**
+   * Error message detailing what went wrong
+   */
+  error: string;
 }
 ```
 
@@ -1580,8 +1724,8 @@ export interface Response {
 
 ```json
 {
-  "message": "string",
-  "docs": "string"
+  "status": "error",
+  "error": "Instance not found or unauthorized"
 }
 ```
 
@@ -1591,8 +1735,11 @@ export interface Response {
 
 ```ts
 export interface Response {
-  message: string;
-  docs: string;
+  status: "error";
+  /**
+   * Error message detailing what went wrong
+   */
+  error: string;
 }
 ```
 
@@ -1610,8 +1757,8 @@ export interface Response {
 
 ```json
 {
-  "message": "string",
-  "docs": "string"
+  "status": "error",
+  "error": "Instance not found or unauthorized"
 }
 ```
 
@@ -1621,8 +1768,11 @@ export interface Response {
 
 ```ts
 export interface Response {
-  message: string;
-  docs: string;
+  status: "error";
+  /**
+   * Error message detailing what went wrong
+   */
+  error: string;
 }
 ```
 
@@ -1640,8 +1790,8 @@ export interface Response {
 
 ```json
 {
-  "message": "string",
-  "docs": "string"
+  "status": "error",
+  "error": "Instance not found or unauthorized"
 }
 ```
 
@@ -1651,8 +1801,44 @@ export interface Response {
 
 ```ts
 export interface Response {
-  message: string;
-  docs: string;
+  status: "error";
+  /**
+   * Error message detailing what went wrong
+   */
+  error: string;
+}
+```
+
+</TypeScriptResponse>
+
+</ResponseTypes>
+
+</Response>
+
+<Response value={"502"}>
+
+<ResponseTypes>
+
+<ExampleResponse>
+
+```json
+{
+  "status": "error",
+  "error": "Instance not found or unauthorized"
+}
+```
+
+</ExampleResponse>
+
+<TypeScriptResponse>
+
+```ts
+export interface Response {
+  status: "error";
+  /**
+   * Error message detailing what went wrong
+   */
+  error: string;
 }
 ```
 
@@ -1708,7 +1894,7 @@ API key for authentication
 
 | Status code | Description |
 | ----------- | ----------- |
-| `200` | Command executed successfully |
+| `200` | Command executed successfully. Response contains command output. |
 | `400` | The server cannot or will not process the request due to something that is perceived to be a client error (e.g., malformed request syntax, invalid request message framing, or deceptive request routing). |
 | `401` | Although the HTTP standard specifies "unauthorized", semantically this response means "unauthenticated". That is, the client must authenticate itself to get the requested response. |
 | `403` | The client does not have access rights to the content; that is, it is unauthorized, so the server is refusing to give the requested resource. Unlike 401 Unauthorized, the client's identity is known to the server. |
@@ -1716,6 +1902,7 @@ API key for authentication
 | `409` | This response is sent when a request conflicts with the current state of the server. |
 | `429` | The user has sent too many requests in a given amount of time ("rate limiting") |
 | `500` | The server has encountered a situation it does not know how to handle. |
+| `502` | The server, while acting as a gateway or proxy, received an invalid response from the upstream server. |
 
 </APIInfo>
 
@@ -1750,7 +1937,7 @@ fetch("https://api.cyberdesk.io/v1/desktop/:id/bash-action", {
 
 </Requests>
 
-<Responses items={["200","400","401","403","404","409","429","500"]}>
+<Responses items={["200","400","401","403","404","409","429","500","502"]}>
 
 <Response value={"200"}>
 
@@ -1760,8 +1947,9 @@ fetch("https://api.cyberdesk.io/v1/desktop/:id/bash-action", {
 
 ```json
 {
-  "status": "success",
-  "output": "Hello, World!"
+  "output": "X=500 Y=300",
+  "error": "Command failed with code 1: xdotool: command not found",
+  "base64_image": "iVBORw0KGgoAAAANSUhEUgAA..."
 }
 ```
 
@@ -1772,13 +1960,17 @@ fetch("https://api.cyberdesk.io/v1/desktop/:id/bash-action", {
 ```ts
 export interface Response {
   /**
-   * Status of the bash command execution
+   * Raw string output from the executed command (if any)
    */
-  status: string;
+  output?: string;
   /**
-   * Output from the bash command execution
+   * Error message if the operation failed (also indicated by non-2xx HTTP status)
    */
-  output: string;
+  error?: string;
+  /**
+   * Base64 encoded image data (only returned for screenshot actions)
+   */
+  base64_image?: string;
 }
 ```
 
@@ -1796,8 +1988,8 @@ export interface Response {
 
 ```json
 {
-  "message": "string",
-  "docs": "string"
+  "status": "error",
+  "error": "Instance not found or unauthorized"
 }
 ```
 
@@ -1807,8 +1999,11 @@ export interface Response {
 
 ```ts
 export interface Response {
-  message: string;
-  docs: string;
+  status: "error";
+  /**
+   * Error message detailing what went wrong
+   */
+  error: string;
 }
 ```
 
@@ -1826,8 +2021,8 @@ export interface Response {
 
 ```json
 {
-  "message": "string",
-  "docs": "string"
+  "status": "error",
+  "error": "Instance not found or unauthorized"
 }
 ```
 
@@ -1837,8 +2032,11 @@ export interface Response {
 
 ```ts
 export interface Response {
-  message: string;
-  docs: string;
+  status: "error";
+  /**
+   * Error message detailing what went wrong
+   */
+  error: string;
 }
 ```
 
@@ -1856,8 +2054,8 @@ export interface Response {
 
 ```json
 {
-  "message": "string",
-  "docs": "string"
+  "status": "error",
+  "error": "Instance not found or unauthorized"
 }
 ```
 
@@ -1867,8 +2065,11 @@ export interface Response {
 
 ```ts
 export interface Response {
-  message: string;
-  docs: string;
+  status: "error";
+  /**
+   * Error message detailing what went wrong
+   */
+  error: string;
 }
 ```
 
@@ -1886,8 +2087,8 @@ export interface Response {
 
 ```json
 {
-  "message": "string",
-  "docs": "string"
+  "status": "error",
+  "error": "Instance not found or unauthorized"
 }
 ```
 
@@ -1897,8 +2098,11 @@ export interface Response {
 
 ```ts
 export interface Response {
-  message: string;
-  docs: string;
+  status: "error";
+  /**
+   * Error message detailing what went wrong
+   */
+  error: string;
 }
 ```
 
@@ -1916,8 +2120,8 @@ export interface Response {
 
 ```json
 {
-  "message": "string",
-  "docs": "string"
+  "status": "error",
+  "error": "Instance not found or unauthorized"
 }
 ```
 
@@ -1927,8 +2131,11 @@ export interface Response {
 
 ```ts
 export interface Response {
-  message: string;
-  docs: string;
+  status: "error";
+  /**
+   * Error message detailing what went wrong
+   */
+  error: string;
 }
 ```
 
@@ -1946,8 +2153,8 @@ export interface Response {
 
 ```json
 {
-  "message": "string",
-  "docs": "string"
+  "status": "error",
+  "error": "Instance not found or unauthorized"
 }
 ```
 
@@ -1957,8 +2164,11 @@ export interface Response {
 
 ```ts
 export interface Response {
-  message: string;
-  docs: string;
+  status: "error";
+  /**
+   * Error message detailing what went wrong
+   */
+  error: string;
 }
 ```
 
@@ -1976,8 +2186,8 @@ export interface Response {
 
 ```json
 {
-  "message": "string",
-  "docs": "string"
+  "status": "error",
+  "error": "Instance not found or unauthorized"
 }
 ```
 
@@ -1987,8 +2197,44 @@ export interface Response {
 
 ```ts
 export interface Response {
-  message: string;
-  docs: string;
+  status: "error";
+  /**
+   * Error message detailing what went wrong
+   */
+  error: string;
+}
+```
+
+</TypeScriptResponse>
+
+</ResponseTypes>
+
+</Response>
+
+<Response value={"502"}>
+
+<ResponseTypes>
+
+<ExampleResponse>
+
+```json
+{
+  "status": "error",
+  "error": "Instance not found or unauthorized"
+}
+```
+
+</ExampleResponse>
+
+<TypeScriptResponse>
+
+```ts
+export interface Response {
+  status: "error";
+  /**
+   * Error message detailing what went wrong
+   */
+  error: string;
 }
 ```
 

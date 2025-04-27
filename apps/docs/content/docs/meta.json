@@ -1,0 +1,6 @@
+{
+    "title": "Docs",
+    "pages": ["index", "introduction", "quickstart", "tutorials", "conceptual-guide", "openapi"],
+    "defaultOpen": true,
+    "root": true
+  }

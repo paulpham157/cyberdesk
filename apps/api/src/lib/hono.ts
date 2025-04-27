@@ -8,14 +8,13 @@ import type { Cache } from "./cache.js";
 
 export type HonoEnv = {
   Bindings: {
-    // Supabase credentials
-    SUPABASE_URL: string;
-    SUPABASE_ANON_KEY: string;
     SUPABASE_CONNECTION_STRING: string;
 
     // Unkey credentials
     UNKEY_ROOT_KEY: string;
     UNKEY_API_ID: string;
+
+    GATEWAY_EXTERNAL_IP: string;
   };
   Variables: {
     cache: Cache
@@ -74,10 +73,10 @@ export function newApp() {
   });
 
   app.doc("/openapi.json", {
-    openapi: "3.0.0",
+    openapi: "3.1.0",
     info: {
       title: "API Reference",
-      version: "1.0.0",
+      version: "1.1.0",
       description: "API for Cyberdesk, to create, control, and manage virtual desktop instances.",
     },
     servers: [

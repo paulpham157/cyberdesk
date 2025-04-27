@@ -16,4 +16,5 @@ export const baseOptions: BaseLayoutProps = {
       url: "https://cyberdesk.io",
     }
   ],
+  githubUrl: "https://github.com/cyberdesk-hq/cyberdesk",
 };
