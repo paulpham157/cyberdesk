@@ -1,7 +1,7 @@
 import { createRoute, z } from "@hono/zod-openapi";
 
 import { openApiErrorResponses } from "./errors.js";
-import { instanceStatusEnum } from "../db/supabase.js";
+import { InstanceStatus, instanceStatusEnum } from "../db/schema.js";
 
 // Header schema for API key authentication
 const HeadersSchema = z.object({
@@ -11,49 +11,20 @@ const HeadersSchema = z.object({
   }),
 });
 
-// Common schema for status responses
-const StatusResponseSchema = z.object({
-  status: z.string().openapi({
-    description: "Status of the operation",
-    example: "success",
+// Common schema for action oriented API responses
+const ActionResponseSchema = z.object({
+  output: z.string().optional().openapi({
+      description: "Raw string output from the executed command (if any)",
+      example: "X=500 Y=300",
   }),
-  image: z.string().optional().openapi({
-    description: "Base64 encoded image data (only returned for screenshot actions)",
-    example: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAA...",
+  error: z.string().optional().openapi({
+    description: "Error message if the operation failed (also indicated by non-2xx HTTP status)",
+    example: "Command failed with code 1: xdotool: command not found",
   }),
-  cursorPosition: z.object({
-    x: z.number().int().optional().openapi({
-      description: "X coordinate on the screen",
-      example: 500,
-    }),
-    y: z.number().int().optional().openapi({
-      description: "Y coordinate on the screen",
-      example: 300,
-    }),
-  }).optional().openapi({
-    description: "Current cursor coordinates (only returned for get_cursor_position action)",
-    example: { x: 500, y: 300 },
-  }),
-});
-
-// Schema for bash action responses
-const BashActionResponseSchema = z.object({
-  status: z.string().openapi({
-    description: "Status of the bash command execution",
-    example: "success",
-  }),
-  output: z.string().openapi({
-    description: "Output from the bash command execution",
-    example: "Hello, World!",
-  }),
-});
-
-// Error response schema
-const ErrorResponseSchema = z.object({
-  error: z.string().openapi({
-    description: "Error message describing what went wrong",
-    example: "Failed to create desktop instance",
-  }),
+  base64_image: z.string().optional().openapi({
+    description: "Base64 encoded JPEG image data (only returned for screenshot actions)",
+    example: "/9j/4AAQSkZJRgABAQEAYABgAAD/2wBDAAEBAQEBAQEBAQEBAQEBAQ...",
+  })
 });
 
 // Point schema for coordinates
@@ -70,9 +41,29 @@ const PointSchema = z.object({
 
 // Schema for desktop creation parameters
 export const CreateDesktopParamsSchema = z.object({
-  timeoutMs: z.number().int().optional().openapi({
+  timeout_ms: z.number().int().optional().openapi({
     description: "Timeout in milliseconds for the desktop session",
     example: 3600000,
+  }),
+});
+
+// Schema for the response of the create desktop endpoint
+export const CreateDesktopResponseSchema = z.object({
+    id: z.string().openapi({
+      description: "Unique identifier for the desktop instance",
+      example: "desktop_12345",
+    }),
+    status: z.enum(instanceStatusEnum.enumValues).openapi({
+        description: "Initial status of the desktop instance after creation request",
+        example: InstanceStatus.Pending,
+      }),
+  });
+
+// Schema for the response of the stop desktop endpoint
+export const StopDesktopResponseSchema = z.object({
+  status: z.enum(instanceStatusEnum.enumValues).openapi({
+    description: "Status of the desktop instance after stopping",
+    example: InstanceStatus.Terminated,
   }),
 });
 
@@ -200,6 +191,14 @@ export const ComputerActionSchema = z.discriminatedUnion("type", [
   }).openapi({ title: "Get Cursor Position Action" }),
 ]);
 
+// Schema for Bash Action parameters
+export const BashActionSchema = z.object({
+  command: z.string().openapi({
+    description: "Bash command to execute",
+    example: "echo 'Hello, World!'",
+  }),
+});
+
 // Create Desktop Route
 export const createDesktop = createRoute({
   method: "post",
@@ -221,19 +220,10 @@ export const createDesktop = createRoute({
     200: {
       content: {
         "application/json": {
-          schema: z.object({
-            id: z.string().openapi({
-              description: "Unique identifier for the desktop instance",
-              example: "desktop_12345",
-            }),
-            streamUrl: z.string().openapi({
-              description: "URL to stream the desktop via VNC",
-              example: "https://stream.example.com",
-            }),
-          }),
+          schema: CreateDesktopResponseSchema,
         },
       },
-      description: "Desktop created successfully",
+      description: "Desktop creation initiated successfully",
     },
     ...openApiErrorResponses,
   },
@@ -259,13 +249,13 @@ export const stopDesktop = createRoute({
     200: {
       content: {
         "application/json": {
-          schema: StatusResponseSchema,
+          schema: StopDesktopResponseSchema,
         },
       },
       description: "Desktop stopped successfully",
     },
     ...openApiErrorResponses,
-  },
+  }, 
 });
 
 // Get Desktop Route Response Schema
@@ -278,11 +268,15 @@ const GetDesktopResponseSchema = z.object({
     description: "Current status of the desktop instance",
     example: "running",
   }),
-  createdAt: z.string().datetime().openapi({
+  stream_url: z.string().nullable().openapi({
+    description: "URL for the desktop stream (null if the desktop is not running)",
+    example: "https://cyberdesk.com/vnc/a1b2c3d4-e5f6-7890-1234-567890abcdef",
+  }),
+  created_at: z.string().datetime().openapi({
     description: "Timestamp when the instance was created",
     example: "2023-10-27T10:00:00Z",
   }),
-  timeoutAt: z.string().datetime().openapi({
+  timeout_at: z.string().datetime().openapi({
     description: "Timestamp when the instance will automatically time out",
     example: "2023-10-28T10:00:00Z",
   }),
@@ -344,10 +338,10 @@ export const computerAction = createRoute({
     200: {
       content: {
         "application/json": {
-          schema: StatusResponseSchema,
+          schema: ActionResponseSchema,
         },
       },
-      description: "Action executed successfully",
+      description: "Action executed successfully. Response may contain output or image data depending on the action.",
     },
     ...openApiErrorResponses,
   },
@@ -371,12 +365,7 @@ export const bashAction = createRoute({
     body: {
       content: {
         "application/json": {
-          schema: z.object({
-            command: z.string().openapi({
-              description: "Bash command to execute",
-              example: "echo 'Hello, World!'",
-            }),
-          }),
+          schema: BashActionSchema,
         },
       },
     },
@@ -385,10 +374,10 @@ export const bashAction = createRoute({
     200: {
       content: {
         "application/json": {
-          schema: BashActionResponseSchema,
+          schema: ActionResponseSchema,
         },
       },
-      description: "Command executed successfully",
+      description: "Command executed successfully. Response contains command output.",
     },
     ...openApiErrorResponses,
   },

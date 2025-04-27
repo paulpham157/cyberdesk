@@ -1,7 +1,8 @@
 import { eq, and, sql } from "drizzle-orm";
 import type { PostgresJsDatabase } from "drizzle-orm/postgres-js";
-import { schema } from "./index.js";
-import { instanceStatusEnum } from "./supabase.js";
+import { schema } from "../index.js";
+import { InstanceStatus, instanceStatusEnum } from "./schema.js";
+import { NotFoundError } from "../lib/errors.js";
 
 /**
  * Creates a new Cyberdesk instance for a user.
@@ -21,7 +22,7 @@ export async function addDbInstance(
     .insert(schema.cyberdeskInstances)
     .values({
       userId,
-      status: 'pending',
+      status: InstanceStatus.Pending,
       timeoutAt: sql`NOW() + interval '${sql.raw(timeoutInterval)}'`,
     })
     .returning({
@@ -38,13 +39,14 @@ export async function addDbInstance(
  * @param id The UUID of the Cyberdesk instance to update
  * @param userId The user ID making the request (for authorization)
  * @param status The new status to set
- * @returns The updated instance details or null if not found or not authorized
+ * @returns The updated instance details
+ * @throws NotFoundError if the instance is not found or the user is not authorized
  */
 export async function updateDbInstanceStatus(
   db: PostgresJsDatabase<typeof schema>,
   id: string,
   userId: string,
-  status: typeof instanceStatusEnum.enumValues[number]
+  status: InstanceStatus
 ) {
   const [updatedInstance] = await db
     .update(schema.cyberdeskInstances)
@@ -63,7 +65,11 @@ export async function updateDbInstanceStatus(
       status: schema.cyberdeskInstances.status,
     });
 
-  return updatedInstance || null;
+  if (!updatedInstance) {
+    throw new NotFoundError("Desktop instance not found or user not authorized.");
+  }
+
+  return updatedInstance;
 }
 
 /**
@@ -71,7 +77,8 @@ export async function updateDbInstanceStatus(
  * @param db Drizzle database instance
  * @param id The UUID of the Cyberdesk instance to get details for
  * @param userId The user ID making the request (for authorization)
- * @returns The instance details or null if not found or not authorized
+ * @returns The instance details
+ * @throws NotFoundError if the instance is not found or the user is not authorized
  */
 export async function getDbInstanceDetails(
   db: PostgresJsDatabase<typeof schema>,
@@ -84,6 +91,7 @@ export async function getDbInstanceDetails(
       status: schema.cyberdeskInstances.status,
       createdAt: schema.cyberdeskInstances.createdAt,
       timeoutAt: schema.cyberdeskInstances.timeoutAt,
+      streamUrl: schema.cyberdeskInstances.streamUrl,
     })
     .from(schema.cyberdeskInstances)
     .where(
@@ -94,5 +102,9 @@ export async function getDbInstanceDetails(
     )
     .limit(1);
 
-  return result || null;
+  if (!result) {
+    throw new NotFoundError("Desktop instance not found or user not authorized.");
+  }
+
+  return result;
 }

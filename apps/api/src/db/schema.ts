@@ -24,7 +24,16 @@ export const profiles = pgTable("profiles", {
 });
 
 // Define the status enum type
-export const instanceStatusEnum = pgEnum('instance_status', ['pending', 'running', 'terminated', 'error']);
+export enum InstanceStatus {
+    Pending = 'pending',
+    Running = 'running',
+    Terminated = 'terminated',
+    Error = 'error',
+}
+
+// Define the status enum type for Drizzle using the TS enum values
+// Assert type as [string, ...string[]] to satisfy pgEnum's expectation
+export const instanceStatusEnum = pgEnum('instance_status', Object.values(InstanceStatus) as [string, ...string[]]);
 
 // Define the desktop_instances table
 export const desktopInstances = pgTable("desktop_instances", {
@@ -42,7 +51,7 @@ export const cyberdeskInstances = pgTable("cyberdesk_instances", {
   userId: uuid("user_id").notNull().references(() => users.id, { onDelete: 'cascade' }), // Required field
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at"),
-  status: instanceStatusEnum("status").notNull().default("pending"),
+  status: instanceStatusEnum("status").notNull().default(InstanceStatus.Pending),
   timeoutAt: timestamp("timeout_at").notNull().default(sql`NOW() + interval '24 hours'`), // Set default to 24 hours from now
   streamUrl: varchar("stream_url", { length: 1024 })
 });
