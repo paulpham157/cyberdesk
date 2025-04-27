@@ -1,8 +1,11 @@
-import { z } from "zod";
+import { z } from "@hono/zod-openapi";
 
 const errorSchema = z.object({
-  message: z.string(),
-  docs: z.string(),
+  status: z.literal("error").openapi({ example: "error" }),
+  error: z.string().openapi({
+     description: "Error message detailing what went wrong",
+     example: "Instance not found or unauthorized"
+  })
 });
 
 export const openApiErrorResponses = {
@@ -61,6 +64,15 @@ export const openApiErrorResponses = {
   500: {
     description:
       "The server has encountered a situation it does not know how to handle.",
+    content: {
+      "application/json": {
+        schema: errorSchema,
+      },
+    },
+  },
+  502: {
+    description:
+      "The server, while acting as a gateway or proxy, received an invalid response from the upstream server.",
     content: {
       "application/json": {
         schema: errorSchema,
