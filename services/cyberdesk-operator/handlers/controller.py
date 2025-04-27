@@ -190,6 +190,90 @@ def update_instance_status(instance_id: str, vmi_phase: str) -> None:
         logger.error("Supabase update failed for %s: %s", instance_id, exc)
 
 # ---------------------------------------------------------------------------
+# Kubernetes Helpers (including Warm Pool) -----------------------------------
+# ---------------------------------------------------------------------------
+
+def get_free_vm_from_pool(namespace: str, logger: kopf.Logger) -> Optional[str]:
+    """
+    Find, claim, and return the name of an available warm VM, or None.
+
+    A VM is considered available if it has the 'pool.kubevirt.io/warm=ready'
+    label, is Running, and does not have 'pool.kubevirt.io/in-use=true'.
+
+    If found, the VM is "plucked" by:
+    1. Removing ownerReferences.
+    2. Setting 'pool.kubevirt.io/in-use=true' and 'pool.kubevirt.io/warm=claimed'.
+    """
+    pool_label_selector = "pool.kubevirt.io/warm=ready"
+    logger.debug(f"Searching for warm VMs in namespace '{namespace}' with label '{pool_label_selector}'")
+    try:
+        vms = CUSTOM_OBJECTS_API.list_namespaced_custom_object(
+            KUBEVIRT_GROUP,
+            KUBEVIRT_VERSION,
+            namespace,
+            KUBEVIRT_VM_PLURAL,
+            label_selector=pool_label_selector,
+        )
+    except ApiException as e:
+        logger.error(f"Error listing VMs for warm pool: {e.status} {e.reason}")
+        # Treat as temporary, maybe API server issue
+        raise kopf.TemporaryError("Failed to list VMs for warm pool.", delay=15) from e
+
+    for vm in vms.get("items", []):
+        meta = vm.get("metadata", {})
+        status = vm.get("status", {})
+        labels = meta.get("labels", {})
+
+        vm_name = meta.get("name")
+        if not vm_name:
+            logger.warning("Found VM in pool list without a name, skipping.")
+            continue
+
+        # Check if already marked as in-use by the pool logic itself
+        if labels.get("pool.kubevirt.io/in-use") == "true":
+            logger.debug(f"Warm VM '{vm_name}' found but already marked in-use, skipping.")
+            continue
+
+        # Check if running (important!)
+        if status.get("printableStatus") != "Running":
+            logger.debug(f"Warm VM '{vm_name}' found but not Running (status: {status.get('printableStatus')}), skipping.")
+            continue
+
+        # --- Pluck the VM ---
+        logger.info(f"Found available warm VM: '{vm_name}'. Attempting to pluck.")
+        patch_body = {
+            "metadata": {
+                "ownerReferences": None,  # Detach from the pool controller
+                "labels": {
+                    **labels, # Keep existing labels
+                    "pool.kubevirt.io/in-use": "true", # Mark as used
+                    "pool.kubevirt.io/warm": "claimed", # Update pool status label
+                    # Note: We will add cyberdesk-instance label in the main handler
+                },
+            }
+        }
+        try:
+            CUSTOM_OBJECTS_API.patch_namespaced_custom_object(
+                group=KUBEVIRT_GROUP,
+                version=KUBEVIRT_VERSION,
+                namespace=namespace,
+                plural=KUBEVIRT_VM_PLURAL,
+                name=vm_name,
+                body=patch_body,
+            )
+            logger.info(f"Successfully plucked warm VM '{vm_name}'. Removed ownerReferences and added 'in-use' label.")
+            return vm_name # Return the name of the plucked VM
+        except ApiException as e:
+            logger.error(f"Failed to patch (pluck) warm VM '{vm_name}': {e.status} {e.reason}")
+            # If patching fails, maybe the VM was deleted concurrently? Or permissions issue.
+            # Log error and continue searching, maybe another VM will work.
+            # If it's a transient issue, the next reconciliation might succeed.
+            continue # Try the next VM in the list
+
+    logger.info("No available warm VMs found in the pool.")
+    return None
+
+# ---------------------------------------------------------------------------
 # CRD definition -------------------------------------------------------------
 # ---------------------------------------------------------------------------
 CYBERDESK_CRD_MANIFEST: dict = {
@@ -345,71 +429,153 @@ def _ensure_vm_patched_and_running(vm_name: str, namespace: str, logger: kopf.Lo
 
 @kopf.on.create(CYBERDESK_GROUP, CYBERDESK_VERSION, CYBERDESK_PLURAL)
 def cyberdesk_create(spec: dict, meta: dict, status: dict, logger: kopf.Logger, patch: kopf.Patch, body: dict, retry: int, **_: Dict[str, object]): # noqa: WPS211, WPS231
-    """Reconcile a new Cyberdesk CR: Clone VM from golden snapshot, patch, and start."""
-    vm_name = meta["name"] # Target VM name is the Cyberdesk CR name
+    """Reconcile a new Cyberdesk CR: Try warm pool first, then clone from golden snapshot."""
+    instance_id = meta["name"] # Target VM name is the Cyberdesk CR name (consistent)
     namespace = KUBEVIRT_NAMESPACE # Target VM namespace
     timeout_ms = spec.get("timeoutMs", 3_600_000)  # default: 1h
-    clone_operation_name = f"clone-for-{vm_name}"
-    max_clone_wait_retries = 20
-    clone_wait_delay = 2 # seconds
 
-    logger.info(f"Reconciling Cyberdesk CR '{vm_name}'")
+    logger.info(f"Reconciling Cyberdesk CR '{instance_id}'")
 
-    # --- Idempotency Check 1: Target VM Existence ---
-    try:
-        # Check if VM exists. If get_namespaced_custom_object succeeds, the VM exists.
-        CUSTOM_OBJECTS_API.get_namespaced_custom_object(
-            KUBEVIRT_GROUP, KUBEVIRT_VERSION, namespace, KUBEVIRT_VM_PLURAL, vm_name
-        )
-        logger.info(f"Target VM '{vm_name}' already exists. Ensuring it is patched and running.")
-        # Ensure the existing VM has the correct patches and is set to run
-        _ensure_vm_patched_and_running(vm_name, namespace, logger)
+    # --- Step 1: Try to get a VM from the warm pool ---
+    plucked_vm_name = get_free_vm_from_pool(namespace, logger)
 
-        # Return existing status if available, otherwise basic info
-        existing_status = body.get("status", {}).get("cyberdesk_create", {})
-        if existing_status:
-            # Make sure startTime and expiryTime are present if status exists
-            if "startTime" not in existing_status or "expiryTime" not in existing_status:
-                 logger.warning(f"Existing status for {vm_name} is incomplete. Re-populating.")
-                 # If status exists but is incomplete, repopulate it.
-                 # This could happen if the operator restarted after status was partially set.
-                 now = datetime.now(UTC)
-                 expiry = now + timedelta(milliseconds=timeout_ms)
-                 patch.status["cyberdesk_create"] = {
-                      "virtualMachineRef": vm_name,
-                      "startTime": now.isoformat(),
-                      "expiryTime": expiry.isoformat(),
-                      "lastPhase": "Running" # Assume running if VM exists and patched
-                 }
-            else:
-                 patch.status.update(existing_status) # Restore full existing status
-        else:
-            # If no status exists, create a minimal one. We can't know the original start time.
-            logger.warning(f"VM {vm_name} exists but no status found on CR. Creating minimal status.")
-            now = datetime.now(UTC)
-            expiry = now + timedelta(milliseconds=timeout_ms) # Recalculate expiry based on current time
-            patch.status["cyberdesk_create"] = {
-                 "virtualMachineRef": vm_name,
-                 "startTime": now.isoformat(), # Set start time to now
-                 "expiryTime": expiry.isoformat(),
-                 "lastPhase": "Running" # Assume running
+    if plucked_vm_name:
+        logger.info(f"Using plucked warm VM '{plucked_vm_name}' for Cyberdesk '{instance_id}'.")
+
+        # Patch the plucked VM with Cyberdesk-specific details
+        # Note: We don't need to set runStrategy=Always as it's already running.
+        # We DO need to set the instance label and hostname.
+        vm_patch_body = {
+            "metadata": {
+                "labels": {
+                    # Keep existing labels (like 'pool.kubevirt.io/in-use')
+                    # Add/overwrite Cyberdesk specific labels
+                    "app": "cyberdesk", # Standard label
+                    "cyberdesk-instance": instance_id, # Link to this CR
+                    "managed-by": MANAGED_BY, # Ensure operator management label
+                }
+            },
+            "spec": {
+                "template": {
+                    "metadata": { # VMI metadata
+                        "labels": {
+                            # Keep existing labels if any? Maybe not necessary.
+                            "app": "cyberdesk",
+                            "cyberdesk-instance": instance_id,
+                            "managed-by": MANAGED_BY,
+                            "kubevirt.io/domain": instance_id, # Standard KubeVirt label for VMI domain
+                        }
+                    },
+                    "spec": { # VMI spec
+                        "hostname": instance_id,
+                        "subdomain": "kubevirt-vm-headless" # Consistent with cloned VMs
+                    }
+                }
             }
+        }
+        try:
+            # Fetch current labels first to merge correctly
+            current_vm = CUSTOM_OBJECTS_API.get_namespaced_custom_object(
+                KUBEVIRT_GROUP, KUBEVIRT_VERSION, namespace, KUBEVIRT_VM_PLURAL, plucked_vm_name
+            )
+            current_labels = current_vm.get("metadata", {}).get("labels", {})
+            current_vmi_labels = current_vm.get("spec", {}).get("template", {}).get("metadata", {}).get("labels", {})
+
+            vm_patch_body["metadata"]["labels"] = {**current_labels, **vm_patch_body["metadata"]["labels"]}
+            vm_patch_body["spec"]["template"]["metadata"]["labels"] = {**current_vmi_labels, **vm_patch_body["spec"]["template"]["metadata"]["labels"]}
+
+
+            CUSTOM_OBJECTS_API.patch_namespaced_custom_object(
+                group=KUBEVIRT_GROUP,
+                version=KUBEVIRT_VERSION,
+                namespace=namespace,
+                plural=KUBEVIRT_VM_PLURAL,
+                name=plucked_vm_name,
+                body=vm_patch_body
+            )
+            logger.info(f"Successfully patched plucked VM '{plucked_vm_name}' with labels and hostname for '{instance_id}'.")
+        except ApiException as e:
+            logger.error(f"Error patching plucked VM '{plucked_vm_name}': {e.status} {e.reason}")
+            # This is potentially problematic. The VM is plucked but not configured.
+            # Should we try to "unpluck" it? Or rely on retry?
+            # Let's rely on Kopf's retry mechanism for now.
+            raise kopf.TemporaryError(f"Failed to patch plucked VM {plucked_vm_name}", delay=10) from e
+
+        # --- Update Status for Plucked VM ---
+        now = datetime.now(UTC)
+        expiry = now + timedelta(milliseconds=timeout_ms)
+        logger.info(f"Cyberdesk '{instance_id}' reconciled using warm VM '{plucked_vm_name}', expires at {expiry.isoformat()}")
+
+        if "cyberdesk_create" not in patch.status:
+            patch.status["cyberdesk_create"] = {}
+        patch.status["cyberdesk_create"]["virtualMachineRef"] = plucked_vm_name # Use the plucked VM name
+        patch.status["cyberdesk_create"]["startTime"] = now.isoformat()
+        patch.status["cyberdesk_create"]["expiryTime"] = expiry.isoformat()
+        patch.status["cyberdesk_create"]["lastPhase"] = "Plucked" # Indicate it came from the pool
 
         # Clean up old top-level status fields if they still exist
         if "virtualMachineRef" in patch.status: del patch.status["virtualMachineRef"]
         if "startTime" in patch.status: del patch.status["startTime"]
         if "expiryTime" in patch.status: del patch.status["expiryTime"]
 
-        return # Stop reconciliation for this CR
+        return # Finished processing with a warm VM
+
+    # --- Step 2: Fallback to Cloning if no warm VM was available ---
+    logger.info(f"No warm VM available for '{instance_id}'. Falling back to cloning from snapshot.")
+
+    # The rest of the function is the original cloning logic.
+    # Important: The target VM name is 'instance_id' here too.
+    vm_name = instance_id # Use the CR name as the target VM name for cloning
+    clone_operation_name = f"clone-for-{vm_name}"
+    max_clone_wait_retries = 20
+    clone_wait_delay = 2 # seconds
+
+    # --- Idempotency Check 1: Target VM Existence (Clone Path Only) ---
+    # This check is now specific to the clone path. If a VM exists, it might be
+    # from a previous failed/interrupted clone attempt for *this* CR.
+    try:
+        CUSTOM_OBJECTS_API.get_namespaced_custom_object(
+            KUBEVIRT_GROUP, KUBEVIRT_VERSION, namespace, KUBEVIRT_VM_PLURAL, vm_name
+        )
+        # If the VM exists AND we are in the CLONE path, it means the warm pool
+        # check failed, but a VM with the target name *already exists*.
+        # This implies a previous clone attempt for this CR might have partially succeeded
+        # or something else created a VM with this name.
+        logger.warning(f"Target VM '{vm_name}' already exists, but was NOT plucked from pool. Proceeding with patch/run check as part of clone fallback recovery.")
+        # Ensure the existing VM has the correct patches and is set to run
+        # This re-uses the existing logic to bring a potentially orphaned VM into the desired state.
+        _ensure_vm_patched_and_running(vm_name, namespace, logger)
+
+        # Status handling similar to before, but assuming it relates to a CLONE attempt
+        existing_status = body.get("status", {}).get("cyberdesk_create", {})
+        if existing_status and "startTime" in existing_status and "expiryTime" in existing_status:
+             logger.info(f"Restoring existing status for VM {vm_name} during clone fallback.")
+             patch.status.update(existing_status) # Restore full existing status
+        else:
+            logger.warning(f"VM {vm_name} exists during clone fallback, but status is missing/incomplete. Creating/updating status.")
+            now = datetime.now(UTC)
+            expiry = now + timedelta(milliseconds=timeout_ms)
+            patch.status["cyberdesk_create"] = {
+                 "virtualMachineRef": vm_name,
+                 "startTime": now.isoformat(),
+                 "expiryTime": expiry.isoformat(),
+                 "lastPhase": "Running" # Assume running after patch check
+            }
+        # Clean up old fields
+        if "virtualMachineRef" in patch.status: del patch.status["virtualMachineRef"]
+        if "startTime" in patch.status: del patch.status["startTime"]
+        if "expiryTime" in patch.status: del patch.status["expiryTime"]
+
+        return # Stop reconciliation for this CR (existing VM handled in clone path)
 
     except ApiException as e:
         if e.status != 404:
-            logger.error(f"Error checking for existing VM '{vm_name}': {e.status} {e.reason}")
-            raise kopf.TemporaryError(f"VM check failed for {vm_name}", delay=10) from e
-        # VM Not found, proceed with cloning
-        logger.info(f"Target VM '{vm_name}' not found. Proceeding with clone.")
+            logger.error(f"Error checking for existing VM '{vm_name}' in clone path: {e.status} {e.reason}")
+            raise kopf.TemporaryError(f"VM check failed for {vm_name} (clone path)", delay=10) from e
+        # VM Not found (expected case for cloning), proceed.
+        logger.info(f"Target VM '{vm_name}' not found. Proceeding with clone operation.")
 
-    # --- Define and Create/Get VirtualMachineClone ---
+    # --- Define and Create/Get VirtualMachineClone (Clone Path Only) ---
     clone_body = {
         "apiVersion": f"{CLONE_GROUP}/{CLONE_VERSION}",
         "kind": "VirtualMachineClone",
