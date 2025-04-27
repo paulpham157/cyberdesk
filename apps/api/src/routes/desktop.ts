@@ -154,24 +154,56 @@ desktop.openapi(createDesktop, async (c) => {
 
 // Route for stopping a desktop instance
 desktop.openapi(stopDesktop, async (c) => {
+  console.log('[stopDesktop] Received request');
+
   const userId = c.get("userId");
   const id = c.req.param("id");
+  const allParams = c.req.param();
+
+  console.log(`[stopDesktop] Extracted userId: ${userId}`);
+  console.log(`[stopDesktop] Extracted id parameter: ${id}`);
+  console.log(`[stopDesktop] All path parameters: ${JSON.stringify(allParams)}`);
+
+  let requestBody = undefined;
+  try {
+    const contentType = c.req.header('content-type');
+    console.log(`[stopDesktop] Request Content-Type: ${contentType}`);
+    if (contentType && contentType.includes('application/json')) {
+      requestBody = await c.req.json();
+      console.log(`[stopDesktop] Parsed JSON request body: ${JSON.stringify(requestBody)}`);
+    } else if (c.req.header('content-length') && parseInt(c.req.header('content-length') || '0') > 0) {
+        const textBody = await c.req.text();
+        console.log(`[stopDesktop] Received non-JSON request body (text): ${textBody}`);
+        requestBody = textBody;
+    } else {
+         console.log(`[stopDesktop] No request body or Content-Type not JSON.`);
+    }
+  } catch (err: any) {
+    console.error('[stopDesktop] Error parsing request body:', err.message);
+  }
+
   const { GATEWAY_EXTERNAL_IP } = env<EnvVars>(c);
 
+  console.log(`[stopDesktop] Proceeding to update DB status for id: ${id}, userId: ${userId}`);
   const updatedInstance = await updateDbInstanceStatus(db, id, userId, InstanceStatus.Terminated);
+  console.log(`[stopDesktop] DB status updated for id: ${id}, new status: ${updatedInstance.status}`);
 
   try {
     const provisioningUrl = `http://${GATEWAY_EXTERNAL_IP}/cyberdesk/${id}/stop`;
+    console.log(`[stopDesktop] Calling provisioning service at: ${provisioningUrl}`);
     await axios.post(provisioningUrl);
-    console.log('Stopping request successful via Gateway for instance:', id);
+    console.log('[stopDesktop] Stopping request successful via Gateway for instance:', id);
   } catch (provisioningError) {
     console.error('Error calling provisioning service during stop:', provisioningError);
   }
 
+  console.log(`[stopDesktop] Returning final response for id: ${id}`);
+  const responsePayload: { status: InstanceStatus } = {
+      status: updatedInstance.status as InstanceStatus,
+  };
+
   return c.json(
-    {
-      status: updatedInstance.status,
-    },
+    responsePayload,
     200
   );
 });

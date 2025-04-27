@@ -47,11 +47,11 @@ type SdkMethodOptions<TData> = Omit<TData, 'headers' | 'url'> & {
 // Use the specific *Data types for clarity.
 // The input type for the user is essentially the *Data type minus headers/url
 export type CyberdeskSdk = {
-    getV1DesktopId: (opts: Omit<GetV1DesktopIdData, 'headers' | 'url'>) => ReturnType<typeof apiMethods.getV1DesktopId>;
-    postV1Desktop: (opts: Omit<PostV1DesktopData, 'headers' | 'url'>) => ReturnType<typeof apiMethods.postV1Desktop>;
-    postV1DesktopIdStop: (opts: Omit<PostV1DesktopIdStopData, 'headers' | 'url'>) => ReturnType<typeof apiMethods.postV1DesktopIdStop>;
-    postV1DesktopIdComputerAction: (opts: Omit<PostV1DesktopIdComputerActionData, 'headers' | 'url'>) => ReturnType<typeof apiMethods.postV1DesktopIdComputerAction>;
-    postV1DesktopIdBashAction: (opts: Omit<PostV1DesktopIdBashActionData, 'headers' | 'url'>) => ReturnType<typeof apiMethods.postV1DesktopIdBashAction>;
+    getDesktopInfo: (opts: Omit<GetV1DesktopIdData, 'headers' | 'url'>) => ReturnType<typeof apiMethods.getV1DesktopId>;
+    launchDesktop: (opts: Omit<PostV1DesktopData, 'headers' | 'url'>) => ReturnType<typeof apiMethods.postV1Desktop>;
+    terminateDesktop: (opts: Omit<PostV1DesktopIdStopData, 'headers' | 'url'>) => ReturnType<typeof apiMethods.postV1DesktopIdStop>;
+    executeActionOnDesktop: (opts: Omit<PostV1DesktopIdComputerActionData, 'headers' | 'url'>) => ReturnType<typeof apiMethods.postV1DesktopIdComputerAction>;
+    bashCommandOnDesktop: (opts: Omit<PostV1DesktopIdBashActionData, 'headers' | 'url'>) => ReturnType<typeof apiMethods.postV1DesktopIdBashAction>;
     // Add other methods exported from sdk.gen.ts here following the same pattern
 };
 
@@ -98,28 +98,28 @@ export function createCyberdeskClient(options: CyberdeskClientOptions): Cyberdes
 
     // Return an object where each method is pre-configured with the client instance
     return {
-        getV1DesktopId: (opts) => apiMethods.getV1DesktopId({
+        getDesktopInfo: (opts) => apiMethods.getV1DesktopId({
             ...(opts as GetV1DesktopIdData), // Cast opts to allow potential headers
             client: configuredClient,
             // Merge client headers with potentially provided headers from opts
             headers: { ...mergedHeaders, ...(opts as GetV1DesktopIdData).headers }
         }),
-        postV1Desktop: (opts) => apiMethods.postV1Desktop({
+        launchDesktop: (opts) => apiMethods.postV1Desktop({
             ...(opts as PostV1DesktopData),
             client: configuredClient,
             headers: { ...mergedHeaders, ...(opts as PostV1DesktopData).headers }
         }),
-        postV1DesktopIdStop: (opts) => apiMethods.postV1DesktopIdStop({
-            ...(opts as PostV1DesktopIdStopData),
+        terminateDesktop: (opts) => apiMethods.postV1DesktopIdStop({
+            ...opts,
             client: configuredClient,
             headers: { ...mergedHeaders, ...(opts as PostV1DesktopIdStopData).headers }
         }),
-        postV1DesktopIdComputerAction: (opts) => apiMethods.postV1DesktopIdComputerAction({
+        executeActionOnDesktop: (opts) => apiMethods.postV1DesktopIdComputerAction({
             ...(opts as PostV1DesktopIdComputerActionData),
             client: configuredClient,
             headers: { ...mergedHeaders, ...(opts as PostV1DesktopIdComputerActionData).headers }
         }),
-        postV1DesktopIdBashAction: (opts) => apiMethods.postV1DesktopIdBashAction({
+        bashCommandOnDesktop: (opts) => apiMethods.postV1DesktopIdBashAction({
             ...(opts as PostV1DesktopIdBashActionData),
             client: configuredClient,
             headers: { ...mergedHeaders, ...(opts as PostV1DesktopIdBashActionData).headers }
