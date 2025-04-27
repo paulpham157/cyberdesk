@@ -344,14 +344,14 @@ def _ensure_vm_patched_and_running(vm_name: str, namespace: str, logger: kopf.Lo
 
 
 @kopf.on.create(CYBERDESK_GROUP, CYBERDESK_VERSION, CYBERDESK_PLURAL)
-def cyberdesk_create(spec: dict, meta: dict, status: dict, logger: kopf.Logger, patch: kopf.Patch, body: dict, **_: Dict[str, object]): # noqa: WPS211, WPS231
+def cyberdesk_create(spec: dict, meta: dict, status: dict, logger: kopf.Logger, patch: kopf.Patch, body: dict, retry: int, **_: Dict[str, object]): # noqa: WPS211, WPS231
     """Reconcile a new Cyberdesk CR: Clone VM from golden snapshot, patch, and start."""
     vm_name = meta["name"] # Target VM name is the Cyberdesk CR name
     namespace = KUBEVIRT_NAMESPACE # Target VM namespace
     timeout_ms = spec.get("timeoutMs", 3_600_000)  # default: 1h
     clone_operation_name = f"clone-for-{vm_name}"
-    max_clone_wait_retries = 20 # Approx 5 minutes with 15s delay
-    clone_wait_delay = 15 # seconds
+    max_clone_wait_retries = 20
+    clone_wait_delay = 2 # seconds
 
     logger.info(f"Reconciling Cyberdesk CR '{vm_name}'")
 
@@ -456,85 +456,53 @@ def cyberdesk_create(spec: dict, meta: dict, status: dict, logger: kopf.Logger, 
             logger.error(f"Error creating VirtualMachineClone '{clone_operation_name}': {e.status} {e.reason}")
             raise kopf.TemporaryError(f"Clone creation failed for {vm_name}", delay=10) from e
 
-    # --- Wait for Clone Completion (Polling with retries) ---
-    for attempt in range(max_clone_wait_retries):
-        try:
-            # Refresh clone object status
-            current_clone_status = clone_obj.get("status", {})
-            clone_phase = current_clone_status.get("phase")
-            logger.info(f"Clone '{clone_operation_name}' phase: {clone_phase} (Attempt {attempt + 1}/{max_clone_wait_retries})")
+    # --- Check Clone Status ---
+    try:
+        # Refresh clone object status
+        current_clone_status = clone_obj.get("status", {})
+        clone_phase = current_clone_status.get("phase")
+        logger.info(f"Clone '{clone_operation_name}' phase: {clone_phase}")
 
-            if clone_phase == "Succeeded":
-                logger.info(f"Clone '{clone_operation_name}' succeeded.")
-                # --- Ensure the newly created VM is patched and running ---
-                _ensure_vm_patched_and_running(vm_name, namespace, logger)
-                break # Exit loop
-            elif clone_phase == "Failed":
-                logger.error(f"Clone '{clone_operation_name}' failed. Check clone object status for details.")
-                # Clean up failed clone object? Maybe not, leave it for inspection.
-                raise kopf.PermanentError(f"Clone {clone_operation_name} failed.")
-            elif clone_phase == "Unknown":
-                 logger.warning(f"Clone '{clone_operation_name}' phase is Unknown. Retrying...")
-                 raise kopf.TemporaryError(f"Clone {clone_operation_name} phase Unknown.", delay=clone_wait_delay)
-            else: # InProgress phases (SnapshotInProgress, CreatingTargetVM, RestoreInProgress)
-                # Get potentially updated clone object for next status check
-                # Place this *inside* the else block before raising TemporaryError
+        if clone_phase == "Succeeded":
+            logger.info(f"Clone '{clone_operation_name}' succeeded.")
+            # --- Ensure the newly created VM is patched and running ---
+            _ensure_vm_patched_and_running(vm_name, namespace, logger)
+        elif clone_phase == "Failed":
+            logger.error(f"Clone '{clone_operation_name}' failed. Check clone object status for details.")
+            # Clean up failed clone object? Maybe not, leave it for inspection.
+            raise kopf.PermanentError(f"Clone {clone_operation_name} failed.")
+        elif clone_phase == "Unknown":
+                logger.warning(f"Clone '{clone_operation_name}' phase is Unknown. Retrying...")
+                raise kopf.TemporaryError(f"Clone {clone_operation_name} phase Unknown.", delay=clone_wait_delay)
+        else: # InProgress phases (SnapshotInProgress, CreatingTargetVM, RestoreInProgress)
+            # Get potentially updated clone object for next status check
+            # Place this *inside* the else block before raising TemporaryError
+            try:
+                    clone_obj = CUSTOM_OBJECTS_API.get_namespaced_custom_object(
+                        group=CLONE_GROUP, version=CLONE_VERSION, namespace=namespace, plural=CLONE_PLURAL, name=clone_operation_name
+                    )
+            except ApiException as get_exc:
+                    logger.warning(f"Failed to get clone '{clone_operation_name}' status during wait: {get_exc.reason}")
+                    # Continue retry loop even if getting status fails temporarily
+            raise kopf.TemporaryError(f"Clone {clone_operation_name} in progress ({clone_phase}). Waiting...", delay=clone_wait_delay)
+
+    except kopf.TemporaryError:
+            # Re-raise TemporaryError to trigger Kopf retry with delay
+            if retry + 1 == max_clone_wait_retries:
+                logger.error(f"Clone '{clone_operation_name}' did not succeed within the timeout.")
+                # Potentially delete the clone object if it's stuck?
                 try:
-                     clone_obj = CUSTOM_OBJECTS_API.get_namespaced_custom_object(
-                          group=CLONE_GROUP, version=CLONE_VERSION, namespace=namespace, plural=CLONE_PLURAL, name=clone_operation_name
-                     )
-                except ApiException as get_exc:
-                     logger.warning(f"Failed to get clone '{clone_operation_name}' status during wait: {get_exc.reason}")
-                     # Continue retry loop even if getting status fails temporarily
-                raise kopf.TemporaryError(f"Clone {clone_operation_name} in progress ({clone_phase}). Waiting...", delay=clone_wait_delay)
+                    CUSTOM_OBJECTS_API.delete_namespaced_custom_object(CLONE_GROUP, CLONE_VERSION, namespace, CLONE_PLURAL, clone_operation_name)
+                    logger.info(f"Deleted timed-out clone object '{clone_operation_name}'.")
+                except ApiException as del_exc:
+                    if del_exc.status != 404:
+                        logger.warning(f"Failed to delete timed-out clone object '{clone_operation_name}': {del_exc.reason}")
+                raise kopf.PermanentError(f"Clone {clone_operation_name} timed out.")
+            raise # Re-raise the kopf.TemporaryError
 
-        except kopf.TemporaryError:
-             # Re-raise TemporaryError to trigger Kopf retry with delay
-             if attempt + 1 == max_clone_wait_retries:
-                  logger.error(f"Clone '{clone_operation_name}' did not succeed within the timeout.")
-                  # Potentially delete the clone object if it's stuck?
-                  try:
-                      CUSTOM_OBJECTS_API.delete_namespaced_custom_object(CLONE_GROUP, CLONE_VERSION, namespace, CLONE_PLURAL, clone_operation_name)
-                      logger.info(f"Deleted timed-out clone object '{clone_operation_name}'.")
-                  except ApiException as del_exc:
-                      if del_exc.status != 404:
-                           logger.warning(f"Failed to delete timed-out clone object '{clone_operation_name}': {del_exc.reason}")
-                  raise kopf.PermanentError(f"Clone {clone_operation_name} timed out.")
-             # Get potentially updated clone object for next status check (moved to else block)
-             # try:
-             #      clone_obj = CUSTOM_OBJECTS_API.get_namespaced_custom_object(
-             #           group=CLONE_GROUP, version=CLONE_VERSION, namespace=namespace, plural=CLONE_PLURAL, name=clone_operation_name
-             #      )
-             # except ApiException as get_exc:
-             #      logger.warning(f"Failed to get clone '{clone_operation_name}' status during wait: {get_exc.reason}")
-                  # Continue retry loop, maybe the clone object will reappear or the status will resolve
-             raise # Re-raise the kopf.TemporaryError
-
-        except ApiException as e:
-             logger.error(f"API error checking clone '{clone_operation_name}' status: {e.reason}")
-             raise kopf.TemporaryError(f"API error checking clone {clone_operation_name}", delay=clone_wait_delay) from e
-
-
-    # --- Patch the newly created VM --- ## Clone succeeded, VM should exist
-    # logger.info(f"Patching target VM '{vm_name}' with required metadata and spec")
-    # patch_body = { ... } # REMOVED - Now handled by _ensure_vm_patched_and_running
-    # try:
-    #     CUSTOM_OBJECTS_API.patch_namespaced_custom_object(...) # REMOVED
-    #     logger.info(f"Successfully patched VM '{vm_name}' metadata and spec.")
-    # except ApiException as e:
-    #     # ... REMOVED ...
-    #     raise kopf.TemporaryError(f"Failed to patch VM {vm_name} after clone success", delay=10) from e
-
-
-    # --- Start the VM --- ## VM exists and is patched
-    # logger.info(f"Patching VM '{vm_name}' to set runStrategy=Always")
-    # start_patch = {"spec": {"runStrategy": "Always"}} # REMOVED - Now handled by _ensure_vm_patched_and_running
-    # try:
-    #     CUSTOM_OBJECTS_API.patch_namespaced_custom_object(...) # REMOVED
-    #     logger.info(f"VM '{vm_name}' patched to start.")
-    # except ApiException as e:
-    #     # ... REMOVED ...
-    #     raise kopf.TemporaryError(f"Failed to patch VM {vm_name} to start", delay=10) from e
+    except ApiException as e:
+            logger.error(f"API error checking clone '{clone_operation_name}' status: {e.reason}")
+            raise kopf.TemporaryError(f"API error checking clone {clone_operation_name}", delay=clone_wait_delay) from e
 
     # --- Update Status --- ## VM exists, patched, and set to run
     # This part only runs if the VM was *just* created via the clone process
