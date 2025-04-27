@@ -14,6 +14,7 @@ import {
   getDesktop,
   BashActionSchema,
 } from "../schema/desktop.js";
+import { GatewayExecuteCommandRequestSchema, GatewayExecuteCommandResponseSchema } from "../schema/gateway.js";
 import { db } from "../db/index.js";
 import {
   addDbInstance,
@@ -98,8 +99,9 @@ desktop.openapi(getDesktop, async (c) => {
   return c.json({
       id: instanceDetails.id,
       status: instanceDetails.status,
-      createdAt: (instanceDetails.createdAt || new Date(0)).toISOString(),
-      timeoutAt: instanceDetails.timeoutAt.toISOString(),
+      created_at: (instanceDetails.createdAt || new Date(0)).toISOString(),
+      timeout_at: instanceDetails.timeoutAt.toISOString(),
+      stream_url: instanceDetails.streamUrl
   }, 200);
 });
 
@@ -113,12 +115,12 @@ desktop.openapi(createDesktop, async (c) => {
     const body = await c.req.json().catch(() => ({}));
     createDesktopParams = CreateDesktopParamsSchema.parse(body);
 
-    const newInstance = await addDbInstance(db, userId, createDesktopParams.timeoutMs);
+    const newInstance = await addDbInstance(db, userId, createDesktopParams.timeout_ms);
 
     try {
       const provisioningUrl = `http://${GATEWAY_EXTERNAL_IP}/cyberdesk/${newInstance.id}`;
       const response = await axios.post(provisioningUrl, {
-        timeoutMs: createDesktopParams.timeoutMs
+        timeoutMs: createDesktopParams.timeout_ms
       });
       console.log('Provisioning request successful:', response.data);
 
@@ -189,7 +191,7 @@ async function executeComputerAction(
   }
 
   let command: string;
-  const displayPrefix = "DISPLAY=:99";
+  const displayPrefix = "export DISPLAY=:99;";
 
   switch (action.type) {
     case "click_mouse": {
@@ -215,9 +217,10 @@ async function executeComputerAction(
       const { direction, amount } = action;
       const directionMap: { [key: string]: number } = { up: 4, down: 5, left: 6, right: 7 };
       const btn = directionMap[direction];
-      const repeatCount = Math.min(amount, 50);
-      const commands = Array(repeatCount).fill(`xdotool click ${btn}`);
-      command = `${displayPrefix} ` + commands.join(' && ');
+      // Ensure amount is a reasonable positive integer
+      const repeatCount = Math.max(1, Math.min(Math.floor(amount), 500)); // Cap repeat at 500 for sanity
+      const delayMs = 25; // Reduce delay for faster scrolling
+      command = `${displayPrefix} xdotool click --repeat ${repeatCount} --delay ${delayMs} ${btn}`;
       break;
     }
     case "move_mouse": {
@@ -230,7 +233,7 @@ async function executeComputerAction(
       break;
     }
     case "type": {
-      const escapedText = action.text.replace(/'/g, "'\\''");
+      const escapedText = action.text.replace(/'/g, "'\''");
       command = `${displayPrefix} xdotool type --clearmodifiers --delay 50 '${escapedText}'`;
       break;
     }
@@ -254,7 +257,7 @@ async function executeComputerAction(
       break;
     }
     case "screenshot": {
-      command = `${displayPrefix} scrot -o -q 100 - | base64`;
+      command = `${displayPrefix} scrot -q 100 /tmp/screen.jpg && base64 /tmp/screen.jpg && rm /tmp/screen.jpg`;
       break;
     }
     case "get_cursor_position": {
@@ -268,31 +271,35 @@ async function executeComputerAction(
   console.log(`Executing command for instance ${id}: ${command}`);
 
   const provisioningUrl = `http://${GATEWAY_EXTERNAL_IP}/cyberdesk/${id}/execute-command`;
+  const requestBody = GatewayExecuteCommandRequestSchema.parse({ command });
   try {
-    const response = await axios.post<{
-        args?: string[];
-        return_code: number;
-        stdout: string;
-        stderr: string;
-        duration_s?: number;
-    }>(provisioningUrl, { command });
+    const response = await axios.post<z.infer<typeof GatewayExecuteCommandResponseSchema>>(
+        provisioningUrl,
+        requestBody
+    );
 
-    console.log(`Command execution response for instance ${id}:`, response.data);
+    const parsedResponse = GatewayExecuteCommandResponseSchema.parse(response.data);
 
-    if (response.data.return_code !== 0) {
+    console.log(`Command execution response for instance ${id}:`, parsedResponse);
+
+    if (parsedResponse.vm_response.return_code !== 0) {
       throw new ActionExecutionError(
-          `Command failed with code ${response.data.return_code}`,
-          response.data.stderr || 'No stderr output'
+          `Command failed with code ${parsedResponse.vm_response.return_code}`,
+          parsedResponse.vm_response.stderr || 'No stderr output'
       );
     }
 
-    return response.data.stdout.trim();
+    return parsedResponse.vm_response.stdout.trim();
 
   } catch (error: any) {
     console.error(`Error executing command for instance ${id}:`, error);
-    if (axios.isAxiosError(error)) {
+    if (error instanceof z.ZodError) {
+        throw new GatewayError(`Invalid response structure from gateway: ${error.errors.map(e => e.message).join(', ')}`);
+    } else if (axios.isAxiosError(error)) {
         const gatewayMessage = error.response?.data?.message || error.message || "Failed to execute command via gateway";
         throw new GatewayError(`Action execution failed via gateway: ${gatewayMessage}`);
+    } else if (error instanceof ApiError) {
+        throw error;
     } else {
         throw new InternalServerError(`Unexpected error during action execution: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
@@ -325,32 +332,29 @@ async function executeBashCommand(
     console.log(`Executing bash command for instance ${id}: ${command}`);
   
     const provisioningUrl = `http://${GATEWAY_EXTERNAL_IP}/cyberdesk/${id}/execute-command`;
+    const requestBody = GatewayExecuteCommandRequestSchema.parse({ command });
     try {
-      const response = await axios.post<{
-          args?: string[];
-          return_code: number;
-          stdout: string;
-          stderr: string;
-          duration_s?: number;
-      }>(provisioningUrl, { command });
+      const response = await axios.post<z.infer<typeof GatewayExecuteCommandResponseSchema>>(
+        provisioningUrl,
+        requestBody
+      );
   
-      console.log(`Bash command execution response for instance ${id}:`, response.data);
+      const parsedResponse = GatewayExecuteCommandResponseSchema.parse(response.data);
   
-      if (response.data.return_code !== 0) {
-        throw new ActionExecutionError(
-            `Command failed with code ${response.data.return_code}`,
-            response.data.stderr || 'No stderr output'
-        );
-      }
+      console.log(`Bash command execution response for instance ${id}:`, parsedResponse);
   
-      return response.data.stdout.trim();
+      return parsedResponse.vm_response.stdout.trim() || parsedResponse.vm_response.stderr.trim();
   
     } catch (error: any) {
       console.error(`Error executing bash command for instance ${id}:`, error);
-      if (axios.isAxiosError(error)) {
+       if (error instanceof z.ZodError) {
+            throw new GatewayError(`Invalid response structure from gateway: ${error.errors.map(e => e.message).join(', ')}`);
+        } else if (axios.isAxiosError(error)) {
           const gatewayMessage = error.response?.data?.message || error.message || "Failed to execute command via gateway";
           throw new GatewayError(`Bash command execution failed via gateway: ${gatewayMessage}`);
-      } else {
+      } else if (error instanceof ApiError) {
+        throw error;
+    } else {
           throw new InternalServerError(`Unexpected error during bash command execution: ${error instanceof Error ? error.message : 'Unknown error'}`);
       }
     }

@@ -91,6 +91,7 @@ export async function getDbInstanceDetails(
       status: schema.cyberdeskInstances.status,
       createdAt: schema.cyberdeskInstances.createdAt,
       timeoutAt: schema.cyberdeskInstances.timeoutAt,
+      streamUrl: schema.cyberdeskInstances.streamUrl,
     })
     .from(schema.cyberdeskInstances)
     .where(

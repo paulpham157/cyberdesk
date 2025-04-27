@@ -117,13 +117,17 @@ export type GetV1DesktopIdResponses = {
          */
         status: 'pending' | 'running' | 'terminated' | 'error';
         /**
+         * URL for the desktop stream (null if the desktop is not running)
+         */
+        stream_url: string;
+        /**
          * Timestamp when the instance was created
          */
-        createdAt: string;
+        created_at: string;
         /**
          * Timestamp when the instance will automatically time out
          */
-        timeoutAt: string;
+        timeout_at: string;
     };
 };
 
@@ -134,7 +138,7 @@ export type PostV1DesktopData = {
         /**
          * Timeout in milliseconds for the desktop session
          */
-        timeoutMs?: number;
+        timeout_ms?: number;
     };
     headers: {
         /**
@@ -604,7 +608,7 @@ export type PostV1DesktopIdComputerActionResponses = {
          */
         error?: string;
         /**
-         * Base64 encoded image data (only returned for screenshot actions)
+         * Base64 encoded JPEG image data (only returned for screenshot actions)
          */
         base64_image?: string;
     };
@@ -734,7 +738,7 @@ export type PostV1DesktopIdBashActionResponses = {
          */
         error?: string;
         /**
-         * Base64 encoded image data (only returned for screenshot actions)
+         * Base64 encoded JPEG image data (only returned for screenshot actions)
          */
         base64_image?: string;
     };

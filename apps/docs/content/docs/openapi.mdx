@@ -93,8 +93,9 @@ fetch("https://api.cyberdesk.io/v1/desktop/:id", {
 {
   "id": "a1b2c3d4-e5f6-7890-1234-567890abcdef",
   "status": "running",
-  "createdAt": "2023-10-27T10:00:00Z",
-  "timeoutAt": "2023-10-28T10:00:00Z"
+  "stream_url": "https://cyberdesk.com/vnc/a1b2c3d4-e5f6-7890-1234-567890abcdef",
+  "created_at": "2023-10-27T10:00:00Z",
+  "timeout_at": "2023-10-28T10:00:00Z"
 }
 ```
 
@@ -113,13 +114,17 @@ export interface Response {
    */
   status: "pending" | "running" | "terminated" | "error";
   /**
+   * URL for the desktop stream (null if the desktop is not running)
+   */
+  stream_url: string;
+  /**
    * Timestamp when the instance was created
    */
-  createdAt: string;
+  created_at: string;
   /**
    * Timestamp when the instance will automatically time out
    */
-  timeoutAt: string;
+  timeout_at: string;
 }
 ```
 
@@ -409,7 +414,7 @@ Creates a new virtual desktop instance and returns its ID and stream URL
 
 ### Request Body (Optional)
 
-<Property name={"timeoutMs"} type={"integer"} required={false} deprecated={undefined}>
+<Property name={"timeout_ms"} type={"integer"} required={false} deprecated={undefined}>
 
 Timeout in milliseconds for the desktop session
 
@@ -451,7 +456,7 @@ API key for authentication
 curl -X POST "https://api.cyberdesk.io/v1/desktop" \
   -H "x-api-key: api_12345" \
   -d '{
-  "timeoutMs": 3600000
+  "timeout_ms": 3600000
 }'
 ```
 
@@ -1553,7 +1558,7 @@ fetch("https://api.cyberdesk.io/v1/desktop/:id/computer-action", {
 {
   "output": "X=500 Y=300",
   "error": "Command failed with code 1: xdotool: command not found",
-  "base64_image": "iVBORw0KGgoAAAANSUhEUgAA..."
+  "base64_image": "/9j/4AAQSkZJRgABAQEAYABgAAD/2wBDAAEBAQEBAQEBAQEBAQEBAQ..."
 }
 ```
 
@@ -1572,7 +1577,7 @@ export interface Response {
    */
   error?: string;
   /**
-   * Base64 encoded image data (only returned for screenshot actions)
+   * Base64 encoded JPEG image data (only returned for screenshot actions)
    */
   base64_image?: string;
 }
@@ -1949,7 +1954,7 @@ fetch("https://api.cyberdesk.io/v1/desktop/:id/bash-action", {
 {
   "output": "X=500 Y=300",
   "error": "Command failed with code 1: xdotool: command not found",
-  "base64_image": "iVBORw0KGgoAAAANSUhEUgAA..."
+  "base64_image": "/9j/4AAQSkZJRgABAQEAYABgAAD/2wBDAAEBAQEBAQEBAQEBAQEBAQ..."
 }
 ```
 
@@ -1968,7 +1973,7 @@ export interface Response {
    */
   error?: string;
   /**
-   * Base64 encoded image data (only returned for screenshot actions)
+   * Base64 encoded JPEG image data (only returned for screenshot actions)
    */
   base64_image?: string;
 }

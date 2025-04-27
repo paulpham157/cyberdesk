@@ -22,8 +22,8 @@ const ActionResponseSchema = z.object({
     example: "Command failed with code 1: xdotool: command not found",
   }),
   base64_image: z.string().optional().openapi({
-    description: "Base64 encoded image data (only returned for screenshot actions)",
-    example: "iVBORw0KGgoAAAANSUhEUgAA...",
+    description: "Base64 encoded JPEG image data (only returned for screenshot actions)",
+    example: "/9j/4AAQSkZJRgABAQEAYABgAAD/2wBDAAEBAQEBAQEBAQEBAQEBAQ...",
   })
 });
 
@@ -41,7 +41,7 @@ const PointSchema = z.object({
 
 // Schema for desktop creation parameters
 export const CreateDesktopParamsSchema = z.object({
-  timeoutMs: z.number().int().optional().openapi({
+  timeout_ms: z.number().int().optional().openapi({
     description: "Timeout in milliseconds for the desktop session",
     example: 3600000,
   }),
@@ -268,11 +268,15 @@ const GetDesktopResponseSchema = z.object({
     description: "Current status of the desktop instance",
     example: "running",
   }),
-  createdAt: z.string().datetime().openapi({
+  stream_url: z.string().nullable().openapi({
+    description: "URL for the desktop stream (null if the desktop is not running)",
+    example: "https://cyberdesk.com/vnc/a1b2c3d4-e5f6-7890-1234-567890abcdef",
+  }),
+  created_at: z.string().datetime().openapi({
     description: "Timestamp when the instance was created",
     example: "2023-10-27T10:00:00Z",
   }),
-  timeoutAt: z.string().datetime().openapi({
+  timeout_at: z.string().datetime().openapi({
     description: "Timestamp when the instance will automatically time out",
     example: "2023-10-28T10:00:00Z",
   }),
