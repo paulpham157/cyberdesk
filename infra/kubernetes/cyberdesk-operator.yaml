@@ -46,6 +46,16 @@ rules:
   resources: ["virtualmachines", "virtualmachineinstances"]
   verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
 
+# NEW: Access to KubeVirt Snapshot resources
+- apiGroups: ["snapshot.kubevirt.io"]
+  resources: ["virtualmachinesnapshots"]
+  verbs: ["get", "list", "watch"]
+
+# NEW: Access to KubeVirt Clone resources
+- apiGroups: ["clone.kubevirt.io"]
+  resources: ["virtualmachineclones"]
+  verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+
 # Permission to manage CRDs
 - apiGroups: ["apiextensions.k8s.io"]
   resources: ["customresourcedefinitions"]
