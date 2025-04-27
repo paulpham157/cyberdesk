@@ -29,15 +29,6 @@ export async function POST(req: Request) {
     return Response.json({ error: "Desktop ID is required" }, { status: 400 });
   }
   
-  // Get API key from environment variables
-  const cyberdeskApiKey = process.env.CYBERDESK_API_KEY;
-  
-  // Ensure API key is available
-  if (!cyberdeskApiKey) {
-    console.error("Missing Cyberdesk API key");
-    return Response.json({ error: "Server configuration error" }, { status: 500 });
-  }
-  
   const lastMessage = messages[messages.length - 1] as ThreadMessage;
   
   // For debugging - log the structure of content
@@ -61,7 +52,7 @@ export async function POST(req: Request) {
     displayHeightPx: 768,
     execute: async ({ action, coordinate, duration, scroll_amount, scroll_direction, start_coordinate, text }) => {
       if (action === 'screenshot') {
-        const screenshotData = await getScreenshot(desktopId, cyberdeskApiKey);
+        const screenshotData = await getScreenshot(desktopId);
         return {
           type: "image" as const,
           data: screenshotData,
@@ -80,7 +71,6 @@ export async function POST(req: Request) {
         const result = await executeComputerAction(
           action,
           desktopId,
-          cyberdeskApiKey,
           coordinateObj, 
           text, 
           duration, 
@@ -113,7 +103,7 @@ export async function POST(req: Request) {
   });
 
   const bashTool = anthropic.tools.bash_20250124({
-    execute: async ({ command, restart }) => await executeBashCommand(command, desktopId, cyberdeskApiKey)
+    execute: async ({ command, restart }) => await executeBashCommand(command, desktopId)
   });
 
   try {

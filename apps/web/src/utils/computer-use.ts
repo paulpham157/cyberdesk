@@ -2,42 +2,36 @@
  * Utility functions for computer control with Cyberdesk API
  */
 
+import client from '@/lib/cyberdeskClient';
+
 /**
  * Get the base API URL based on environment
  */
-const getApiBaseUrl = () => {
-  return process.env.NODE_ENV === 'production' 
-    ? 'https://api.cyberdesk.io/v1' 
-    : 'http://localhost:3001/v1';
-};
+
 
 /**
  * Get a screenshot of the current display
  * @param desktopId The ID of the desktop instance
- * @param cyberdeskApiKey The Cyberdesk API key for authentication
  * @returns Base64 encoded PNG image data
  */
-export async function getScreenshot(desktopId: string, cyberdeskApiKey: string): Promise<string> {
+export async function getScreenshot(desktopId: string): Promise<string> {
   try {
-    const baseUrl = getApiBaseUrl();
-    const response = await fetch(`${baseUrl}/desktop/${desktopId}/computer-action`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': cyberdeskApiKey
-      },
-      body: JSON.stringify({
-        type: 'screenshot'
-      })
-    });
+    const result = await client.executeActionOnDesktop({
+        path: { id: desktopId },
+        body: { type: 'screenshot' },
+    } as any);
 
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(`Failed to get screenshot: ${error.message}`);
+    if (result.response.status !== 200) {
+      let errorDetails = `Failed with status: ${result.response.status}`;
+      try {
+        const errorBody = await result.response.json(); 
+        errorDetails = errorBody.message || errorBody.error || JSON.stringify(errorBody);
+      } catch (e) { /* Failed to parse body */ }
+      throw new Error(`Failed to get screenshot: ${errorDetails}`);
     }
 
-    const data = await response.json();
-    return data.image || ''; 
+    const data = result.data;
+    return data?.base64_image || ''; 
   } catch (error) {
     console.error('Error getting screenshot:', error);
     throw error;
@@ -48,7 +42,6 @@ export async function getScreenshot(desktopId: string, cyberdeskApiKey: string):
  * Execute a computer action based on the provided parameters
  * @param action The action to perform (click, type, etc.)
  * @param desktopId The ID of the desktop instance
- * @param cyberdeskApiKey The Cyberdesk API key for authentication
  * @param coordinate The coordinates for actions that require a position
  * @param text The text for actions that require text input
  * @param duration The duration for wait actions (in seconds, converted to ms)
@@ -60,7 +53,6 @@ export async function getScreenshot(desktopId: string, cyberdeskApiKey: string):
 export async function executeComputerAction(
   action: string,
   desktopId: string,
-  cyberdeskApiKey: string,
   coordinate?: { x: number; y: number }, 
   text?: string,
   duration?: number,
@@ -69,7 +61,6 @@ export async function executeComputerAction(
   start_coordinate?: { x: number; y: number }
 ): Promise<string | { type: "image"; data: string }> {
   try {
-    const baseUrl = getApiBaseUrl();
     let requestBody: any = {};
 
     // Map the action to the API's expected format
@@ -192,31 +183,35 @@ export async function executeComputerAction(
         
       }    
 
+    // Construct the parameters for the client call
+    const clientParams: any = {
+        path: { id: desktopId },
+        body: requestBody as any
+    };
 
-    const response = await fetch(`${baseUrl}/desktop/${desktopId}/computer-action`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': cyberdeskApiKey
-      },
-      body: JSON.stringify(requestBody)
-    });
+    const result = await client.executeActionOnDesktop(clientParams);
 
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(`Failed to execute computer action: ${error.message}`);
+    if (result.response.status !== 200) {
+      let errorDetails = `Failed with status: ${result.response.status}`;
+       try {
+        const errorBody = await result.response.json(); 
+        errorDetails = errorBody.message || errorBody.error || JSON.stringify(errorBody);
+      } catch (e) { /* Failed to parse body */ }
+      throw new Error(`Failed to execute computer action ${action}: ${errorDetails}`);
     }
 
-    const data = await response.json();
+    const data = result.data;
     
-    if (data.image) {
+    // Check for image data in the response
+    if (data?.base64_image) { 
       return {
         type: "image",
-        data: data.image
+        data: data.base64_image
       };
     }
     
-    return data.status || 'Action completed successfully';
+    // Return status or a default success message
+    return data?.output || 'Action completed successfully'; 
   } catch (error) {
     console.error(`Error executing computer action ${action}:`, error);
     throw error;

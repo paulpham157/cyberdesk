@@ -4,7 +4,6 @@ import { LogoCloud } from '@/components/logo-cloud'
 import { Testimonials } from '@/components/testimonials'
 import type { Metadata } from 'next'
 import { Hero } from '../components/hero'
-import { DemoSection } from '../components/demo-section'
 import PlaygroundDemo from './demo/page'
 
 

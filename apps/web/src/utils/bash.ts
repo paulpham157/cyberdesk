@@ -2,6 +2,8 @@
  * Utility functions for bash command execution with Cyberdesk API
  */
 
+import client from '@/lib/cyberdeskClient';
+
 /**
  * Get the base API URL based on environment
  */
@@ -15,34 +17,33 @@ const getApiBaseUrl = () => {
  * Execute a bash command
  * @param command The command to execute
  * @param desktopId The ID of the desktop instance
- * @param cyberdeskApiKey The Cyberdesk API key for authentication
  * @returns The command output as a string
  */
 export async function executeBashCommand(
   command: string, 
-  desktopId: string, 
-  cyberdeskApiKey: string
+  desktopId: string
 ): Promise<string> {
   try {
-    const baseUrl = getApiBaseUrl();
-    const response = await fetch(`${baseUrl}/desktop/${desktopId}/bash-action`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': cyberdeskApiKey
-      },
-      body: JSON.stringify({
-        command
-      })
-    });
+    // Call the client method
+    const result = await client.bashCommandOnDesktop({
+        path: { id: desktopId },
+        body: { command },
+        // No headers needed here as per previous request
+    } as any); // Use 'as any' if type definition still mandates headers
 
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(`Failed to execute bash command: ${error.message}`);
+    // Check status code from the nested response object
+    if (result.response.status !== 200) {
+      let errorDetails = `Failed with status: ${result.response.status}`;
+      try {
+        const errorBody = await result.response.json(); 
+        errorDetails = errorBody.message || errorBody.error || JSON.stringify(errorBody);
+      } catch (e) { /* Failed to parse body */ }
+      throw new Error(`Failed to execute bash command: ${errorDetails}`);
     }
 
-    const data = await response.json();
-    return data.output || '';
+    const data = result.data;
+    // Assuming the client response data has an optional output property
+    return data?.output || '';
   } catch (error) {
     console.error(`Error executing bash command "${command}":`, error);
     return 'Error executing bash command' + "\n" + (error as Error).message;

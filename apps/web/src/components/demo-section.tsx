@@ -1,26 +1,27 @@
 'use client'
 
 import { Button } from '@/components/button'
+import client from '@/lib/cyberdeskClient'
 import { supabase } from '@/utils/supabaseClient'
 import { ComputerDesktopIcon } from '@heroicons/react/24/outline'
 import { ChevronRightIcon, MinusIcon, PlusIcon } from '@heroicons/react/24/solid'
 import React, { useEffect, useState, useRef, useCallback, forwardRef } from 'react'
 
 // Constants
-const FALLBACK_VIDEO_URL = 'https://www.youtube.com/embed/dQw4w9WgXcQ'
+const FALLBACK_VIDEO_URL = ''
 const DESKTOP_TIMEOUT_MS = 600000
 
 // Types
 interface DemoSectionProps {
-  onDesktopDeployed: (url: string, id: string) => void
+  onDesktopDeployed: (id: string) => void
   onDesktopStopped: () => void
   hideIntro?: boolean
   desktopId?: string
 }
 
-interface DesktopResponse {
-  streamUrl: string
+interface DesktopLaunchResponse {
   id: string
+  status: string
 }
 
 // Main component
@@ -37,7 +38,7 @@ export function DemoSection({
   const [isDemoLaunched, setIsDemoLaunched] = useState(false)
   const [hasEverLaunchedDemo, setHasEverLaunchedDemo] = useState(false)
   const demoContentRef = useRef<HTMLDivElement>(null)
-
+  const [vmStatus, setVmStatus] = useState<string>('')
   // Set isDemoLaunched based on desktopId prop
   useEffect(() => {
     if (desktopId) {
@@ -62,11 +63,85 @@ export function DemoSection({
     checkAuthStatus()
   }, [])
 
+  // Effect for polling desktop status when pending
+  useEffect(() => {
+    let timeoutId: NodeJS.Timeout | null = null;
+
+    const pollDesktopStatus = async () => {
+      if (!desktopId) {
+        console.warn('Polling stopped: desktopId is missing.');
+        setIsLoading(false);
+        setVmStatus('error'); // Cannot poll without ID
+        return;
+      }
+
+      try {
+        console.log(`Polling status for desktop ID: ${desktopId}`);
+        const response = await fetch(`/api/playground/desktop?id=${desktopId}`);
+        
+        // Check specifically for API route errors (non-200)
+        if (!response.ok) {
+            console.error(`API responded with status ${response.status} for ID ${desktopId}`);
+            let errorData = { status: 'error', stream_url: '' }; 
+            try {
+              errorData = await response.json();
+            } catch(e) { /* Ignore JSON parsing error if body is empty */ }
+            setVmStatus(errorData.status || 'error'); 
+            setStreamUrl(errorData.stream_url || FALLBACK_VIDEO_URL); 
+            setIsLoading(false);
+            return; // Stop polling on server error
+        }
+
+        const data = await response.json();
+        console.log('Polling response:', data);
+
+        if (data.status === 'pending') {
+          // Still pending, poll again after delay
+          timeoutId = setTimeout(pollDesktopStatus, 2000);
+        } else {
+          // Status is no longer pending (e.g., 'ready', 'error', 'stopped', 'unavailable')
+          setVmStatus(data.status || 'error'); // Use 'error' as fallback
+          setStreamUrl(data.stream_url || (data.status === 'ready' ? FALLBACK_VIDEO_URL : 'about:blank')); // Provide fallback URL if ready but empty, otherwise blank
+          setIsLoading(false); // Loading is complete
+          console.log(`Polling finished for ${desktopId}. Final status: ${data.status}`);
+        }
+      } catch (error) {
+        console.error(`Error polling desktop status for ID ${desktopId}:`, error);
+        setVmStatus('error');
+        setStreamUrl(FALLBACK_VIDEO_URL); // Fallback URL on error
+        setIsLoading(false);
+        // Stop polling on fetch/parse error
+      }
+    };
+
+    if (vmStatus === 'pending' && desktopId) {
+        console.log(`Starting polling for desktop ID: ${desktopId}`);
+        setIsLoading(true); // Ensure loading is true when polling starts
+        pollDesktopStatus();
+    } else {
+      // Optional: Ensure loading is false if status is not pending *unless* explicitly set to loading elsewhere.
+      // if(isLoading && vmStatus !== 'loading') {
+      //      setIsLoading(false);
+      // }
+    }
+
+    // Cleanup function: clear timeout if component unmounts or dependencies change
+    return () => {
+      if (timeoutId) {
+        console.log(`Clearing polling timeout for desktop ID: ${desktopId}`);
+        clearTimeout(timeoutId);
+      }
+    };
+    // Ensure all state setters used within the effect are listed if required by linting rules,
+    // or disable the rule for this line. desktopId and vmStatus are the key drivers.
+  }, [vmStatus, desktopId, setIsLoading, setStreamUrl, setVmStatus]);
+
   // Function to launch the demo
   const launchDemo = async () => {
-    setIsLoading(true)
-    setIsDemoLaunched(true)
-    setHasEverLaunchedDemo(true)
+    setIsLoading(true);
+    setIsDemoLaunched(true);
+    setHasEverLaunchedDemo(true);
+    setVmStatus('loading'); // Indicate initial loading process
 
     // Check if we're on mobile (using the same logic as in DesktopIframe)
     const isMobile = window.innerWidth < 768;
@@ -83,19 +158,35 @@ export function DemoSection({
     }
 
     try {
-      const { streamUrl, id } = await deployVirtualDesktop()
-      setStreamUrl(streamUrl)
+      const { status, id } = await deployVirtualDesktop();
+      console.log("Deploy response:", { status, id });
 
-      if (onDesktopDeployed) {
-        onDesktopDeployed(streamUrl, id)
+      // Set initial status from deploy call
+      setVmStatus(status);
+      if (status !== 'error' && id) {
+        if (onDesktopDeployed) {
+          onDesktopDeployed(id); // Pass ID up only on success
+        }
+      } else {
+          // Handle error from deployVirtualDesktop itself (e.g., status was 'error' or id was missing)
+          if(status === 'error') {
+          console.error("Deployment failed or returned invalid data", { status, id })
+          setIsLoading(false);
+          setStreamUrl(FALLBACK_VIDEO_URL);
+          setVmStatus('error'); // Ensure status reflects the error
+          // onDesktopStopped(); // Reset UI state
       }
+    }
     } catch (error) {
-      console.error('Error executing action:', error)
-      setStreamUrl(FALLBACK_VIDEO_URL)
+      console.error('Error during launchDemo action:', error);
+      setVmStatus('error');
+      setStreamUrl(FALLBACK_VIDEO_URL);
+      setIsLoading(false);
+      // onDesktopStopped(); // Reset UI
     }
 
-    // Simulate minimum loading time for better UX
-    setTimeout(() => setIsLoading(false), 800)
+    // REMOVED: Simulate minimum loading time for better UX
+    // setTimeout(() => setIsLoading(false), 800)
   }
 
   // Function to handle stopping the desktop
@@ -132,6 +223,7 @@ export function DemoSection({
         streamUrl={streamUrl}
         isLoggedIn={isLoggedIn}
         onLaunchDemo={launchDemo}
+        vmStatus={vmStatus}
         ref={demoContentRef}
       />
       
@@ -190,7 +282,7 @@ const LoadingState = () => (
   </div>
 )
 
-const DesktopIframe = ({ streamUrl }: { streamUrl: string }) => {
+const DesktopIframe = ({ streamUrl, vmStatus,isLoading }: { streamUrl: string, vmStatus: string, isLoading: boolean }) => {
   const [scale, setScale] = useState(0.5);
   const [isMobile, setIsMobile] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -211,7 +303,8 @@ const DesktopIframe = ({ streamUrl }: { streamUrl: string }) => {
 
   // Calculate and set the optimal scale based on container size
   const updateScale = useCallback(() => {
-    if (!containerRef.current) return;
+    // Don't calculate scale if showing error or not ready/loading
+    if (!containerRef.current || vmStatus === 'error' || vmStatus === 'unavailable') return;
     
     const containerWidth = containerRef.current.clientWidth;
     const containerHeight = containerRef.current.clientHeight;
@@ -224,11 +317,13 @@ const DesktopIframe = ({ streamUrl }: { streamUrl: string }) => {
     const optimalScale = Math.min(widthScale, heightScale);
     
     setScale(Math.max(0.1, Math.min(1.0, optimalScale)));
-  }, []);
+  }, [vmStatus]); // Add vmStatus dependency
+
 
   // Set up resize observer to update scale when container size changes
   useEffect(() => {
-    if (!containerRef.current) return;
+    // Don't observe if showing error or not ready/loading
+    if (!containerRef.current || vmStatus === 'error' || vmStatus === 'unavailable') return;
     
     updateScale();
     
@@ -241,36 +336,70 @@ const DesktopIframe = ({ streamUrl }: { streamUrl: string }) => {
     return () => {
       resizeObserver.disconnect();
     };
-  }, [updateScale]);
+  }, [updateScale, vmStatus]); // Add vmStatus dependency
+
 
   return (
     <div 
       ref={containerRef}
-      className="w-full h-[400px] md:h-[500px] bg-black"
+      className="w-full h-[400px] md:h-[500px] bg-black relative overflow-hidden" // Added relative and overflow-hidden
     >
-      <div 
-        className="w-full h-full flex items-center justify-center overflow-auto"
-        style={{ 
-          alignItems: isMobile ? 'flex-start' : 'center',
-          paddingTop: isMobile ? '60px' : '0'
-        }}
-      >
+      {vmStatus === 'error' ? (
+        <div className="absolute inset-0 flex flex-col items-center justify-center bg-gray-50 text-center p-4">
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-12 h-12 mb-4 animate-pulse text-red-500">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.008v.008H12v-.008Z" />
+          </svg>
+          <h3 className="text-xl font-semibold mb-2 text-red-600">Oops! Something went wrong.</h3>
+          <p className="text-md text-gray-600">An error has occurred, please try again later.</p>
+        </div>
+      ) : (
         <div 
+          className="w-full h-full flex items-center justify-center overflow-auto"
           style={{ 
-            transform: `scale(${scale})`,
-            transformOrigin: isMobile ? 'top center' : 'center center',
+            alignItems: isMobile ? 'flex-start' : 'center',
+            paddingTop: isMobile ? '60px' : '0'
           }}
         >
-          <iframe
-            src={streamUrl}
-            width={1024}
-            height={768}
-            style={{ border: 'none' }}
-            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; clipboard-read; clipboard-write; fullscreen"
-            allowFullScreen
-          ></iframe>
+          <div 
+            style={{ 
+              transform: `scale(${scale})`,
+              transformOrigin: isMobile ? 'top center' : 'center center',
+              transition: 'transform 0.3s ease-out', // Added smooth transition
+            }}
+          >
+            <iframe
+              src={streamUrl}
+              width={1024}
+              height={768}
+              style={{ border: 'none', display: vmStatus === 'ready' ? 'block' : 'none' }} // Hide iframe until ready
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; clipboard-read; clipboard-write; fullscreen"
+              allowFullScreen
+              title="Virtual Desktop Stream" // Added title for accessibility
+            ></iframe>
+            {/* Optional: Add a loading indicator while vmStatus is 'loading' */}
+            {isLoading && (
+              <div className="w-[1024px] h-[768px] flex items-center justify-center bg-gray-800 text-white">
+                <div className="flex flex-col items-center">
+                  <div className="h-8 w-8 animate-spin rounded-full border-b-2 border-indigo-400 mb-3"></div>
+                  Preparing stream...
+                </div>
+              </div>
+            )}
+             {/* Optional: Add unavailable state */}
+             {vmStatus === 'unavailable' && (
+              <div className="w-[1024px] h-[768px] flex items-center justify-center bg-gray-900 text-gray-400">
+                 <div className="flex flex-col items-center text-center p-4">
+                   <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-12 h-12 mb-4 text-gray-500">
+                     <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9 3.75h.008v.008H12v-.008Z" />
+                   </svg>
+                  <h3 className="text-lg font-medium mb-1">Desktop Unavailable</h3>
+                  <p className="text-sm">The virtual desktop could not be started or is no longer available.</p>
+                 </div>
+              </div>
+            )}
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 };
@@ -327,6 +456,7 @@ const DemoContent = React.forwardRef<
     isDemoLaunched: boolean
     hasEverLaunchedDemo: boolean
     streamUrl: string
+    vmStatus: string
     isLoggedIn: boolean
     onLaunchDemo: () => void
   }
@@ -335,6 +465,7 @@ const DemoContent = React.forwardRef<
   isDemoLaunched,
   hasEverLaunchedDemo,
   streamUrl,
+  vmStatus,
   isLoggedIn,
   onLaunchDemo,
 }, ref) => {
@@ -343,7 +474,7 @@ const DemoContent = React.forwardRef<
   if (isLoading) {
     content = <LoadingState />;
   } else if (isDemoLaunched) {
-    content = <DesktopIframe streamUrl={streamUrl} />;
+    content = <DesktopIframe streamUrl={streamUrl} vmStatus={vmStatus} isLoading={isLoading} />;
   } else {
     content = !hasEverLaunchedDemo ? (
       <InitialDemoState onLaunchDemo={onLaunchDemo} />
@@ -362,29 +493,41 @@ const DemoContent = React.forwardRef<
 DemoContent.displayName = 'DemoContent';
 
 // API functions
-const deployVirtualDesktop = async (): Promise<DesktopResponse> => {
+const deployVirtualDesktop = async (): Promise<DesktopLaunchResponse> => {
   try {
-    const response = await fetch('/api/playground/desktop', {
+    const apiResponse = await fetch('/api/playground/desktop', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ timeoutMs: DESKTOP_TIMEOUT_MS }),
-    })
+      body: JSON.stringify({ timeoutMs: DESKTOP_TIMEOUT_MS })
+    });
 
-    if (!response.ok) {
-      throw new Error('Failed to deploy desktop')
+    const responseData = await apiResponse.json();
+
+    if (!apiResponse.ok) {
+      console.error('Backend API error:', responseData.error || `Status: ${apiResponse.status}`);
+      // Handle error appropriately in the UI if needed
+      return {
+        id: '',
+        status: 'error'
+      };
+    } else {
+      console.log('Backend API success:', responseData);
+      // TODO: Maybe use the returned streamUrl and id?
+      // Example: setStreamUrl(responseData.streamUrl); onDesktopDeployed(responseData.streamUrl, responseData.id);
+      return {
+        id: responseData.id,
+        status: responseData.status
+      };
     }
-
-    const data = await response.json()
-    return { streamUrl: data.streamUrl, id: data.id }
   } catch (error) {
-    console.error('Error deploying desktop:', error)
-    // Return a fallback URL for demo purposes
+    console.error('Error calling backend API:', error);
+    // Handle fetch error appropriately
     return {
-      streamUrl: FALLBACK_VIDEO_URL,
-      id: 'demo-fallback-id',
-    }
+      id: '',
+      status: 'error'
+    };
   }
 }
 
