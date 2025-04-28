@@ -148,12 +148,16 @@ def _init_kubernetes_clients() -> tuple[CoreV1Api, CustomObjectsApi, Apiextensio
         kubernetes.config.load_kube_config()
         logger.info("Loaded kube‑config from local file")
         IS_IN_CLUSTER = False
-        local_ip = os.getenv("GATEWAY_TESTING_EXTERNAL_IP")
-        if local_ip:
-            GATEWAY_BASE_URL = f"http://{local_ip}:80"
-            logger.info(f"Using local gateway URL: {GATEWAY_BASE_URL}")
+        # Use a single env var for the full testing URL
+        testing_url = os.getenv("GATEWAY_TESTING_URL")
+        if testing_url:
+            GATEWAY_BASE_URL = testing_url
+            logger.info(f"Using configured local testing gateway URL: {GATEWAY_BASE_URL}")
+            # Log a hint if it looks like the user might want host.docker.internal
+            if "localhost" in testing_url:
+                 logger.warning("GATEWAY_TESTING_URL contains 'localhost'. If operator and gateway run in separate local containers, consider using 'host.docker.internal' instead of 'localhost'.")
         else:
-            logger.warning("Running locally but GATEWAY_TESTING_EXTERNAL_IP env var not set. Gateway notifications will be skipped.")
+            logger.warning("Running locally but GATEWAY_TESTING_URL env var not set. Gateway notifications will be skipped.")
             GATEWAY_BASE_URL = None
 
     except kubernetes.config.config_exception.ConfigException:
@@ -535,10 +539,35 @@ def cyberdesk_create(spec: dict, meta: dict, status: dict, logger: kopf.Logger, 
                 CUSTOM_OBJECTS_API.patch_namespaced_custom_object(KUBEVIRT_GROUP, KUBEVIRT_VERSION, namespace, KUBEVIRT_VM_PLURAL, plucked_vm_name, body=vm_patch_body)
                 logger.info(f"Successfully patched plucked VM '{plucked_vm_name}' for '{instance_id}'.")
 
+                # --- Verify VMI is running and get IP (Readiness Check) ---
+                try:
+                    vmi = CUSTOM_OBJECTS_API.get_namespaced_custom_object(
+                        group=KUBEVIRT_GROUP,
+                        version=KUBEVIRT_VERSION,
+                        namespace=namespace,
+                        plural=KUBEVIRT_VMI_PLURAL,
+                        name=plucked_vm_name # VMI name assumed to match plucked VM name
+                    )
+                    interfaces = vmi.get('status', {}).get('interfaces', [])
+                    vmi_ip = interfaces[0].get('ipAddress') if interfaces else None
+                    vmi_phase = vmi.get('status', {}).get('phase')
+
+                    if not vmi_ip or vmi_phase != 'Running':
+                         logger.warning(f"Plucked VMI '{plucked_vm_name}' is not Running or has no IP yet (Phase: {vmi_phase}, IP: {vmi_ip}). Retrying.")
+                         raise kopf.TemporaryError(f"Plucked VMI {plucked_vm_name} not fully ready.")
+                    logger.info(f"Verified plucked VMI '{plucked_vm_name}' is Running with IP {vmi_ip}.")
+
+                except ApiException as vmi_exc:
+                    if vmi_exc.status == 404:
+                         logger.warning(f"VMI '{plucked_vm_name}' not found immediately after patching VM. Retrying.")
+                         raise kopf.TemporaryError("VMI not found yet after patching.") # Retry
+                    else:
+                         logger.error(f"API error getting VMI '{plucked_vm_name}' for readiness check: {vmi_exc.reason}")
+                         raise # Re-raise other API errors
+
                 # --- Notify Gateway ---
                 if not GATEWAY_BASE_URL:
                     logger.warning(f"Gateway base URL not configured (In cluster? {IS_IN_CLUSTER}). Skipping notification for {instance_id}.")
-                    raise kopf.PermanentError("Gateway base URL not configured")
                 else:
                     gateway_url = f"{GATEWAY_BASE_URL}/cyberdesk/{instance_id}/ready"
                     logger.info(f"Notifying gateway for plucked instance '{instance_id}' at {gateway_url}")
