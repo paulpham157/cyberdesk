@@ -34,8 +34,6 @@ spec:
             pool.kubevirt.io/warm: ready
             app: cyberdesk
         spec:
-          hostname: warm-vm-template # Placeholder, will be overwritten by operator
-          subdomain: kubevirt-vm-headless # Match what the operator/gateway expects
           domain:
             cpu:
               cores: 1

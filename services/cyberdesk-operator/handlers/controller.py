@@ -2,23 +2,28 @@
 cyberdesk_operator.py
 ---------------------
 Kopf‑based Kubernetes operator that provisions and manages KubeVirt VMs for a custom
-`Cyberdesk` CRD.  Supabase is used as an external source of truth for instance state.
+`Cyberdesk` CRD. Supabase is used as an external source of truth for instance state.
 
 Key responsibilities
 ~~~~~~~~~~~~~~~~~~~~
-* Bootstrap the operator (load configuration, create Cyberdesk CRD if required).
-* Translate `Cyberdesk` resources into KubeVirt `VirtualMachine` objects and their
-  accompanying cloud‑init secrets.
-* Keep Supabase in sync with KubeVirt `VirtualMachineInstance` phase changes.
-* Tear everything down again when a `Cyberdesk` CR is deleted or expires.
+* Bootstrap the operator (load configuration, check for golden snapshot).
+* Handle `Cyberdesk` resource creation:
+    * Check a `VirtualMachinePool` for an available, running "warm" VM.
+    * If found, assign the VM from the pool (remove owner refs, add labels), patch its metadata, and notify the gateway.
+    * If no warm VM is available, initiate a `VirtualMachineClone` from a golden `VirtualMachineSnapshot`.
+    * Track provisioning state (pool vs. clone) via the `Cyberdesk` status.
+* Keep Supabase in sync with KubeVirt `VirtualMachineInstance` phase changes for provisioned VMs.
+* Handle `Cyberdesk` resource deletion or expiration:
+    * Delete the associated `VirtualMachine`.
+    * Attempt cleanup of any lingering `VirtualMachineClone` operations if provisioning didn't complete.
 
 This single file keeps a clear top‑down structure:
     1. Standard‑library / third‑party imports
     2. Global configuration & logging
     3. Constants & enums
-    4. Supabase and Kubernetes client bootstrap
-    5. Utility helpers (template loading, DB helpers, etc.)
-    6. Kopf event‑handlers (startup, create/update/delete, timers)
+    4. Supabase and Kubernetes client bootstrap (sets gateway URL based on environment)
+    5. Utility helpers (template loading, DB helpers, warm pool lookup, etc.)
+    6. Kopf event‑handlers (startup, create/update/delete, timers, field watchers)
 
 All helpers are deliberately *side‑effect free* (raise on error, return data), making
 unit‑testing straightforward.
@@ -27,8 +32,6 @@ from __future__ import annotations
 
 import logging
 import os
-import string
-import time
 import urllib.request
 import urllib.error
 from datetime import UTC, datetime, timedelta
@@ -38,7 +41,6 @@ from typing import Dict, Optional
 
 import kopf
 import kubernetes
-import yaml
 from dotenv import load_dotenv
 from kopf import OperatorSettings
 from kubernetes.client import (  # noqa: WPS433 — explicit import list for type checking
@@ -224,7 +226,7 @@ def get_free_vm_from_pool(namespace: str, logger: kopf.Logger) -> Optional[str]:
     A VM is considered available if it has the 'pool.kubevirt.io/warm=ready'
     label, is Running, and does not have 'pool.kubevirt.io/in-use=true'.
 
-    If found, the VM is "plucked" by:
+    If found, the VM is "assigned" from the pool by:
     1. Removing ownerReferences.
     2. Setting 'pool.kubevirt.io/in-use=true' and 'pool.kubevirt.io/warm=claimed'.
     """
@@ -263,8 +265,8 @@ def get_free_vm_from_pool(namespace: str, logger: kopf.Logger) -> Optional[str]:
             logger.debug(f"Warm VM '{vm_name}' found but not Running (status: {status.get('printableStatus')}), skipping.")
             continue
 
-        # --- Pluck the VM ---
-        logger.info(f"Found available warm VM: '{vm_name}'. Attempting to pluck.")
+        # --- Assign the VM from Pool ---
+        logger.info(f"Found available warm VM: '{vm_name}'. Attempting to assign from pool.")
         patch_body = {
             "metadata": {
                 "ownerReferences": None,  # Detach from the pool controller
@@ -285,10 +287,10 @@ def get_free_vm_from_pool(namespace: str, logger: kopf.Logger) -> Optional[str]:
                 name=vm_name,
                 body=patch_body,
             )
-            logger.info(f"Successfully plucked warm VM '{vm_name}'. Removed ownerReferences and added 'in-use' label.")
-            return vm_name # Return the name of the plucked VM
+            logger.info(f"Successfully assigned warm VM '{vm_name}' from pool. Removed ownerReferences and added 'in-use' label.")
+            return vm_name # Return the name of the assigned VM
         except ApiException as e:
-            logger.error(f"Failed to patch (pluck) warm VM '{vm_name}': {e.status} {e.reason}")
+            logger.error(f"Failed to patch (assign) warm VM '{vm_name}': {e.status} {e.reason}")
             # If patching fails, maybe the VM was deleted concurrently? Or permissions issue.
             # Log error and continue searching, maybe another VM will work.
             # If it's a transient issue, the next reconciliation might succeed.
@@ -429,8 +431,7 @@ def _ensure_vm_patched_and_running(vm_name: str, namespace: str, logger: kopf.Lo
                     # Add annotations for the VMI if needed
                 },
                 "spec": {
-                    "hostname": vm_name,
-                    "subdomain": "kubevirt-vm-headless"
+                    "hostname": vm_name
                 }
             }
         }
@@ -469,10 +470,10 @@ def cyberdesk_create(spec: dict, meta: dict, status: dict, logger: kopf.Logger, 
     last_phase = current_status.get("lastPhase")
 
     # --- Idempotency Check: Already Provisioned? ---
-    if vm_ref and last_phase in ["Plucked", "Cloned", "Running"]: # "Running" for older status compatibility
+    if vm_ref and last_phase in ["AssignedFromPool", "Cloned", "Running"]: # "Running" for older status compatibility
         logger.info(f"Cyberdesk '{instance_id}' already has vmRef '{vm_ref}'. Ensuring patch and returning.")
         try:
-            # Make sure the VM (plucked or cloned) is correctly patched
+            # Make sure the VM (assigned or cloned) is correctly patched
             # _ensure_vm_patched_and_running should be idempotent
             _ensure_vm_patched_and_running(vm_ref, namespace, logger)
 
@@ -508,7 +509,7 @@ def cyberdesk_create(spec: dict, meta: dict, status: dict, logger: kopf.Logger, 
                   logger.error(f"Error checking existing vmRef '{vm_ref}' for '{instance_id}': {e.reason}")
                   raise kopf.TemporaryError(f"Failed to check existing VM {vm_ref}", delay=10) from e
         else:
-            return # Already provisioned and checked
+            return # AssignedFromPool successful
 
     # --- State Check: Already decided to clone? ---
     if clone_op_name:
@@ -518,26 +519,26 @@ def cyberdesk_create(spec: dict, meta: dict, status: dict, logger: kopf.Logger, 
     else:
         # --- State: Try Warm Pool ---
         logger.info(f"No active clone operation found in status for '{instance_id}'. Checking warm pool.")
-        plucked_vm_name = get_free_vm_from_pool(namespace, logger)
+        assigned_vm_name = get_free_vm_from_pool(namespace, logger) # Renamed variable for clarity
 
-        if plucked_vm_name:
-            logger.info(f"Using plucked warm VM '{plucked_vm_name}' for Cyberdesk '{instance_id}'.")
+        if assigned_vm_name:
+            logger.info(f"Using warm VM '{assigned_vm_name}' assigned from pool for Cyberdesk '{instance_id}'.")
             try:
-                # --- Patch Plucked VM ---
+                # --- Patch Assigned VM ---
                 vm_patch_body = {
                     "metadata": {"labels": {"app": "cyberdesk", "cyberdesk-instance": instance_id, "managed-by": MANAGED_BY}},
-                    "spec": {"template": {"metadata": {"labels": {"app": "cyberdesk", "cyberdesk-instance": instance_id, "managed-by": MANAGED_BY, "kubevirt.io/domain": instance_id}}, "spec": {"hostname": instance_id, "subdomain": "kubevirt-vm-headless"}}}
+                    "spec": {"template": {"metadata": {"labels": {"app": "cyberdesk", "cyberdesk-instance": instance_id, "managed-by": MANAGED_BY, "kubevirt.io/domain": instance_id}}}}
                 }
                 # Fetch current VM to merge labels correctly
-                current_vm = CUSTOM_OBJECTS_API.get_namespaced_custom_object(KUBEVIRT_GROUP, KUBEVIRT_VERSION, namespace, KUBEVIRT_VM_PLURAL, plucked_vm_name)
+                current_vm = CUSTOM_OBJECTS_API.get_namespaced_custom_object(KUBEVIRT_GROUP, KUBEVIRT_VERSION, namespace, KUBEVIRT_VM_PLURAL, assigned_vm_name)
                 current_labels = current_vm.get("metadata", {}).get("labels", {})
                 current_vmi_labels = current_vm.get("spec", {}).get("template", {}).get("metadata", {}).get("labels", {})
 
                 vm_patch_body["metadata"]["labels"] = {**current_labels, **vm_patch_body["metadata"]["labels"]}
                 vm_patch_body["spec"]["template"]["metadata"]["labels"] = {**current_vmi_labels, **vm_patch_body["spec"]["template"]["metadata"]["labels"]}
 
-                CUSTOM_OBJECTS_API.patch_namespaced_custom_object(KUBEVIRT_GROUP, KUBEVIRT_VERSION, namespace, KUBEVIRT_VM_PLURAL, plucked_vm_name, body=vm_patch_body)
-                logger.info(f"Successfully patched plucked VM '{plucked_vm_name}' for '{instance_id}'.")
+                CUSTOM_OBJECTS_API.patch_namespaced_custom_object(KUBEVIRT_GROUP, KUBEVIRT_VERSION, namespace, KUBEVIRT_VM_PLURAL, assigned_vm_name, body=vm_patch_body)
+                logger.info(f"Successfully patched VM '{assigned_vm_name}' assigned from pool for '{instance_id}'.")
 
                 # --- Verify VMI is running and get IP (Readiness Check) ---
                 try:
@@ -546,23 +547,23 @@ def cyberdesk_create(spec: dict, meta: dict, status: dict, logger: kopf.Logger, 
                         version=KUBEVIRT_VERSION,
                         namespace=namespace,
                         plural=KUBEVIRT_VMI_PLURAL,
-                        name=plucked_vm_name # VMI name assumed to match plucked VM name
+                        name=assigned_vm_name # VMI name assumed to match assigned VM name
                     )
                     interfaces = vmi.get('status', {}).get('interfaces', [])
                     vmi_ip = interfaces[0].get('ipAddress') if interfaces else None
                     vmi_phase = vmi.get('status', {}).get('phase')
 
                     if not vmi_ip or vmi_phase != 'Running':
-                         logger.warning(f"Plucked VMI '{plucked_vm_name}' is not Running or has no IP yet (Phase: {vmi_phase}, IP: {vmi_ip}). Retrying.")
-                         raise kopf.TemporaryError(f"Plucked VMI {plucked_vm_name} not fully ready.")
-                    logger.info(f"Verified plucked VMI '{plucked_vm_name}' is Running with IP {vmi_ip}.")
+                         logger.warning(f"Pool-assigned VMI '{assigned_vm_name}' is not Running or has no IP yet (Phase: {vmi_phase}, IP: {vmi_ip}). Retrying.")
+                         raise kopf.TemporaryError(f"Pool-assigned VMI {assigned_vm_name} not fully ready.")
+                    logger.info(f"Verified pool-assigned VMI '{assigned_vm_name}' is Running with IP {vmi_ip}.")
 
                 except ApiException as vmi_exc:
                     if vmi_exc.status == 404:
-                         logger.warning(f"VMI '{plucked_vm_name}' not found immediately after patching VM. Retrying.")
+                         logger.warning(f"VMI '{assigned_vm_name}' not found immediately after patching VM. Retrying.")
                          raise kopf.TemporaryError("VMI not found yet after patching.") # Retry
                     else:
-                         logger.error(f"API error getting VMI '{plucked_vm_name}' for readiness check: {vmi_exc.reason}")
+                         logger.error(f"API error getting VMI '{assigned_vm_name}' for readiness check: {vmi_exc.reason}")
                          raise # Re-raise other API errors
 
                 # --- Notify Gateway ---
@@ -570,27 +571,27 @@ def cyberdesk_create(spec: dict, meta: dict, status: dict, logger: kopf.Logger, 
                     logger.warning(f"Gateway base URL not configured (In cluster? {IS_IN_CLUSTER}). Skipping notification for {instance_id}.")
                 else:
                     gateway_url = f"{GATEWAY_BASE_URL}/cyberdesk/{instance_id}/ready"
-                    logger.info(f"Notifying gateway for plucked instance '{instance_id}' at {gateway_url}")
+                    logger.info(f"Notifying gateway for pool-assigned instance '{instance_id}' at {gateway_url}")
                     try:
                         req = urllib.request.Request(gateway_url, method="POST")
                         with urllib.request.urlopen(req, timeout=5) as response:
-                            logger.info(f"Gateway notified successfully for plucked '{instance_id}', status: {response.status}")
+                            logger.info(f"Gateway notified successfully for pool-assigned '{instance_id}', status: {response.status}")
                     except (urllib.error.URLError, urllib.error.HTTPError, TimeoutError) as e:
-                        logger.error(f"Failed to notify gateway for plucked '{instance_id}': {e}")
+                        logger.error(f"Failed to notify gateway for pool-assigned '{instance_id}': {e}")
 
             except ApiException as e:
-                logger.error(f"Error patching/notifying for plucked VM '{plucked_vm_name}': {e.reason}")
-                raise kopf.TemporaryError(f"Failed to finalize plucked VM {plucked_vm_name}", delay=10) from e
+                logger.error(f"Error patching/notifying for pool-assigned VM '{assigned_vm_name}': {e.reason}")
+                raise kopf.TemporaryError(f"Failed to finalize pool-assigned VM {assigned_vm_name}", delay=10) from e
 
-            # --- Update Status (Plucked Success) ---
+            # --- Update Status (AssignedFromPool Success) ---
             now = datetime.now(UTC)
             expiry = now + timedelta(milliseconds=timeout_ms)
-            logger.info(f"Updating status for '{instance_id}': Plucked warm VM '{plucked_vm_name}', expires {expiry.isoformat()}")
+            logger.info(f"Updating status for '{instance_id}': Assigned VM '{assigned_vm_name}' from pool, expires {expiry.isoformat()}")
             patch.status["cyberdesk_create"] = {
-                "virtualMachineRef": plucked_vm_name,
+                "virtualMachineRef": assigned_vm_name,
                 "startTime": now.isoformat(),
                 "expiryTime": expiry.isoformat(),
-                "lastPhase": "Plucked",
+                "lastPhase": "AssignedFromPool",
                 # Explicitly remove cloneOperationName if it somehow existed
                 "cloneOperationName": None,
             }
@@ -598,7 +599,7 @@ def cyberdesk_create(spec: dict, meta: dict, status: dict, logger: kopf.Logger, 
             if "virtualMachineRef" in patch.status: del patch.status["virtualMachineRef"]
             if "startTime" in patch.status: del patch.status["startTime"]
             if "expiryTime" in patch.status: del patch.status["expiryTime"]
-            return # Pluck successful
+            return # Assignment from warm pool successful
 
         else:
             # --- State: Initiate Cloning ---
@@ -617,7 +618,7 @@ def cyberdesk_create(spec: dict, meta: dict, status: dict, logger: kopf.Logger, 
             # Return early to allow Kopf to patch the status.
             # The next reconciliation will pick up 'cloneOperationName' and proceed.
             # This prevents creating the Clone object if the status patch fails.
-            return
+            raise kopf.TemporaryError(f"Clone operation name '{clone_op_name}' set in status. Retrying shortly to initiate/check clone.", delay=clone_wait_delay)
 
     # --- State: Check Clone Status (only reached if clone_op_name is set) ---
     if not clone_op_name:
@@ -738,23 +739,57 @@ def cyberdesk_create(spec: dict, meta: dict, status: dict, logger: kopf.Logger, 
 
 
 @kopf.on.field(KUBEVIRT_GROUP, KUBEVIRT_VERSION, KUBEVIRT_VMI_PLURAL, field="status.phase")
-def vmi_phase_change(old: str | None, new: str | None, meta: dict, status: dict, **_: Dict[str, object]):
-    """Sync Supabase when a VMI phase flips."""
+def vmi_phase_change(old: str | None, new: str | None, meta: dict, status: dict, logger: kopf.Logger, **_: Dict[str, object]):
+    """Sync Supabase when a VMI phase flips, ignoring expected warm pool VMs."""
     if new is None:
         return  # nothing to do
-    if meta.get("labels", {}).get("app") != "cyberdesk":
-        return  # not ours
 
-    instance_id = meta["labels"].get("cyberdesk-instance")
-    if not instance_id:
-        logger.warning("VMI %s missing cyberdesk-instance label", meta.get("name"))
+    labels = meta.get("labels", {})
+    vm_name = meta.get("name", "unknown-vmi")
+
+    # Only process VMIs managed by or intended for this operator
+    if labels.get("app") != "cyberdesk":
+        logger.debug(f"Ignoring phase change for VMI {vm_name} (missing 'app: cyberdesk' label)")
         return
 
-    current_db = get_instance_status(instance_id)
-    desired = VMI_PHASE_TO_SUPABASE_STATUS.get(KubeVirtVMIPhase(new), SupabaseInstanceStatus.ERROR).value
+    instance_id = labels.get("cyberdesk-instance")
 
-    if current_db != desired:
-        update_instance_status(instance_id, new)
+    if not instance_id:
+        # If no instance ID, check if it's expected (part of warm pool)
+        is_warm_pool_vm = (
+            labels.get("pool.kubevirt.io/warm") == "ready" or
+            labels.get("pool.kubevirt.io/in-use") == "true"
+        )
+        if is_warm_pool_vm:
+            # Expected state for a VM in the pool or just assigned
+            logger.debug(f"Ignoring phase change for warm pool VMI {vm_name} (no instance ID yet)")
+        else:
+            # Unexpected: Has 'app: cyberdesk' but no instance ID and no pool labels
+            logger.warning(f"VMI {vm_name} has 'app: cyberdesk' but is missing 'cyberdesk-instance' label and doesn't appear to be a warm pool VM.")
+        return # Don't proceed to Supabase update
+
+    # --- Proceed with Supabase update only if we have an instance_id ---
+    logger.info(f"Processing phase change ('{old}' -> '{new}') for VMI {vm_name} linked to instance {instance_id}")
+    try:
+        current_db = get_instance_status(instance_id)
+        # Added check to prevent infinite loops if status already matches
+        # This check requires get_instance_status to be relatively quick
+        try:
+             phase_enum = KubeVirtVMIPhase(new)
+             desired = VMI_PHASE_TO_SUPABASE_STATUS.get(phase_enum, SupabaseInstanceStatus.ERROR).value
+        except ValueError:
+             logger.error(f"Unknown VMI phase '{new}' for {vm_name} -> marking ERROR in Supabase")
+             desired = SupabaseInstanceStatus.ERROR.value
+
+        if current_db != desired:
+            logger.info(f"Supabase status mismatch for {instance_id} (DB: {current_db}, VMI wants: {desired}). Updating.")
+            update_instance_status(instance_id, new)
+        else:
+             logger.debug(f"Supabase status for {instance_id} already matches desired state ({desired}). No update needed.")
+
+    except Exception as e:
+         # Catch potential errors during DB check/update
+         logger.exception(f"Error processing VMI phase change for {instance_id} in Supabase: {e}")
 
 
 @kopf.on.delete(CYBERDESK_GROUP, CYBERDESK_VERSION, CYBERDESK_PLURAL)

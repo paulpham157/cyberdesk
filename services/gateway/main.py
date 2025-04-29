@@ -304,21 +304,6 @@ async def _relay(
         return
 
 
-async def _ping(ws: websockets.WebSocketClientProtocol) -> None:
-    """
-    Emit WebSocket Ping frames every *PING_INTERVAL* seconds.
-    """
-    try:
-        while True:
-            await asyncio.sleep(PING_INTERVAL)
-            await ws.ping()
-    except websockets.exceptions.ConnectionClosed:
-        return
-
-
-PING_INTERVAL = 20  # seconds
-
-
 @app.websocket("/vnc/ws/{vm_id}")
 async def proxy_vnc(websocket: WebSocket, vm_id: str) -> None:
     """Proxy WebSocket to the target VMI's VNC port.
@@ -771,74 +756,6 @@ async def vm_health_check(vmid: str):
         LOG.exception(f"Unexpected error during health check processing for {vmid}: {e}")
         raise HTTPException(status_code=500, detail=f"An unexpected error occurred during health check for VM {vmid}")
 
-
-# --- VNC Proxy Configuration Helpers ---
-
-def _get_in_cluster_vnc_config(vm_id: str) -> tuple[str, ssl.SSLContext, list[tuple[str, str]]]:
-    """Get WebSocket URL, SSL Context, and Headers for in-cluster VNC proxy."""
-    LOG.info("Configuring VNC proxy for in-cluster environment.")
-    token_path = Path("/var/run/secrets/kubernetes.io/serviceaccount/token")
-    ca_path = Path("/var/run/secrets/kubernetes.io/serviceaccount/ca.crt")
-
-    # Use DNS name so the certificate's SAN matches → no hostname mismatch.
-    api_host = os.getenv("KUBERNETES_SERVICE_HOSTNAME", "kubernetes.default.svc")
-    api_port = os.getenv("KUBERNETES_SERVICE_PORT_HTTPS", "443")
-    k8s_url = (
-        f"wss://{api_host}:{api_port}/apis/"
-        f"subresources.kubevirt.io/v1/namespaces/{VMI_NAMESPACE}/"
-        f"virtualmachineinstances/{vm_id}/vnc"
-    )
-
-    try:
-        token = token_path.read_text().strip()
-        headers = [("Authorization", f"Bearer {token}")]
-    except FileNotFoundError:
-        LOG.error("Service account token path exists but could not be read.")
-        # Raise an exception to be caught by the caller
-        raise RuntimeError("In-cluster token read failed.")
-
-    ssl_ctx = _build_ssl_ctx(ca_path)
-    return k8s_url, ssl_ctx, headers
-
-def _get_local_vnc_config(vm_id: str) -> tuple[str, ssl.SSLContext, list[tuple[str, str]]]:
-    """Get WebSocket URL, SSL Context, and Headers for local VNC proxy using kubeconfig."""
-    LOG.info("Configuring VNC proxy for local environment using kubeconfig.")
-    try:
-        k8s_config = client.Configuration().get_default_copy()
-        if not k8s_config or not k8s_config.host:
-            raise RuntimeError("Failed to load kubeconfig details for VNC proxy.")
-
-        # Construct URL from kubeconfig host
-        api_host_port = k8s_config.host.replace("https://", "").replace("http://", "")
-        k8s_url = (
-             f"wss://{api_host_port}/apis/"
-             f"subresources.kubevirt.io/v1/namespaces/{VMI_NAMESPACE}/"
-             f"virtualmachineinstances/{vm_id}/vnc"
-        )
-
-        # Build SSL context from kubeconfig
-        ssl_ctx = _build_ssl_ctx_from_config(k8s_config)
-
-        # Determine headers based on authentication method in kubeconfig
-        headers = []
-        if k8s_config.api_key and k8s_config.api_key.get("authorization"): # Token auth
-            token = k8s_config.api_key["authorization"]
-            headers = [("Authorization", f"Bearer {token}")]
-            LOG.info("Using Bearer token from kubeconfig for VNC.")
-        elif k8s_config.cert_file and k8s_config.key_file: # Cert auth
-             LOG.info("Using client certificate from kubeconfig for VNC.")
-             # No extra header needed; handled by SSL context
-        else:
-             LOG.warning("No Bearer token or client certificate found in kubeconfig for VNC proxy authentication.")
-
-        return k8s_url, ssl_ctx, headers
-
-    except Exception as e:
-        LOG.exception(f"Error configuring VNC proxy from kubeconfig: {e}")
-        # Re-raise to be caught by the caller
-        raise RuntimeError(f"Kubeconfig VNC setup error: {e}") from e
-
-
 # --- Generic VM Pod Communication Helper ---
 
 async def _proxy_request_to_vm(
@@ -879,13 +796,67 @@ async def _proxy_request_to_vm(
     in_cluster = token_path.exists()
 
     if in_cluster:
-        # --- In-Cluster Logic (httpx via internal DNS) ---
-        LOG.info(f"Proxying {method} to VM {vmid} (in-cluster) -> :{port}/{path}")
-        vm_service_name = "kubevirt-vm-headless"
-        target_fqdn = f"{vmid}.{vm_service_name}.{vm_namespace}.svc.cluster.local"
-        target_url = f"http://{target_fqdn}:{port}/{path}"
-        LOG.debug(f"Target URL (in-cluster): {target_url}")
+        # --- In-Cluster Logic (Get VMI IP) ---
+        LOG.info(f"Proxying {method} to VM {vmid} (in-cluster) via IP lookup -> :{port}/{path}")
+        k8s_custom = require_k8s()
+        vm_name: Optional[str] = None
+        vmi_ip: Optional[str] = None
+        target_url: Optional[str] = None
 
+        try:
+            # 1. Get CR to find VM name
+            try:
+                cr = k8s_custom.get_namespaced_custom_object(
+                    group=CYBERDESK_GROUP,
+                    version=CYBERDESK_VERSION,
+                    namespace=CYBERDESK_NAMESPACE,
+                    plural=CYBERDESK_PLURAL,
+                    name=vmid, # vmid is the instance ID here
+                )
+                vm_name = cr.get("status", {}).get("cyberdesk_create", {}).get("virtualMachineRef")
+                if not vm_name:
+                    raise ValueError(f"virtualMachineRef not found in status for Cyberdesk {vmid}")
+                LOG.debug(f"Found virtualMachineRef '{vm_name}' for instance {vmid}")
+            except ApiException as e:
+                if e.status == 404:
+                    raise ValueError(f"Cyberdesk CR '{vmid}' not found.") from e
+                else:
+                    raise ValueError(f"API Error fetching Cyberdesk CR '{vmid}': {e.reason}") from e
+
+            # 2. Get VMI to find IP address
+            try:
+                vmi = k8s_custom.get_namespaced_custom_object(
+                    group=KUBEVIRT_GROUP,
+                    version=KUBEVIRT_VERSION,
+                    namespace=vm_namespace, # Defined earlier in function
+                    plural=KUBEVIRT_VMI_PLURAL,
+                    name=vm_name,
+                )
+                interfaces = vmi.get('status', {}).get('interfaces', [])
+                vmi_ip = interfaces[0].get('ipAddress') if interfaces else None
+                vmi_phase = vmi.get('status', {}).get('phase')
+
+                if vmi_phase != 'Running':
+                     raise ValueError(f"Target VMI '{vm_name}' is not Running (phase: {vmi_phase}).")
+                if not vmi_ip:
+                     raise ValueError(f"Target VMI '{vm_name}' is Running but has no IP address.")
+                LOG.debug(f"Found target VMI IP '{vmi_ip}' for VM '{vm_name}'")
+            except ApiException as e:
+                if e.status == 404:
+                     raise ValueError(f"VMI '{vm_name}' not found.") from e
+                else:
+                     raise ValueError(f"API Error fetching VMI '{vm_name}': {e.reason}") from e
+
+            # 3. Construct Target URL
+            target_url = f"http://{vmi_ip}:{port}/{path}"
+            LOG.debug(f"Target URL (in-cluster, via IP): {target_url}")
+
+        except ValueError as e:
+             # Handle all lookup errors gracefully
+             LOG.error(f"Failed lookup for VM {vmid} proxy target: {e}")
+             raise HTTPException(status_code=404, detail=f"Target VM or its resources not found/ready: {e}")
+
+        # --- Make Request using IP-based URL ---
         async with httpx.AsyncClient(timeout=timeout) as client:
             try:
                 response = await client.request(
@@ -917,44 +888,84 @@ async def _proxy_request_to_vm(
         # --- Local Logic (Kubernetes API Proxy) ---
         LOG.info(f"Proxying {method} to VM {vmid} (local) via K8s API -> :{port}/{path}")
         core_api = require_k8s_core() # Ensures K8s client is loaded
+        k8s_custom = require_k8s()   # Need custom objects API as well
         api_client = core_api.api_client # Get the underlying ApiClient
 
-        # 1. Find the Pod Name
-        pod_name: Optional[str] = None
+        # 1. Find the VM Name from CR
+        vm_name: Optional[str] = None
         try:
-            label_selector = f"kubevirt.io/domain={vmid}"
-            LOG.debug(f"Searching for pod with label selector: {label_selector}")
+            cr = k8s_custom.get_namespaced_custom_object(
+                group=CYBERDESK_GROUP,
+                version=CYBERDESK_VERSION,
+                namespace=CYBERDESK_NAMESPACE,
+                plural=CYBERDESK_PLURAL,
+                name=vmid,
+            )
+            vm_name = cr.get("status", {}).get("cyberdesk_create", {}).get("virtualMachineRef")
+            if not vm_name:
+                raise ValueError(f"virtualMachineRef not found in status for Cyberdesk {vmid}")
+            LOG.debug(f"Found virtualMachineRef '{vm_name}' for instance {vmid}")
+        except ApiException as e:
+            if e.status == 404:
+                raise HTTPException(status_code=404, detail=f"Cyberdesk CR '{vmid}' not found.") from e
+            else:
+                raise HTTPException(status_code=500, detail=f"API Error fetching Cyberdesk CR '{vmid}': {e.reason}") from e
+        except ValueError as e:
+            LOG.error(str(e))
+            raise HTTPException(status_code=404, detail=str(e))
+
+        # 2. Find the Pod Name using the VM Name by checking annotations
+        pod_name: Optional[str] = None
+        running_pod_found = False
+        try:
+            LOG.debug(f"Listing pods in namespace '{vm_namespace}' to find one for VM '{vm_name}'.")
+            # List all pods in the namespace - might need adjustment if too many pods
             pod_list_response = await asyncio.to_thread(
                 core_api.list_namespaced_pod,
                 namespace=vm_namespace,
-                label_selector=label_selector,
-                _request_timeout=5
+                _request_timeout=10 # Increase timeout slightly for list operation
             )
             pods = pod_list_response.items
-            if len(pods) == 1:
-                pod_name = pods[0].metadata.name
-                LOG.debug(f"Found virt-launcher pod: {pod_name}")
-            elif len(pods) == 0:
-                LOG.warning(f"No virt-launcher pod found for vmid {vmid}")
-                raise HTTPException(status_code=404, detail=f"VM (pod) with ID {vmid} not found or not running.")
-            else:
-                pod_names_str = ", ".join([p.metadata.name for p in pods[:3]])
-                LOG.error(f"Found multiple ({len(pods)}) virt-launcher pods for vmid {vmid}: {pod_names_str}")
-                raise HTTPException(status_code=500, detail=f"Multiple pods found for VM {vmid}: {pod_names_str}")
+            LOG.debug(f"Found {len(pods)} pods in namespace. Iterating to find match.")
+
+            for pod in pods:
+                annotations = pod.metadata.annotations
+                pod_domain = annotations.get("kubevirt.io/domain")
+                
+                # Check if annotation matches the target VM name
+                if pod_domain == vm_name:
+                    pod_name = pod.metadata.name
+                    pod_phase = pod.status.phase
+                    LOG.debug(f"Found candidate pod '{pod_name}' with matching domain annotation. Phase: {pod_phase}")
+                    if pod_phase == "Running":
+                        LOG.info(f"Found running virt-launcher pod '{pod_name}' for VM '{vm_name}'.")
+                        running_pod_found = True
+                        break # Found the running pod we need
+                    else:
+                        # Found a pod, but it's not running. Keep looking in case
+                        # there's an older non-running one and a newer running one somehow.
+                         LOG.warning(f"Found pod {pod_name} for VM {vm_name}, but phase is {pod_phase}. Continuing search.")
+                         pod_name = None # Reset pod_name if not running
+                
+            if not running_pod_found:
+                 # If loop finishes and we didn't find a running pod
+                 if pod_name:
+                      # We found a pod but it wasn't running
+                      raise HTTPException(status_code=503, detail=f"VM pod {pod_name} for {vm_name} found but not in Running phase.")
+                 else:
+                      # We didn't find any pod with the matching annotation
+                      LOG.warning(f"No virt-launcher pod found with annotation kubevirt.io/domain={vm_name}")
+                      raise HTTPException(status_code=404, detail=f"VM pod for {vm_name} not found.")
+
         except ApiException as e:
-            LOG.error(f"K8s API error finding pod for {vmid}: {e.status} {e.reason}")
-            raise HTTPException(status_code=500, detail=f"API error finding VM pod: {e.reason}")
-        except asyncio.TimeoutError:
-             LOG.error(f"Timeout searching for pod for {vmid}")
-             raise HTTPException(status_code=504, detail="Timeout finding VM pod")
-        except Exception as e:
-            LOG.exception(f"Unexpected error finding pod for {vmid}: {e}")
-            raise HTTPException(status_code=500, detail="Unexpected error finding VM pod")
+            LOG.error(f"K8s API error listing pods for {vm_name}: {e.status} {e.reason}")
+            raise HTTPException(status_code=500, detail=f"API error listing pods for VM {vm_name}: {e.reason}")
 
         if not pod_name:
+             # Should be caught above, but defensive check
              raise HTTPException(status_code=500, detail="Could not determine pod name")
 
-        # 2. Make the Proxied Request
+        # 3. Make the Proxied Request (using the found pod_name)
         api_proxy_path = f"/api/v1/namespaces/{vm_namespace}/pods/{pod_name}:{port}/proxy/{path}"
         LOG.debug(f"Attempting {method} via K8s API proxy path: {api_proxy_path}")
 
