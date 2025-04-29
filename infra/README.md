@@ -198,15 +198,7 @@ kubectl get pods -n cyberdesk-system -l app=gateway
 kubectl get service -n cyberdesk-system gateway # Check LoadBalancer IP
 ```
 
-#### 4.6 Deploy the Headless Service for VMs
-
-This headless service allows the gateway (and potentially other internal services) to discover and connect to individual VM pods via their pod DNS names (e.g., `vm-pod-name.kubevirt-vm-headless.kubevirt.svc.cluster.local`). It selects pods based on the `app: cyberdesk` label, which should be applied to your KubeVirt VM resources by the Cyberdesk operator.
-
-```bash
-kubectl apply -f ./kubernetes/headless-service.yaml
-```
-
-#### 4.7 Trigger Operator Setup
+#### 4.6 Trigger Operator Setup
 
 Apply the `StartCyberdeskOperator` custom resource. This signals the running operator to perform its initial setup, primarily creating the `Cyberdesk` CRD.
 
@@ -214,9 +206,9 @@ Apply the `StartCyberdeskOperator` custom resource. This signals the running ope
 kubectl apply -f ./kubernetes/start-cyberdesk-operator-cr.yaml
 ```
 
-## Verification
+### 5. Verify Deployments
 
-To verify your deployment, you can check the status of KubeVirt components:
+Check that all pods are running in their respective namespaces:
 
 ```bash
 kubectl get pods -n kubevirt
@@ -317,7 +309,6 @@ kubectl delete -f ./kubernetes/kubevirt-operator.yaml
 
 ```bash
 kubectl delete -f ./kubernetes/gateway-deploy.yaml
-kubectl delete -f ./kubernetes/headless-service.yaml
 ```
 
 8. Destroy the infrastructure:
