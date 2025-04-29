@@ -32,6 +32,7 @@ from __future__ import annotations
 
 import logging
 import os
+import socket
 import urllib.request
 import urllib.error
 from datetime import UTC, datetime, timedelta
@@ -645,7 +646,25 @@ def cyberdesk_create(spec: dict, meta: dict, status: dict, logger: kopf.Logger, 
                     "metadata": {"name": clone_op_name, "namespace": namespace, "labels": {"managed-by": MANAGED_BY, "cyberdesk-instance": instance_id}},
                     "spec": {
                         "source": {"apiGroup": SNAPSHOT_GROUP, "kind": "VirtualMachineSnapshot", "name": GOLDEN_SNAPSHOT_NAME},
-                        "target": {"apiGroup": KUBEVIRT_GROUP, "kind": "VirtualMachine", "name": instance_id}, # Target VM name is instance_id
+                        "target": {
+                             "apiGroup": KUBEVIRT_GROUP,
+                             "kind": "VirtualMachine",
+                             "name": instance_id,
+                             "template": {
+                                 "spec": {
+                                     "readinessProbe": {
+                                         "exec": {
+                                              # Use test -f to check for cloud-init completion flag
+                                             "command": ["test", "-f", "/var/lib/cloud/instance/boot-finished"]
+                                         },
+                                         "initialDelaySeconds": 30,
+                                         "periodSeconds": 10,
+                                         "failureThreshold": 3,
+                                         "successThreshold": 1,
+                                     }
+                                 }
+                             }
+                        },
                     },
                 }
                 clone_obj = CUSTOM_OBJECTS_API.create_namespaced_custom_object(
@@ -846,14 +865,97 @@ def cyberdesk_delete(meta: dict, body: dict, logger: kopf.Logger, **_: Dict[str,
 
 
 @kopf.on.timer(CYBERDESK_GROUP, CYBERDESK_VERSION, CYBERDESK_PLURAL, interval=60)
-def cyberdesk_timeout_check(body: dict, **_: Dict[str, object]):
+def cyberdesk_timeout_check(body: dict, logger: kopf.Logger, **_: Dict[str, object]): # Added logger
     """Per‑resource timer: shut down VM once *expiryTime* passes."""
     expiry_str = body.get("status", {}).get("cyberdesk_create", {}).get("expiryTime")
+    instance_id = body["metadata"]["name"]
+    namespace = body["metadata"]["namespace"]
+
     if not expiry_str:
+        logger.debug(f"No expiryTime found in status for '{instance_id}', skipping timeout check.")
         return
 
-    if datetime.now(UTC) >= datetime.fromisoformat(expiry_str):
-        logger.info("Cyberdesk %s expired — deleting", body["metadata"]["name"])
-        CUSTOM_OBJECTS_API.delete_namespaced_custom_object(
-            CYBERDESK_GROUP, CYBERDESK_VERSION, body["metadata"]["namespace"], CYBERDESK_PLURAL, body["metadata"]["name"]
-        )
+    try:
+        expiry_dt = datetime.fromisoformat(expiry_str)
+        if datetime.now(UTC) >= expiry_dt:
+            logger.info(f"Cyberdesk '{instance_id}' expired at {expiry_str} — deleting CR.")
+            # Deleting the CR will trigger the cyberdesk_delete handler for actual VM cleanup
+            CUSTOM_OBJECTS_API.delete_namespaced_custom_object(
+                group=CYBERDESK_GROUP,
+                version=CYBERDESK_VERSION,
+                namespace=namespace,
+                plural=CYBERDESK_PLURAL,
+                name=instance_id
+            )
+        # else: logger.debug(f"Cyberdesk '{instance_id}' not expired yet.")
+    except ValueError:
+         logger.error(f"Could not parse expiryTime '{expiry_str}' for '{instance_id}'.")
+    except ApiException as e:
+         logger.error(f"API error deleting expired Cyberdesk CR '{instance_id}': {e.reason}")
+         # Raise temporary error to retry deletion
+         raise kopf.TemporaryError(f"Failed to delete expired CR {instance_id}", delay=30) from e
+
+
+# NEW Field Watcher for VMI Readiness (Post Cloud-Init)
+@kopf.on.field(KUBEVIRT_GROUP, KUBEVIRT_VERSION, KUBEVIRT_VMI_PLURAL, field='status.conditions')
+def vmi_ready_watcher(old, new, status, meta, logger: kopf.Logger, **kwargs):
+    """Notify gateway when a VMI's Ready condition becomes True after cloud-init."""
+    if not new: # Field might be cleared on deletion
+        return
+
+    labels = meta.get("labels", {})
+    vm_name = meta.get("name", "unknown-vmi")
+
+    # Filter for VMIs managed by us AND that have an instance ID
+    if labels.get("app") != "cyberdesk" or not labels.get("cyberdesk-instance"):
+        # logger.debug(f"Ignoring condition change for VMI {vm_name} (not a managed cyberdesk instance).")
+        return
+
+    instance_id = labels["cyberdesk-instance"]
+
+    # Find the 'Ready' condition in the new status
+    ready_condition = None
+    for condition in new:
+        if condition.get("type") == "Ready":
+            ready_condition = condition
+            break
+
+    if not ready_condition:
+        # logger.debug(f"No 'Ready' condition found in status update for VMI {vm_name}.")
+        return
+
+    is_ready = ready_condition.get("status") == "True"
+    # logger.debug(f"VMI {vm_name} Ready condition status: {ready_condition.get('status')}")
+
+    # Check if the old status also had Ready=True to avoid re-notifying
+    was_ready = False
+    if old:
+        for condition in old:
+             if condition.get("type") == "Ready" and condition.get("status") == "True":
+                  was_ready = True
+                  break
+
+    if is_ready and not was_ready:
+        logger.info(f"VMI '{vm_name}' ({instance_id}) condition changed to Ready=True. Notifying gateway.")
+
+        # --- Notify Gateway --- #
+        if not GATEWAY_BASE_URL:
+            logger.warning(f"Gateway base URL not configured (In cluster? {IS_IN_CLUSTER}). Skipping notification for ready instance {instance_id}.")
+        else:
+            gateway_url = f"{GATEWAY_BASE_URL}/cyberdesk/{instance_id}/ready"
+            logger.info(f"Notifying gateway for ready instance '{instance_id}' at {gateway_url}")
+            try:
+                # Using a simple synchronous request here for simplicity in handler
+                # Consider making it async if gateway calls become slow/blocking
+                req = urllib.request.Request(gateway_url, method="POST")
+                # Add a timeout to prevent blocking indefinitely
+                with urllib.request.urlopen(req, timeout=10) as response:
+                    logger.info(f"Gateway notified successfully for ready '{instance_id}', status: {response.status}")
+            except (urllib.error.URLError, urllib.error.HTTPError, socket.timeout, TimeoutError) as e:
+                # Log error, but don't fail the handler - the VMI *is* ready
+                logger.error(f"Failed to notify gateway for ready '{instance_id}': {e}")
+            except Exception as e:
+                 # Catch unexpected errors during notification
+                 logger.exception(f"Unexpected error notifying gateway for ready '{instance_id}': {e}")
+    # else:
+         # logger.debug(f"VMI {vm_name} Ready condition did not change to True, or was already True. No action.")
