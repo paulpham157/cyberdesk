@@ -110,7 +110,8 @@ export function createCyberdeskClient(options: CyberdeskClientOptions): Cyberdes
             headers: { ...mergedHeaders, ...(opts as PostV1DesktopData).headers }
         }),
         terminateDesktop: (opts) => apiMethods.postV1DesktopIdStop({
-            ...opts,
+            ...(opts as PostV1DesktopIdStopData),
+            path: { ...(opts as PostV1DesktopIdStopData).path, id: (opts as PostV1DesktopIdStopData).path.id },
             client: configuredClient,
             headers: { ...mergedHeaders, ...(opts as PostV1DesktopIdStopData).headers }
         }),

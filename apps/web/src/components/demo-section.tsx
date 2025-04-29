@@ -1,7 +1,6 @@
 'use client'
 
 import { Button } from '@/components/button'
-import client from '@/lib/cyberdeskClient'
 import { supabase } from '@/utils/supabaseClient'
 import { ComputerDesktopIcon } from '@heroicons/react/24/outline'
 import { ChevronRightIcon, MinusIcon, PlusIcon } from '@heroicons/react/24/solid'
@@ -533,6 +532,7 @@ const deployVirtualDesktop = async (): Promise<DesktopLaunchResponse> => {
 
 const stopVirtualDesktop = async (id: string): Promise<boolean> => {
   try {
+    console.log(`[stopVirtualDesktop] Calling fetch with id: ${id}`);
     const response = await fetch('/api/playground/desktop', {
       method: 'PATCH',
       headers: {

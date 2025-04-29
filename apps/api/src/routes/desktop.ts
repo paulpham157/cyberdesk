@@ -156,6 +156,14 @@ desktop.openapi(createDesktop, async (c) => {
 desktop.openapi(stopDesktop, async (c) => {
   console.log('[stopDesktop] Received request');
 
+  // --- Log Full Request Details --- START ---
+  console.log(`[stopDesktop] Full Request:  ${JSON.stringify(c.req)}`);
+  console.log(`[stopDesktop] Request Method: ${c.req.method}`);
+  console.log(`[stopDesktop] Request URL: ${c.req.url}`);
+  console.log(`[stopDesktop] Request Headers: ${JSON.stringify(c.req.header())}`);
+  console.log(`[stopDesktop] Request Query Params: ${JSON.stringify(c.req.query())}`);
+  // --- Log Full Request Details --- END ---
+
   const userId = c.get("userId");
   const id = c.req.param("id");
   const allParams = c.req.param();
