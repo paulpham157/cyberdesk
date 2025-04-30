@@ -281,8 +281,6 @@ async function executeComputerAction(
 
     const parsedResponse = GatewayExecuteCommandResponseSchema.parse(response.data);
 
-    console.log(`Command execution response for instance ${id}:`, parsedResponse);
-
     if (parsedResponse.vm_response.return_code !== 0) {
       throw new ActionExecutionError(
           `Command failed with code ${parsedResponse.vm_response.return_code}`,
@@ -381,7 +379,9 @@ desktop.openapi(computerAction, async (c) => {
   const resultString = await executeComputerAction(id, userId, action, GATEWAY_URL);
 
   if (action.type === "screenshot") {
-    return c.json({ base64_image: resultString, }, 200);
+    // Remove all whitespace (including newlines) from base64 string
+    const cleanedBase64 = resultString.replace(/\s+/g, '');
+    return c.json({ base64_image: cleanedBase64 }, 200);
   } else if (action.type === "get_cursor_position") {
       return c.json({ output: resultString, }, 200);
   } else {

@@ -42,16 +42,24 @@ type SdkMethodOptions<TData> = Omit<TData, 'headers' | 'url'> & {
     // We don't include 'client' here as it's purely internal
 };
 
+// Named parameter types for SDK methods
+export type GetDesktopInfoParams = Omit<GetV1DesktopIdData, 'headers' | 'url'>;
+export type LaunchDesktopParams = Omit<PostV1DesktopData, 'headers' | 'url'>;
+export type TerminateDesktopParams = Omit<PostV1DesktopIdStopData, 'headers' | 'url'>;
+export type ExecuteActionOnDesktopParams = Omit<PostV1DesktopIdComputerActionData, 'headers' | 'url'>;
+export type BashCommandOnDesktopParams = Omit<PostV1DesktopIdBashActionData, 'headers' | 'url'>;
+// Add more as needed for new methods
+
 // Define the type for the SDK object returned by the factory function.
 // Use Omit on the generated method's parameters directly, excluding headers/client/url.
 // Use the specific *Data types for clarity.
 // The input type for the user is essentially the *Data type minus headers/url
-export type CyberdeskSdk = {
-    getDesktopInfo: (opts: Omit<GetV1DesktopIdData, 'headers' | 'url'>) => ReturnType<typeof apiMethods.getV1DesktopId>;
-    launchDesktop: (opts: Omit<PostV1DesktopData, 'headers' | 'url'>) => ReturnType<typeof apiMethods.postV1Desktop>;
-    terminateDesktop: (opts: Omit<PostV1DesktopIdStopData, 'headers' | 'url'>) => ReturnType<typeof apiMethods.postV1DesktopIdStop>;
-    executeActionOnDesktop: (opts: Omit<PostV1DesktopIdComputerActionData, 'headers' | 'url'>) => ReturnType<typeof apiMethods.postV1DesktopIdComputerAction>;
-    bashCommandOnDesktop: (opts: Omit<PostV1DesktopIdBashActionData, 'headers' | 'url'>) => ReturnType<typeof apiMethods.postV1DesktopIdBashAction>;
+export type CyberdeskSDK = {
+    getDesktopInfo: (opts: GetDesktopInfoParams) => ReturnType<typeof apiMethods.getV1DesktopId>;
+    launchDesktop: (opts: LaunchDesktopParams) => ReturnType<typeof apiMethods.postV1Desktop>;
+    terminateDesktop: (opts: TerminateDesktopParams) => ReturnType<typeof apiMethods.postV1DesktopIdStop>;
+    executeActionOnDesktop: (opts: ExecuteActionOnDesktopParams) => ReturnType<typeof apiMethods.postV1DesktopIdComputerAction>;
+    bashCommandOnDesktop: (opts: BashCommandOnDesktopParams) => ReturnType<typeof apiMethods.postV1DesktopIdBashAction>;
     // Add other methods exported from sdk.gen.ts here following the same pattern
 };
 
@@ -64,7 +72,7 @@ const DEFAULT_BASE_URL = 'https://api.cyberdesk.io'; // Replace if needed
  * @returns An SDK instance with methods ready to be called.
  */
 
-export function createCyberdeskClient(options: CyberdeskClientOptions): CyberdeskSdk {
+export function createCyberdeskClient(options: CyberdeskClientOptions): CyberdeskSDK {
     const { apiKey, baseUrl = DEFAULT_BASE_URL, fetch: customFetch, clientOptions = {} } = options;
 
     if (!apiKey) {

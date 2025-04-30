@@ -5,15 +5,6 @@
 import client from '@/lib/cyberdeskClient';
 
 /**
- * Get the base API URL based on environment
- */
-const getApiBaseUrl = () => {
-  return process.env.NODE_ENV === 'production' 
-    ? 'https://api.cyberdesk.io/v1' 
-    : 'http://localhost:3001/v1';
-};
-
-/**
  * Execute a bash command
  * @param command The command to execute
  * @param desktopId The ID of the desktop instance
@@ -28,8 +19,7 @@ export async function executeBashCommand(
     const result = await client.bashCommandOnDesktop({
         path: { id: desktopId },
         body: { command },
-        // No headers needed here as per previous request
-    } as any); // Use 'as any' if type definition still mandates headers
+    });
 
     // Check status code from the nested response object
     if (result.response.status !== 200) {

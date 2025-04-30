@@ -3,40 +3,30 @@
  */
 
 import client from '@/lib/cyberdeskClient';
+import type { ExecuteActionOnDesktopParams, PostV1DesktopIdComputerActionData } from '../../../../sdks/ts-sdk/src';
 
 /**
  * Get the base API URL based on environment
  */
 
-
-/**
- * Get a screenshot of the current display
- * @param desktopId The ID of the desktop instance
- * @returns Base64 encoded PNG image data
- */
-export async function getScreenshot(desktopId: string): Promise<string> {
-  try {
-    const result = await client.executeActionOnDesktop({
-        path: { id: desktopId },
-        body: { type: 'screenshot' },
-    } as any);
-
-    if (result.response.status !== 200) {
-      let errorDetails = `Failed with status: ${result.response.status}`;
-      try {
-        const errorBody = await result.response.json(); 
-        errorDetails = errorBody.message || errorBody.error || JSON.stringify(errorBody);
-      } catch (e) { /* Failed to parse body */ }
-      throw new Error(`Failed to get screenshot: ${errorDetails}`);
-    }
-
-    const data = result.data;
-    return data?.base64_image || ''; 
-  } catch (error) {
-    console.error('Error getting screenshot:', error);
-    throw error;
-  }
-}
+// Define a named union type for all possible actions
+export type ClaudeComputerActionType0124 =
+  | "left_click"
+  | "right_click"
+  | "middle_click"
+  | "double_click"
+  | "triple_click"
+  | "mouse_move"
+  | "left_mouse_down"
+  | "left_mouse_up"
+  | "scroll"
+  | "type"
+  | "key"
+  | "hold_key"
+  | "cursor_position"
+  | "left_click_drag"
+  | "wait"
+  | "screenshot";
 
 /**
  * Execute a computer action based on the provided parameters
@@ -51,17 +41,17 @@ export async function getScreenshot(desktopId: string): Promise<string> {
  * @returns Result of the action, either a string or an object with image data
  */
 export async function executeComputerAction(
-  action: string,
+  action: ClaudeComputerActionType0124,
   desktopId: string,
-  coordinate?: { x: number; y: number }, 
+  coordinate?: { x: number; y: number },
   text?: string,
   duration?: number,
   scroll_amount?: number,
-  scroll_direction?: 'up' | 'down',
+  scroll_direction?: "left" | "right" | "down" | "up",
   start_coordinate?: { x: number; y: number }
 ): Promise<string | { type: "image"; data: string }> {
   try {
-    let requestBody: any = {};
+    let requestBody: ExecuteActionOnDesktopParams['body'];
 
     // Map the action to the API's expected format
     switch (action) {
@@ -75,7 +65,7 @@ export async function executeComputerAction(
           num_of_clicks: 1
         };
         break;
-        
+
       case 'right_click':
         requestBody = {
           type: 'click_mouse',
@@ -86,7 +76,7 @@ export async function executeComputerAction(
           num_of_clicks: 1
         };
         break;
-        
+
       case 'middle_click':
         requestBody = {
           type: 'click_mouse',
@@ -97,9 +87,9 @@ export async function executeComputerAction(
           num_of_clicks: 1
         };
         break;
-        
+
       case 'double_click':
-         requestBody = {
+        requestBody = {
           type: 'click_mouse',
           x: coordinate?.x,
           y: coordinate?.y,
@@ -108,7 +98,18 @@ export async function executeComputerAction(
           num_of_clicks: 2
         };
         break;
-        
+
+      case 'triple_click':
+        requestBody = {
+          type: 'click_mouse',
+          x: coordinate?.x,
+          y: coordinate?.y,
+          button: 'left',
+          click_type: 'click',
+          num_of_clicks: 3
+        };
+        break;
+
       case 'mouse_move':
         requestBody = {
           type: 'move_mouse',
@@ -116,7 +117,7 @@ export async function executeComputerAction(
           y: coordinate?.y || 0
         };
         break;
-        
+
       case 'left_mouse_down':
         requestBody = {
           type: 'click_mouse',
@@ -124,7 +125,7 @@ export async function executeComputerAction(
           click_type: 'down'
         };
         break;
-        
+
       case 'left_mouse_up':
         requestBody = {
           type: 'click_mouse',
@@ -132,7 +133,7 @@ export async function executeComputerAction(
           click_type: 'up'
         };
         break;
-        
+
       case 'scroll':
         requestBody = {
           type: 'scroll',
@@ -140,14 +141,14 @@ export async function executeComputerAction(
           amount: scroll_amount || 1
         };
         break;
-        
+
       case 'type':
         requestBody = {
           type: 'type',
           text: text || ''
         };
         break;
-        
+
       case 'key':
         requestBody = {
           type: 'press_keys',
@@ -155,7 +156,11 @@ export async function executeComputerAction(
           key_action_type: 'press'
         };
         break;
-        
+
+      case 'hold_key':
+        console.log(`Unhandled action: hold_key`);
+        return "Hold key action support coming soon!"
+
       case 'left_click_drag':
         if (start_coordinate && coordinate) {
           requestBody = {
@@ -173,45 +178,62 @@ export async function executeComputerAction(
           throw new Error("Start and end coordinates are required for drag action.");
         }
         break;
-        
+
       case 'wait':
         requestBody = {
           type: 'wait',
           ms: (duration || 1) * 1000
         };
         break;
-        
-      }    
+
+      case 'screenshot':
+        requestBody = {
+          type: 'screenshot'
+        };
+        break;
+
+      case 'cursor_position':
+        requestBody = {
+          type: 'get_cursor_position'
+        };
+        break;
+
+      // EXHAUSTIVENESS CHECK:
+      default: {
+        const _exhaustiveCheck: never = action;
+        throw new Error(`Unhandled action: ${action}`);
+      }
+    }
 
     // Construct the parameters for the client call
-    const clientParams: any = {
-        path: { id: desktopId },
-        body: requestBody as any
+    const clientParams: ExecuteActionOnDesktopParams = {
+      path: { id: desktopId },
+      body: requestBody
     };
 
     const result = await client.executeActionOnDesktop(clientParams);
 
     if (result.response.status !== 200) {
       let errorDetails = `Failed with status: ${result.response.status}`;
-       try {
-        const errorBody = await result.response.json(); 
+      try {
+        const errorBody = await result.response.json();
         errorDetails = errorBody.message || errorBody.error || JSON.stringify(errorBody);
       } catch (e) { /* Failed to parse body */ }
       throw new Error(`Failed to execute computer action ${action}: ${errorDetails}`);
     }
 
     const data = result.data;
-    
+
     // Check for image data in the response
-    if (data?.base64_image) { 
+    if (data?.base64_image) {
       return {
         type: "image",
         data: data.base64_image
       };
     }
-    
+
     // Return status or a default success message
-    return data?.output || 'Action completed successfully'; 
+    return data?.output || 'Action completed successfully';
   } catch (error) {
     console.error(`Error executing computer action ${action}:`, error);
     throw error;
