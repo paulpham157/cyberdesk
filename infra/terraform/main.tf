@@ -26,13 +26,13 @@ provider "azurerm" {
 # Networking & IAM Setup
 #############################
 
-# Create a resource group.
+# Resource Group
 resource "azurerm_resource_group" "rg" {
   name     = var.resource_group_name
   location = var.location
 }
 
-# Create a Virtual Network.
+# Virtual Network
 resource "azurerm_virtual_network" "vnet" {
   name                = "vnet-kubevirt-demo"
   address_space       = ["10.0.0.0/16"]
@@ -40,7 +40,7 @@ resource "azurerm_virtual_network" "vnet" {
   resource_group_name = azurerm_resource_group.rg.name
 }
 
-# Create a subnet for the AKS cluster.
+# AKS Subnet
 resource "azurerm_subnet" "aks" {
   name                 = "subnet-aks"
   resource_group_name  = azurerm_resource_group.rg.name
@@ -48,65 +48,103 @@ resource "azurerm_subnet" "aks" {
   address_prefixes     = ["10.0.1.0/24"]
 }
 
-# Create a Network Security Group for the AKS subnet.
+# NSG for AKS Subnet
 resource "azurerm_network_security_group" "aks_nsg" {
   name                = "nsg-aks-subnet"
   location            = azurerm_resource_group.rg.location
   resource_group_name = azurerm_resource_group.rg.name
 }
 
-# Add a rule to allow outbound internet traffic.
+# Outbound Internet (always allowed)
 resource "azurerm_network_security_rule" "allow_outbound" {
   name                        = "AllowOutboundInternet"
-  priority                    = 100 # Lower number = higher priority
+  priority                    = 100
   direction                   = "Outbound"
   access                      = "Allow"
-  protocol                    = "*" # Allows TCP, UDP, ICMP etc.
+  protocol                    = "*"
   source_port_range           = "*"
   destination_port_range      = "*"
-  source_address_prefix       = "VirtualNetwork" # Traffic originating from within the VNet
-  destination_address_prefix  = "Internet"       # Destination is the public internet
+  source_address_prefix       = "VirtualNetwork"
+  destination_address_prefix  = "Internet"
   resource_group_name         = azurerm_resource_group.rg.name
   network_security_group_name = azurerm_network_security_group.aks_nsg.name
 }
 
-# Add a rule to allow inbound HTTP traffic from specific sources.
+# Inbound HTTP from your developers (0.0.0.0/0)
 resource "azurerm_network_security_rule" "allow_inbound_http" {
   name                        = "AllowInboundHttpFromTrusted"
-  priority                    = 110 # Needs a different priority than the outbound rule
+  priority                    = 110
   direction                   = "Inbound"
   access                      = "Allow"
   protocol                    = "Tcp"
   source_port_range           = "*"
-  destination_port_range      = "80" # Allow traffic to port 80
-  source_address_prefixes     = concat(var.developer_api_ips, var.developer_vpn_ips) # Allow traffic from Developer API and Developer VPN
-  destination_address_prefix  = "*"       # Allow traffic to any destination within the NSG scope (our subnet)
+  destination_port_range      = "80"
+  source_address_prefixes     = concat(var.developer_api_ips, var.developer_vpn_ips)
+  destination_address_prefix  = "*"
   resource_group_name         = azurerm_resource_group.rg.name
   network_security_group_name = azurerm_network_security_group.aks_nsg.name
 }
 
-# Add a rule to allow inbound HTTPS traffic from specific sources.
+# Inbound HTTPS from your developers (0.0.0.0/0)
 resource "azurerm_network_security_rule" "allow_inbound_https" {
   name                        = "AllowInboundHttpsFromTrusted"
-  priority                    = 120 # Needs a different priority than the other rules
+  priority                    = 120
   direction                   = "Inbound"
   access                      = "Allow"
   protocol                    = "Tcp"
   source_port_range           = "*"
-  destination_port_range      = "443" # Allow traffic to port 443
-  source_address_prefixes     = concat(var.developer_api_ips, var.developer_vpn_ips) # Allow traffic from Developer API and Developer VPN
-  destination_address_prefix  = "*"       # Allow traffic to any destination within the NSG scope (our subnet)
+  destination_port_range      = "443"
+  source_address_prefixes     = concat(var.developer_api_ips, var.developer_vpn_ips)
+  destination_address_prefix  = "*"
   resource_group_name         = azurerm_resource_group.rg.name
   network_security_group_name = azurerm_network_security_group.aks_nsg.name
 }
 
-# Associate the NSG with the AKS subnet.
+# ─────────── NEW RULES ───────────
+
+# 1) Allow Azure Load Balancer health probes on 80 & 443
+resource "azurerm_network_security_rule" "allow_lb_probes_http_https" {
+  name                        = "AllowAzureLBProbes"
+  priority                    = 100
+  direction                   = "Inbound"
+  access                      = "Allow"
+  protocol                    = "Tcp"
+
+  source_port_range           = "*"
+  source_address_prefix       = "AzureLoadBalancer"
+
+  destination_port_ranges     = ["80", "443"]
+  destination_address_prefix  = "*"
+
+  resource_group_name         = azurerm_resource_group.rg.name
+  network_security_group_name = azurerm_network_security_group.aks_nsg.name
+}
+
+# 2) Allow Azure Load Balancer to probe Kubernetes NodePorts
+resource "azurerm_network_security_rule" "allow_lb_probes_nodeport" {
+  name                        = "AllowAzureLBNodePorts"
+  priority                    = 101
+  direction                   = "Inbound"
+  access                      = "Allow"
+  protocol                    = "Tcp"
+
+  source_port_range           = "*"
+  source_address_prefix       = "AzureLoadBalancer"
+
+  destination_port_range      = "30000-32767"
+  destination_address_prefix  = "*"
+
+  resource_group_name         = azurerm_resource_group.rg.name
+  network_security_group_name = azurerm_network_security_group.aks_nsg.name
+}
+
+# Associate NSG with the subnet
 resource "azurerm_subnet_network_security_group_association" "aks_nsg_assoc" {
   subnet_id                 = azurerm_subnet.aks.id
   network_security_group_id = azurerm_network_security_group.aks_nsg.id
 }
 
-# Provision an AKS cluster with networking pointing to the subnet.
+# AKS Cluster
 resource "azurerm_kubernetes_cluster" "aks" {
   name                = var.aks_cluster_name
   location            = azurerm_resource_group.rg.location
@@ -114,14 +152,13 @@ resource "azurerm_kubernetes_cluster" "aks" {
   dns_prefix          = var.aks_cluster_name
 
   default_node_pool {
-    name                = "default"
-    node_count          = 1 # Note: node_count is often managed by autoscaler if enabled. Consider removing if not needed or set to min_count.
-    vm_size             = var.aks_default_node_pool_vm_size
-    temporary_name_for_rotation = "tempnodepool"
-    auto_scaling_enabled = true
-    min_count           = var.aks_default_node_pool_min_count
-    max_count           = var.aks_default_node_pool_max_count
-    vnet_subnet_id      = azurerm_subnet.aks.id
+    name                          = "default"
+    vm_size                       = var.aks_default_node_pool_vm_size
+    temporary_name_for_rotation   = "tempnodepool"
+    auto_scaling_enabled          = true
+    min_count                     = var.aks_default_node_pool_min_count
+    max_count                     = var.aks_default_node_pool_max_count
+    vnet_subnet_id                = azurerm_subnet.aks.id
   }
 
   identity {
@@ -136,19 +173,16 @@ resource "azurerm_kubernetes_cluster" "aks" {
   }
 }
 
-# Grant the AKS managed identity "Network Contributor" role on the subnet.
+# Assign AKS identity rights
 resource "azurerm_role_assignment" "aks_subnet_role" {
   scope                = azurerm_subnet.aks.id
   role_definition_name = "Network Contributor"
   principal_id         = azurerm_kubernetes_cluster.aks.identity[0].principal_id
 }
 
-# Grant the AKS managed identity permissions to manage route tables if using Azure CNI
-# Required for Azure CNI with network policies or custom routes
 resource "azurerm_role_assignment" "aks_routetable_role" {
-  scope                = azurerm_resource_group.rg.id # Assign at the resource group level
-  role_definition_name = "Network Contributor"        # Or a more specific custom role if needed
+  scope                = azurerm_resource_group.rg.id
+  role_definition_name = "Network Contributor"
   principal_id         = azurerm_kubernetes_cluster.aks.identity[0].principal_id
-  # Depends on the VNet being created first
-  depends_on = [azurerm_virtual_network.vnet]
+  depends_on           = [azurerm_virtual_network.vnet]
 }

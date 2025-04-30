@@ -1,6 +1,7 @@
 'use client'
 
 import { Button } from '@/components/button'
+import client from '@/lib/cyberdeskClient'
 import { supabase } from '@/utils/supabaseClient'
 import { ComputerDesktopIcon } from '@heroicons/react/24/outline'
 import { ChevronRightIcon, MinusIcon, PlusIcon } from '@heroicons/react/24/solid'
@@ -257,6 +258,33 @@ const DemoHeader = ({
         <h3 className="text-lg font-semibold text-gray-900">
           Try an interactive demo
         </h3>
+        <button className="mt-2 bg-gray-200 px-2 py-1 rounded-md" onClick={async () => 
+          {
+            console.log('Calling backend API to start Cyberdesk');
+            try {
+              const apiResponse = await fetch('/api/playground/desktop', {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ timeoutMs: DESKTOP_TIMEOUT_MS })
+              });
+
+              const responseData = await apiResponse.json();
+
+              if (!apiResponse.ok) {
+                console.error('Backend API error:', responseData.error || `Status: ${apiResponse.status}`);
+                // Handle error appropriately in the UI if needed
+              } else {
+                console.log('Backend API success:', responseData);
+                // TODO: Maybe use the returned streamUrl and id?
+                // Example: setStreamUrl(responseData.streamUrl); onDesktopDeployed(responseData.streamUrl, responseData.id);
+              }
+            } catch (error) {
+              console.error('Error calling backend API:', error);
+              // Handle fetch error appropriately
+            }
+          }}>Start Real Cyberdesk</button>
         <p className="mt-2 text-sm text-gray-600">
           See how easy it is to deploy a virtual desktop with our API
         </p>

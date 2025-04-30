@@ -218,77 +218,6 @@ async def serve_novnc(vm_id: str) -> FileResponse:
 # WebSocket proxy
 # --------------------------------------------------------------------------- #
 
-def _build_ssl_ctx(ca_path: Path) -> ssl.SSLContext:
-    """
-    Return an :class:`ssl.SSLContext` pre-loaded with the in-cluster CA bundle.
-
-    If the CA bundle is missing, fall back to the system trust store but keep
-    hostname verification enabled.
-    """
-    if ca_path.exists():
-        return ssl.create_default_context(cafile=str(ca_path))
-    LOG.warning("CA bundle not found – falling back to system trust store")
-    return ssl.create_default_context()
-
-
-# Helper function to create SSL context from loaded Kubeconfig
-def _build_ssl_ctx_from_config(k8s_config: client.Configuration) -> ssl.SSLContext:
-    """
-    Build SSLContext based on loaded Kubernetes configuration.
-    Handles CA bundle and client certificates if present.
-    Respects insecure_skip_tls_verify flag.
-    """
-    ca_path = k8s_config.ssl_ca_cert
-    ssl_ctx = None
-
-    try:
-        if ca_path and Path(ca_path).exists():
-            ssl_ctx = ssl.create_default_context(cafile=ca_path)
-            LOG.info(f"Using CA bundle from kubeconfig: {ca_path}")
-        else:
-            # Fallback for missing CA file or if not specified in kubeconfig
-            ssl_ctx = ssl.create_default_context() # Uses system CAs
-            if ca_path:
-                LOG.warning(f"Specified CA bundle '{ca_path}' not found. Falling back to system trust store.")
-            else:
-                LOG.info("No CA bundle specified in kubeconfig. Using system trust store.")
-
-        # Apply client certificate if specified
-        client_cert = k8s_config.cert_file
-        client_key = k8s_config.key_file
-        if client_cert and client_key and Path(client_cert).exists() and Path(client_key).exists():
-            ssl_ctx.load_cert_chain(certfile=client_cert, keyfile=client_key)
-            LOG.info(f"Loaded client certificate: {client_cert}")
-        elif client_cert or client_key:
-            # Log warning if one is specified but not the other, or files missing
-             LOG.warning(f"Client certificate or key specified but missing/incomplete. Cert: '{client_cert}', Key: '{client_key}'. Client cert auth disabled.")
-
-        # Disable hostname verification if insecure_skip_tls_verify is true
-        if k8s_config.verify_ssl is False:
-             LOG.warning("Disabling TLS hostname verification as per kubeconfig.")
-             ssl_ctx.check_hostname = False
-             # websockets uses the context's verify_mode. Setting check_hostname=False
-             # AND verify_mode=CERT_NONE achieves skipping verification.
-             # ssl.CERT_NONE might be needed for self-signed certs even with skip hostname.
-             ssl_ctx.verify_mode = ssl.CERT_NONE
-
-    except ssl.SSLError as e:
-        LOG.error(f"SSL Error creating context from kubeconfig: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to configure SSL from kubeconfig: {e}")
-    except FileNotFoundError as e:
-         LOG.error(f"Certificate file not found: {e}")
-         raise HTTPException(status_code=500, detail=f"Certificate file specified in kubeconfig not found: {e}")
-    except Exception as e:
-        LOG.exception(f"Unexpected error building SSL context from kubeconfig: {e}")
-        raise HTTPException(status_code=500, detail=f"Unexpected error configuring SSL from kubeconfig.")
-
-    if ssl_ctx is None: # Should not happen with current logic, but defensive check
-         LOG.error("Failed to create SSL Context")
-         raise HTTPException(status_code=500, detail="Failed to create SSL context")
-
-    return ssl_ctx
-
-
 async def _relay(
     recv: Callable[[], Awaitable[bytes]],
     send: Callable[[bytes], Awaitable[None]],
@@ -468,42 +397,6 @@ def require_supabase() -> Client:
         )
     return SUPABASE_CLIENT
 
-# --- Helper Function to get Gateway External IP ---
-async def get_gateway_external_ip() -> Optional[str]:
-    """Fetches the external IP of the gateway LoadBalancer service."""
-    LOG.info(f"Right before getting required k8s core api")
-    core_api = require_k8s_core()
-    try:
-        LOG.info(f"Right before getting service status")
-        # Run blocking K8s call in a separate thread
-        service = await asyncio.to_thread(
-            core_api.read_namespaced_service_status,
-            name=GATEWAY_SERVICE_NAME,
-            namespace=GATEWAY_NAMESPACE
-        )
-        LOG.info(f"Service status: {service}")
-        status = service.status
-        if status and status.load_balancer and status.load_balancer.ingress:
-            # Get the first ingress IP or hostname
-            ingress = status.load_balancer.ingress[0]
-            external_ip = ingress.ip or ingress.hostname
-            if external_ip:
-                LOG.info(f"Found gateway external IP/hostname: {external_ip}")
-                return external_ip
-            else:
-                 LOG.warning("Gateway service has ingress rules, but no IP or hostname found.")
-                 return None
-        else:
-            LOG.warning("Gateway service LoadBalancer status or ingress not found yet.")
-            return None
-    except ApiException as e:
-        LOG.error(f"API error getting gateway service status: {e.status} {e.reason}")
-        # Return None, let the caller handle retries or error reporting
-        return None
-    except Exception as e:
-         LOG.exception(f"Unexpected error getting gateway service IP: {e}")
-         return None
-
 # --- Helper Function to Update Supabase ---
 async def update_supabase_instance(vm_id: str, stream_url: str):
     """Updates the Supabase instance entry with stream URL and status."""
@@ -607,23 +500,12 @@ async def stop_cyberdesk(vm_id: str):
 )
 async def cyberdesk_ready(vm_id: str):
     """
-    Signal that a VM is ready. Fetches gateway external IP and updates Supabase.
+    Signal that a VM is ready. Updates Supabase with the stream URL.
     """
     LOG.info(f"Received ready signal for VM: {vm_id}")
-    # 1. Get Gateway External IP
-    external_ip = await get_gateway_external_ip()
-    if not external_ip:
-        # Decide how to handle - retry? error?
-        # For now, return 503 - service may be provisioning LB IP
-        LOG.error(f"Could not determine gateway external IP for {vm_id}. Aborting ready signal.")
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Gateway external IP not available yet. Please try again shortly."
-        )
-
     # 2. Construct Stream URL
     # Assuming default HTTP port 80 for the gateway service
-    stream_url = f"http://{external_ip}:80/vnc/{vm_id}"
+    stream_url = f"https://gateway.cyberdesk.io/vnc/{vm_id}"
     LOG.info(f"Constructed stream URL for {vm_id}: {stream_url}")
 
     # 3. Update Supabase
