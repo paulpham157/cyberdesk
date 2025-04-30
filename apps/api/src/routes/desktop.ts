@@ -93,15 +93,24 @@ desktop.use("*", async (c, next) => {
 desktop.openapi(getDesktop, async (c) => {
   const userId = c.get("userId");
   const id = c.req.param("id");
+  const { GATEWAY_URL } = env<EnvVars>(c);
 
   const instanceDetails = await getDbInstanceDetails(db, id, userId);
   
+  // Adjust stream_url for dev environment if needed
+  let streamUrl: string | null = instanceDetails.streamUrl ?? null;
+  if (streamUrl && GATEWAY_URL.includes('dev-gateway')) {
+    // Replace any 'gateway.' (with or without subdomain) with 'dev-gateway.'
+    // This is to support the dev environment, where the gateway is accessible via dev-gateway.cyberdesk.io (or whatever subdomain you've set up)
+    streamUrl = streamUrl.replace(/\bgateway\./g, 'dev-gateway.');
+  }
+
   return c.json({
       id: instanceDetails.id,
       status: instanceDetails.status,
       created_at: (instanceDetails.createdAt || new Date(0)).toISOString(),
       timeout_at: instanceDetails.timeoutAt.toISOString(),
-      stream_url: instanceDetails.streamUrl
+      stream_url: streamUrl
   }, 200);
 });
 
