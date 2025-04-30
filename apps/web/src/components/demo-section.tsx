@@ -395,7 +395,7 @@ const DesktopIframe = ({ streamUrl, vmStatus,isLoading }: { streamUrl: string, v
             }}
           >
             <iframe
-              src={streamUrl}
+              src={"https://gateway.cyberdesk.io/vnc/c11c3c26-42b9-4783-9133-b442fdca9733"}
               width={1024}
               height={768}
               style={{ border: 'none', display: vmStatus === 'ready' ? 'block' : 'none' }} // Hide iframe until ready
