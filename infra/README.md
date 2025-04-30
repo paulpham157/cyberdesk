@@ -22,7 +22,7 @@ Before running any Terraform commands, authenticate with Azure CLI:
 az login
 az account set --subscription <your-subscription-id>
 ```
-Replace `<your-subscription-id>` with the correct Azure subscription for your environment.
+Replace `<your-subscription-id>` with the correct Azure subscription for your environment (this may be auto-set if you're using the Azure CLI to login).
 
 ### 1.2 Initialize Terraform
 Navigate to the terraform directory and initialize:
