@@ -1,6 +1,6 @@
 {
   "name": "cyberdesk",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "description": "The official TypeScript SDK for Cyberdesk",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -10,7 +10,7 @@
     "README.md"
   ],
   "scripts": {
-    "generate": "openapi-ts",
+    "generate": "openapi-ts && node scripts/fix-routes.js",
     "build": "npm run generate && tsc",
     "prepublishOnly": "npm run build"
   },

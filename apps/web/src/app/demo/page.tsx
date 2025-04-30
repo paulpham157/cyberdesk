@@ -42,7 +42,7 @@ export default function PlaygroundDemo() {
     },
   })
   // Function to handle when a desktop is deployed
-  const handleDesktopDeployed = (url: string, id: string) => {
+  const handleDesktopDeployed = (id: string) => {
     // Set the desktop ID directly from the API response
     setDesktopId(id)
   }

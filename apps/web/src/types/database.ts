@@ -11,11 +11,13 @@ export interface Profile {
   updated_at?: Date;
 }
 
-export interface DesktopInstance {
+// This interface matches the backend schema for cyberdesk_instances (see apps/api/src/db/schema.ts)
+export interface CyberdeskInstance {
   id: string;
-  remote_id: string;
   user_id: string;
-  stream_url: string;
-  created_at?: Date;
-  ended_at?: Date;
+  created_at: string; // ISO string from DB
+  updated_at?: string | null; // nullable
+  status: 'pending' | 'running' | 'terminated' | 'error';
+  timeout_at: string; // ISO string from DB
+  stream_url?: string | null;
 }
