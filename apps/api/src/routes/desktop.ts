@@ -154,33 +154,19 @@ desktop.openapi(createDesktop, async (c) => {
 
 // Route for stopping a desktop instance
 desktop.openapi(stopDesktop, async (c) => {
-  console.log('[stopDesktop] Received request');
-
-  // --- Log Full Request Details --- START ---
-  console.log(`[stopDesktop] Full Request:  ${JSON.stringify(c.req)}`);
-  console.log(`[stopDesktop] Request Method: ${c.req.method}`);
-  console.log(`[stopDesktop] Request URL: ${c.req.url}`);
-  console.log(`[stopDesktop] Request Headers: ${JSON.stringify(c.req.header())}`);
-  console.log(`[stopDesktop] Request Query Params: ${JSON.stringify(c.req.query())}`);
-  // --- Log Full Request Details --- END ---
-
   const userId = c.get("userId");
   const id = c.req.param("id");
   const { GATEWAY_URL } = env<EnvVars>(c);
 
-  console.log(`[stopDesktop] Proceeding to update DB status for id: ${id}, userId: ${userId}`);
   const updatedInstance = await updateDbInstanceStatus(db, id, userId, InstanceStatus.Terminated);
-  console.log(`[stopDesktop] DB status updated for id: ${id}, new status: ${updatedInstance.status}`);
 
   try {
     const provisioningUrl = `${GATEWAY_URL}/cyberdesk/${id}/stop`;
     await axios.post(provisioningUrl);
-    console.log('[stopDesktop] Stopping request successful via Gateway for instance:', id);
   } catch (provisioningError) {
     console.error('Error calling provisioning service during stop:', provisioningError);
   }
 
-  console.log(`[stopDesktop] Returning final response for id: ${id}`);
   const responsePayload: { status: InstanceStatus } = {
       status: updatedInstance.status as InstanceStatus,
   };

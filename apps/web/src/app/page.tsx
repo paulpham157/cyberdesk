@@ -9,7 +9,7 @@ import PlaygroundDemo from './demo/page'
 
 export const metadata: Metadata = {
   description:
-    'Cyberdesk deploys many virtual desktops for your computer agents with only in a few lines of code.',
+    'Cyberdesk deploys virtual desktops for your computer agents with only in a few lines of code.',
 }
 
 export default function Home() {
