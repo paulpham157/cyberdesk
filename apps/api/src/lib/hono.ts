@@ -14,7 +14,7 @@ export type HonoEnv = {
     UNKEY_ROOT_KEY: string;
     UNKEY_API_ID: string;
 
-    GATEWAY_EXTERNAL_IP: string;
+    GATEWAY_URL: string;
   };
   Variables: {
     cache: Cache
