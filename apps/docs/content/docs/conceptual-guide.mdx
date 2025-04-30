@@ -8,65 +8,64 @@ Understanding the core concepts of Cyberdesk will help you build more effective 
 
 Cyberdesk is built on a microservices architecture that provides scalable, reliable access to virtual desktop environments. The system consists of:
 
-- **API Service**: RESTful endpoints for programmatic control
-- **Desktop Pool**: Managed virtual desktop instances
-- **Stream Service**: Real-time visual streaming of desktop environments
-- **Authentication Service**: Secure API key management and validation
-- **Database**: Persistent storage for desktop metadata and user information
+- **API Service**: The backend service accessed via the SDK.
+- **Desktop Pool**: Managed virtual desktop instances.
+- **Stream Service**: Real-time visual streaming of desktop environments.
+- **Database**: Persistent storage for desktop metadata and user information.
 
 ## Desktop Instances
 
 A desktop instance is a virtual desktop environment running in the cloud. Each instance:
 
-- Has a unique identifier (UUID format)
-- Runs in an isolated environment for security
-- Can be controlled programmatically through the API
-- Provides a stream URL for visual feedback
-- Persists until explicitly stopped or times out
-- Has configurable resources (CPU, memory, storage)
+- Has a unique identifier (UUID format).
+- Runs in an isolated environment for security.
+- Can be controlled programmatically through the **SDK methods**.
+- Provides a `stream_url` (obtained via SDK methods) for visual feedback.
+- Persists until explicitly stopped (via `terminateDesktop`) or times out.
+- Has configurable resources (CPU, memory, storage) - future feature.
 
-When creating a desktop instance, you can specify a custom timeout in milliseconds using the `timeoutMs` parameter. This allows you to control how long the desktop instance will remain active before being automatically terminated. If not specified, a default timeout is applied (refer to API documentation for defaults). Check your plan for maximum allowed timeout values.
+When creating a desktop instance using `launchDesktop`, you can specify a custom timeout in milliseconds using the `body.timeout_ms` parameter. This allows you to control how long the desktop instance will remain active before being automatically terminated. If not specified, a default timeout is applied. Check your plan for maximum allowed timeout values.
 
 ## Computer Actions
 
-Cyberdesk supports various computer actions to interact with the desktop via the `/desktop/:id/computer-action` endpoint. Actions are specified using a `type` field and associated parameters:
+Cyberdesk supports various computer actions to interact with the desktop via the **`executeComputerAction` SDK method**. Actions are specified using a `body` object containing a `type` field and associated parameters:
 
 ### Mouse Actions
 
-- **`click_mouse`**: Perform a mouse action (click, press down, or release up).
+- **`type: 'click_mouse'`**: Perform a mouse action (click, press down, or release up).
   - `x`, `y` (optional): Coordinates for the click.
   - `button` (optional): `left`, `right`, or `middle` (defaults to `left`).
   - `num_of_clicks` (optional): Number of clicks (defaults to 1, for `click_type: 'click'`).
   - `click_type` (optional): `click` (down and up), `down` (press), or `up` (release) (defaults to `click`).
-- **`scroll`**: Scroll the mouse wheel.
+- **`type: 'scroll'`**: Scroll the mouse wheel.
   - `direction`: `up`, `down`, `left`, or `right`.
   - `amount`: Amount to scroll in pixels.
-- **`move_mouse`**: Move the mouse cursor to specific coordinates.
+- **`type: 'move_mouse'`**: Move the mouse cursor to specific coordinates.
   - `x`, `y`: Target coordinates.
-- **`drag_mouse`**: Drag the mouse from a start point to an end point.
+- **`type: 'drag_mouse'`**: Drag the mouse from a start point to an end point.
   - `start`: `{ x, y }` starting coordinates.
   - `end`: `{ x, y }` ending coordinates.
 
 ### Keyboard Actions
 
-- **`type`**: Type text at the current cursor position.
+- **`type: 'type'`**: Type text at the current cursor position.
   - `text`: The string to type.
-- **`press_keys`**: Press, hold down, or release keyboard keys.
+- **`type: 'press_keys'`**: Press, hold down, or release keyboard keys.
   - `keys`: A single key string (e.g., `'Enter'`) or an array of keys to press simultaneously (e.g., `['Control', 'c']`).
   - `key_action_type` (optional): `press` (down and up), `down` (hold), or `up` (release) (defaults to `press`).
 
 ### Other Actions
 
-- **`wait`**: Pause execution for a specified duration.
+- **`type: 'wait'`**: Pause execution for a specified duration.
   - `ms`: Time to wait in milliseconds.
-- **`screenshot`**: Capture the current state of the desktop.
-  - Returns a base64 encoded image string in the response (`image` field).
-- **`get_cursor_position`**: Get the current mouse cursor coordinates.
-  - Returns `{ x, y }` coordinates in the response (`cursorPosition` field).
+- **`type: 'screenshot'`**: Capture the current state of the desktop.
+  - Returns a `base64_image` field in the successful response object.
+- **`type: 'get_cursor_position'`**: Get the current mouse cursor coordinates.
+  - Returns `x`, `y` coordinates in the successful response object.
 
 ## Bash Actions
 
-Bash actions allow you to execute shell commands on the desktop instance via the `/desktop/:id/bash-action` endpoint. This is useful for:
+Bash actions allow you to execute shell commands on the desktop instance via the **`executeBashAction` SDK method**. This is useful for:
 
 - Installing software
 - Running applications
@@ -74,67 +73,72 @@ Bash actions allow you to execute shell commands on the desktop instance via the
 - Executing scripts
 - System configuration
 
-The endpoint accepts a `command` parameter containing the shell command to execute and returns the command `output` (stdout/stderr) as a string in the response.
+The method accepts a `body.command` parameter containing the shell command to execute and returns the command `output` (stdout/stderr) as a string in the successful response object.
 
 ## Desktop Streaming
 
-Cyberdesk provides real-time streaming of desktop visuals through:
+Cyberdesk provides real-time streaming of desktop visuals. The `stream_url` obtained from the `launchDesktop` or `getDesktop` SDK methods can be used for:
 
-1.  **Web-based Viewer**: Access the desktop through a browser using the provided `streamUrl` from the desktop creation response.
-2.  **VNC Protocol**: The `streamUrl` often corresponds to a VNC-compatible endpoint (details may vary).
-3.  **Embedded Iframe**: Embed the desktop view directly in your web applications using the `streamUrl`.
+1.  **Web-based Viewer**: Opening the URL in a browser.
+2.  **VNC Protocol**: Connecting with a VNC client (if the stream URL supports it).
+3.  **Embedded Iframe**: Embedding the desktop view directly in your web applications.
 
 The streaming service aims for low-latency transmission suitable for real-time interaction.
 
 ## Authentication and Security
 
-Cyberdesk uses API keys for authentication. Each API key:
+Cyberdesk uses API keys for authentication. The **SDK client is initialized with your API key**, which is then automatically included in all requests.
 
-- Is associated with a specific user account
-- Has rate limits to prevent abuse
-- Can be revoked or regenerated from your dashboard
-- Must be kept secure and not shared publicly
+- API keys are associated with a specific user account.
+- Rate limits apply to prevent abuse.
+- Keys can be revoked or regenerated from your dashboard.
+- Keep your API key secure.
 
-All API requests must include the API key in the `x-api-key` header. Communication with the API is encrypted using TLS/SSL.
+Communication with the API is encrypted using TLS/SSL.
 
 ## Resource Management
 
 Cyberdesk automatically manages resources:
 
-- Desktop instances are cleaned up when stopped via the API or when they reach their timeout.
+- Desktop instances are cleaned up when stopped via the **`terminateDesktop` SDK method** or when they reach their timeout.
 - Users are responsible for stopping instances when no longer needed to manage costs and resources.
 - Resource quotas and limits may apply depending on your subscription plan.
 
 ## Error Handling
 
-Cyberdesk API returns standard HTTP status codes and a simple JSON error message:
+The Cyberdesk **SDK methods** simplify error handling. Each method returns a promise that resolves to an object. You should check if this object contains an `error` property:
 
-- 2xx: Successful operation
-- 400: Bad Request (e.g., invalid parameters in the request body)
-- 401: Unauthorized (e.g., missing or invalid API key)
-- 403: Forbidden (e.g., attempting an action not allowed by your plan)
-- 404: Not Found (e.g., desktop instance ID does not exist)
-- 429: Too Many Requests (rate limit exceeded)
-- 5xx: Server Error (an issue occurred on the Cyberdesk side)
+```typescript
+const result = await cyberdesk.someMethod(...);
 
-Error responses follow the `ErrorResponseSchema`:
-
-```json
-{
-  "error": "Descriptive error message here. Example: Desktop instance a1b2c3d4-... not found"
+if ('error' in result) {
+  // Handle the error
+  console.error('Cyberdesk SDK Error:', result.error);
+  // The 'error' property contains the descriptive error message from the API
+} else {
+  // Process the successful result
+  console.log('Success:', result);
 }
 ```
 
-Check the specific error message returned by the API for details on what went wrong.
+Common error scenarios include:
+- Invalid parameters in the request body (`body` property of the method call).
+- Missing or invalid API key (during client initialization or if the key is revoked).
+- Attempting an action not allowed by your plan.
+- Referencing a non-existent desktop instance ID (`path.id`).
+- Rate limit exceeded.
+- Server-side issues on the Cyberdesk platform.
+
+Check the specific error message returned in the `error` property for details.
 
 ## Performance Considerations
 
-When building applications with Cyberdesk, consider:
+When building applications with the Cyberdesk SDK, consider:
 
-- **API Call Latency**: Network latency will affect interaction speed.
-- **Action Duration**: Some actions (like `wait` or long bash commands) take time.
+- **API Call Latency**: Network latency affects the time it takes for SDK methods to complete.
+- **Action Duration**: Some actions (like `wait` or long bash commands) naturally take time.
 - **Streaming Latency**: There will be some delay in the visual stream.
-- **Error Retries**: Implement robust error handling, potentially with retries using exponential backoff for transient issues (like 5xx errors or rate limits).
+- **Error Retries**: For transient issues (like network errors or potential server-side hiccups), consider implementing retry logic around your SDK calls, possibly with exponential backoff.
 
 ## Billing and Usage
 
@@ -142,4 +146,4 @@ Cyberdesk billing is typically based on factors like:
 
 - **Active Desktop Time**: The duration desktop instances are running (often billed per second or minute).
 
-Monitor your usage and understand the pricing model via the Cyberdesk dashboard (coming soon!)
+Monitor your usage and understand the pricing model via the Cyberdesk dashboard (coming soon!).

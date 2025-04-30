@@ -16,7 +16,7 @@ export async function executeBashCommand(
 ): Promise<string> {
   try {
     // Call the client method
-    const result = await client.bashCommandOnDesktop({
+    const result = await client.executeBashAction({
         path: { id: desktopId },
         body: { command },
     });

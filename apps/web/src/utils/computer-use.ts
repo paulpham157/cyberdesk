@@ -3,7 +3,7 @@
  */
 
 import client from '@/lib/cyberdeskClient';
-import type { ExecuteActionOnDesktopParams, PostV1DesktopIdComputerActionData } from '../../../../sdks/ts-sdk/src';
+import type { ExecuteComputerActionParams } from "cyberdesk"
 
 /**
  * Get the base API URL based on environment
@@ -51,7 +51,7 @@ export async function executeComputerAction(
   start_coordinate?: { x: number; y: number }
 ): Promise<string | { type: "image"; data: string }> {
   try {
-    let requestBody: ExecuteActionOnDesktopParams['body'];
+    let requestBody: ExecuteComputerActionParams['body'];
 
     // Map the action to the API's expected format
     switch (action) {
@@ -206,12 +206,12 @@ export async function executeComputerAction(
     }
 
     // Construct the parameters for the client call
-    const clientParams: ExecuteActionOnDesktopParams = {
+    const clientParams: ExecuteComputerActionParams = {
       path: { id: desktopId },
       body: requestBody
     };
 
-    const result = await client.executeActionOnDesktop(clientParams);
+    const result = await client.executeComputerAction(clientParams);
 
     if (result.response.status !== 200) {
       let errorDetails = `Failed with status: ${result.response.status}`;

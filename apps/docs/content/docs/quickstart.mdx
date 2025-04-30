@@ -48,215 +48,215 @@ npm run dev
 
 This template provides a complete working example that you can customize for your specific use case. For more details, check out the [repository README](https://github.com/cyberdesk-hq/cyberdesk-starter-assistant-ui).
 
-## Prerequisites
+## Building a Custom Integration with the TypeScript SDK
 
-- An API key (obtain from your [Cyberdesk dashboard](https://cyberdesk.io/dashboard))
-- Basic knowledge of REST APIs
-- A tool for making HTTP requests (curl, Postman, or your preferred programming language)
+If you want to build your own integration, the **official TypeScript SDK** is the recommended approach. The rest of this guide shows how to use the SDK.
 
-## Building a Custom Integration
+### Prerequisites
 
-If you're interested in building a custom agent or application that integrates with Cyberdesk, continue reading this guide. The following sections provide detailed information on how to interact with the Cyberdesk API directly.
+- Node.js installed
+- A Cyberdesk API key (obtain from your [Cyberdesk dashboard](https://cyberdesk.io/dashboard))
 
-## Authentication
+### Installation
 
-All API requests require authentication using your API key in the header:
-
-```bash
-x-api-key: your_api_key_here
-```
-
-Keep your API key secure and do not share it publicly. If you believe your key has been compromised, you can regenerate it from your dashboard.
-
-## Creating a Desktop Instance
-
-To create a new desktop instance, make a POST request to the `/desktop` endpoint:
+Install the SDK package:
 
 ```bash
-curl -X POST https://api.cyberdesk.io/v1/desktop \
-  -H "x-api-key: your_api_key_here" \
-  -H "Content-Type: application/json" \
-  -d '{"timeoutMs": 3600000}'
+npm install cyberdesk
+# or
+yarn add cyberdesk
+# or
+pnpm add cyberdesk
 ```
 
-JavaScript example:
+### 1. Initialize the Client
 
-```javascript
-const response = await fetch('https://api.cyberdesk.io/v1/desktop', {
-  method: 'POST',
-  headers: {
-    'x-api-key': 'your_api_key_here',
-    'Content-Type': 'application/json'
-  },
-  body: JSON.stringify({
-    timeoutMs: 3600000 // 1 hour timeout
-  })
+Create a Cyberdesk client instance with your API key:
+
+```typescript
+import { createCyberdeskClient } from 'cyberdesk';
+
+const cyberdesk = createCyberdeskClient({
+  apiKey: 'YOUR_API_KEY',
+  // Optionally, you can override the baseUrl or provide a custom fetch implementation
 });
 
-const { id, streamUrl } = await response.json();
+console.log('Cyberdesk client initialized.');
 ```
 
-The response will include:
-- `id`: A unique identifier for your desktop instance (UUID format)
-- `streamUrl`: A URL that you can use to stream the desktop visually
+### 2. Launch a Desktop Instance
 
-```json
-{
-  "id": "a1b2c3d4-e5f6-7890-1234-567890abcdef",
-  "streamUrl": "https://stream.example.com" // Example URL
-}
-```
+Use the `launchDesktop` method to create a new virtual desktop:
 
-## Viewing the Desktop Stream
-
-The `streamUrl` returned when creating a desktop can be used to view the desktop in real-time. You can:
-
-1. Open the URL in a browser to view the desktop
-2. Embed it in an iframe in your application
-3. Use a VNC client to connect to it
-
-Example iframe implementation (replace with the actual `streamUrl`):
-
-```html
-<iframe
-  src="https://stream.example.com"
-  width="1024"
-  height="768"
-  style="border: none;"
-></iframe>
-```
-
-## Controlling the Desktop
-
-Let's assume your desktop instance ID is `a1b2c3d4-e5f6-7890-1234-567890abcdef`.
-
-### Mouse Actions
-
-Perform a single left mouse click at coordinates (100, 200):
-
-```bash
-curl -X POST https://api.cyberdesk.io/v1/desktop/a1b2c3d4-e5f6-7890-1234-567890abcdef/computer-action \
-  -H "x-api-key: your_api_key_here" \
-  -H "Content-Type: application/json" \
-  -d '{"type": "click_mouse", "x": 100, "y": 200, "button": "left", "num_of_clicks": 1, "click_type": "click"}'
-```
-
-Move the mouse cursor to (300, 400):
-
-```bash
-curl -X POST https://api.cyberdesk.io/v1/desktop/a1b2c3d4-e5f6-7890-1234-567890abcdef/computer-action \
-  -H "x-api-key: your_api_key_here" \
-  -H "Content-Type: application/json" \
-  -d '{"type": "move_mouse", "x": 300, "y": 400}'
-```
-
-### Keyboard Actions
-
-Type text:
-
-```bash
-curl -X POST https://api.cyberdesk.io/v1/desktop/a1b2c3d4-e5f6-7890-1234-567890abcdef/computer-action \
-  -H "x-api-key: your_api_key_here" \
-  -H "Content-Type: application/json" \
-  -d '{"type": "type", "text": "Hello, Cyberdesk!"}'
-```
-
-Press keyboard keys (Control + c):
-
-```bash
-curl -X POST https://api.cyberdesk.io/v1/desktop/a1b2c3d4-e5f6-7890-1234-567890abcdef/computer-action \
-  -H "x-api-key: your_api_key_here" \
-  -H "Content-Type: application/json" \
-  -d '{"type": "press_keys", "keys": ["Control", "c"], "key_action_type": "press"}'
-```
-
-### Taking Screenshots
-
-Take a screenshot of the current desktop state:
-
-```bash
-curl -X POST https://api.cyberdesk.io/v1/desktop/a1b2c3d4-e5f6-7890-1234-567890abcdef/computer-action \
-  -H "x-api-key: your_api_key_here" \
-  -H "Content-Type: application/json" \
-  -d '{"type": "screenshot"}'
-```
-
-The response will include a base64-encoded image:
-
-```json
-{
-  "status": "success",
-  "image": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAA..."
-}
-```
-
-### Running Bash Commands
-
-Execute commands directly on the desktop:
-
-```bash
-curl -X POST https://api.cyberdesk.io/v1/desktop/a1b2c3d4-e5f6-7890-1234-567890abcdef/bash-action \
-  -H "x-api-key: your_api_key_here" \
-  -H "Content-Type: application/json" \
-  -d '{"command": "ls -la"}'
-```
-
-Response:
-
-```json
-{
-  "status": "success",
-  "output": "total 20\ndrwxr-xr-x 4 user user 4096 Mar 29 10:00 .\ndrwxr-xr-x 3 user user 4096 Mar 29 09:55 ..\n..."
-}
-```
-
-## Stopping a Desktop Instance
-
-When you're done with a desktop instance, stop it to free up resources:
-
-```bash
-curl -X POST https://api.cyberdesk.io/v1/desktop/a1b2c3d4-e5f6-7890-1234-567890abcdef/stop \
-  -H "x-api-key: your_api_key_here"
-```
-
-Response:
-
-```json
-{
-  "status": "success"
-}
-```
-
-## Error Handling
-
-Cyberdesk API returns standard HTTP status codes and descriptive error messages in the `ErrorResponseSchema` format. Always check for error responses and handle them appropriately:
-
-```javascript
-try {
-  const response = await fetch('https://api.cyberdesk.io/v1/desktop/a1b2c3d4-e5f6-7890-1234-567890abcdef/computer-action', {
-    method: 'POST',
-    headers: {
-      'x-api-key': 'your_api_key_here',
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify({
-      type: 'click_mouse',
-      x: 100,
-      y: 200
-    })
+```typescript
+async function launch() {
+  console.log('Launching desktop...');
+  const launchResult = await cyberdesk.launchDesktop({
+    body: { timeout_ms: 600000 } // Optional: 10-minute timeout
   });
 
-  if (!response.ok) {
-    const errorData = await response.json();
-    throw new Error(`API error: ${errorData.error}`); // Use errorData.error
+  // Error handling - check for the error property
+  if ('error' in launchResult) {
+    console.error('Failed to launch desktop:', launchResult.error);
+    throw new Error('Failed to launch desktop: ' + launchResult.error);
   }
 
-  const result = await response.json();
-  console.log('Action successful:', result);
-
-} catch (error) {
-  console.error(error);
+  // Success - result contains id and status
+  console.log('Desktop launch initiated:', launchResult);
+  return launchResult.id; // Return the ID for the next steps
 }
+
+// We'll call this function later
 ```
 
-This quickstart guide covers the basics of using the Cyberdesk API. For more detailed information, check out the [Conceptual Guide](/docs/conceptual-guide) and the full [API Reference](/docs/api-reference).
+*The response from `launchDesktop` contains the `id` and initial `status`.* 
+
+### 3. Get Desktop Information (Including Stream URL)
+
+Once the desktop is running (or pending), you can fetch its details, including the `stream_url`:
+
+```typescript
+async function getInfo(desktopId: string) {
+  console.log(`Getting info for desktop ${desktopId}...`);
+  // Poll until the desktop is running (optional, for demonstration)
+  let info;
+  for (let i = 0; i < 10; i++) { // Try up to 10 times
+    info = await cyberdesk.getDesktop({ path: { id: desktopId } });
+    if (!('error' in info) && info.status === 'running') {
+      break; // Exit loop if running
+    }
+    if ('error' in info) {
+      console.error('Error getting info:', info.error);
+      throw new Error('Failed to get desktop info: ' + info.error);
+    }
+    console.log(`Status: ${info.status}, waiting...`);
+    await new Promise(resolve => setTimeout(resolve, 5000)); // Wait 5 seconds
+  }
+
+  if (!info || 'error' in info) {
+     throw new Error('Failed to get running desktop info.');
+  }
+
+  console.log('Desktop info retrieved:', info);
+  console.log('Stream URL:', info.stream_url);
+  return info;
+}
+
+// We'll call this function later
+```
+
+*The `stream_url` can be opened in a browser or used with a VNC client.* 
+
+### 4. Control the Desktop
+
+Interact with the running desktop using methods like `executeComputerAction` and `executeBashAction`.
+
+#### Perform a Mouse Click
+
+```typescript
+async function clickMouse(desktopId: string) {
+  console.log(`Clicking mouse on desktop ${desktopId}...`);
+  const actionResult = await cyberdesk.executeComputerAction({
+    path: { id: desktopId },
+    body: {
+      type: 'click_mouse',
+      x: 100,
+      y: 150,
+      button: 'left' // Optional, defaults to left
+    }
+  });
+
+  if ('error' in actionResult) {
+    console.error('Mouse click failed:', actionResult.error);
+    throw new Error('Mouse click failed: ' + actionResult.error);
+  }
+
+  console.log('Mouse click successful:', actionResult);
+}
+
+// We'll call this function later
+```
+
+#### Run a Bash Command
+
+```typescript
+async function runBash(desktopId: string) {
+  console.log(`Running bash command on desktop ${desktopId}...`);
+  const bashResult = await cyberdesk.executeBashAction({
+    path: { id: desktopId },
+    body: {
+      command: 'ls -la /tmp'
+    }
+  });
+
+  if ('error' in bashResult) {
+    console.error('Bash command failed:', bashResult.error);
+    throw new Error('Bash command failed: ' + bashResult.error);
+  }
+
+  console.log('Bash command output:', bashResult.output);
+}
+
+// We'll call this function later
+```
+
+### 5. Stop the Desktop Instance
+
+When finished, use the `terminateDesktop` method to stop the instance and release resources:
+
+```typescript
+async function terminate(desktopId: string) {
+  console.log(`Terminating desktop ${desktopId}...`);
+  const terminateResult = await cyberdesk.terminateDesktop({
+    path: { id: desktopId }
+  });
+
+  if ('error' in terminateResult) {
+    console.error('Termination failed:', terminateResult.error);
+    // Note: You might still want to proceed even if termination fails
+  }
+
+  console.log('Desktop termination result:', terminateResult);
+}
+
+// We'll call this function later
+```
+
+### Putting it all Together
+
+```typescript
+// (Make sure you have the client initialized as shown in Step 1)
+
+async function main() {
+  let desktopId: string | undefined;
+  try {
+    // 1. Launch
+    desktopId = await launch();
+
+    // 2. Get Info (wait for running state)
+    await getInfo(desktopId);
+
+    // 3. Control (Click and Bash)
+    await clickMouse(desktopId);
+    await runBash(desktopId);
+
+    console.log('Quickstart complete!');
+
+  } catch (error) {
+    console.error('An error occurred during the quickstart:', error);
+  } finally {
+    // 4. Terminate (always attempt, even if errors occurred)
+    if (desktopId) {
+      await terminate(desktopId);
+    }
+  }
+}
+
+main(); // Run the quickstart sequence
+```
+
+## Next Steps
+
+- Explore the [Tutorials](/docs/tutorials) for more complex examples using the SDK.
+- Understand core concepts in the [Conceptual Guide](/docs/conceptual-guide).
+- Review the [API Reference](/docs/api-reference) if you need details on the underlying REST API.

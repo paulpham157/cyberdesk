@@ -141,7 +141,7 @@ export async function GET(request: Request) {
          );
     }
 
-    const result = await client.getDesktopInfo({ path: { id } });
+    const result = await client.getDesktop({ path: { id } });
 
     if (result.response.status !== 200) {
       let errorDetails = `Failed with status: ${result.response.status}`;

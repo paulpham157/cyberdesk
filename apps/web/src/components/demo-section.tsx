@@ -83,6 +83,8 @@ export function DemoSection({
 
       // Poll for status
       let running = false
+      let delay = 500 // Start with 0.5s
+      const maxDelay = 5000 // Cap at 5s
       while (!running) {
         try {
           const data = await getDetailsVirtualDesktop(id)
@@ -103,7 +105,8 @@ export function DemoSection({
           setIsDemoLaunched(false)
           break
         }
-        await new Promise(res => setTimeout(res, 2000))
+        await new Promise(res => setTimeout(res, delay))
+        delay = Math.min(delay * 2, maxDelay)
       }
     } catch (error) {
       setError('Error during launch.')

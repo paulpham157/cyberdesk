@@ -1,4 +1,4 @@
-import { createCyberdeskClient } from "../../../../sdks/ts-sdk/src";
+import { createCyberdeskClient } from "cyberdesk";
 
 const client = createCyberdeskClient({
     apiKey: process.env.CYBERDESK_API_KEY || '',
