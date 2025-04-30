@@ -294,6 +294,11 @@ Once your Ingress has an external IP, set up your DNS records (Cyberdesk manages
 
 Update your DNS provider with the correct IP.
 
+Your DNS is ready when nslookup returns the correct IP (should be relatively quick).
+
+```bash
+nslookup gateway.cyberdesk.io (or dev-gateway.cyberdesk.io)
+```
 ---
 
 ## 14. Verify Ingress and Certificate
@@ -324,13 +329,11 @@ Before starting the warm pool, you must update `warm-pool.yaml` to reference the
 
 2. **Edit `warm-pool.yaml`:**
    - Update the `snapshot: name:` field to match the name you found above.
-
+   - Check the YAML to see if the desired amount of replicas are set. In dev, usually 1 is enough. In prod, this should probably be much, much higher.
 3. **Apply the warm pool:**
    ```bash
    kubectl apply -f warm-pool.yaml
    ```
-
-Check the YAML to see if the desired amount of replicas are set. In dev, usually 1 is enough. In prod, this is much, much higher.
 
 ## 16. Verify Everything
 
@@ -344,7 +347,7 @@ Check the YAML to see if the desired amount of replicas are set. In dev, usually
   ```
 - Check if the Gateway is accessible:
   ```bash
-  curl -k https://gateway.cyberdesk.io # (or dev-gateway.cyberdesk.io if you're in dev)
+  curl -k https://gateway.cyberdesk.io/healthz # (or dev-gateway.cyberdesk.io if you're in dev)
   ```
 
 ## 17. Delete the Golden VM
@@ -352,3 +355,22 @@ Since we've snapshotted it, we can delete it now.
 ```bash
 kubectl delete vm golden-vm -n kubevirt
 ```
+
+## 18. Local Development
+- Head to /apps/api, and make sure your .env contains the correct values, but most importantly, make sure the `GATEWAY_URL` is set to the correct URL (dev-gateway.cyberdesk.io or gateway.cyberdesk.io). Note: if set to dev-gateway.cyberdesk.io, stream URL's returned from the Gateway service will be overridden to use the dev-gateway.cyberdesk.io domain.
+- Run `npm run dev` to start the API.
+- Head to /apps/web, and make sure your .env contains the correct values, but most importantly, make sure the `CYBERDESK_API_BASE_URL` is set to http://localhost:3001 (or whatever port your API is running on).
+- Run `npm run dev` to start the web app.
+
+You're now set to start developing! Make sure you branch off from `dev` and create a new branch for your work.
+
+## 19. Deploying to Prod
+- Make a PR to merge your changes into `dev`.
+- Once approved, merge your PR into `dev`.
+- Carefully plan how you will bring the changes you made into the production cluster. Make sure to switch kubeconfig to prod before you start, using `az aks get-credentials --resource-group <resource-group-name> --name <aks-cluster-name>`.
+- Make final tests in the dev cluster to ensure everything is working as expected.
+- Once you're ready, make a PR to merge your changes into `prod`.
+- Once approved, merge your PR into `prod`.
+- Apply the changes to the production cluster using kubectl (for example, if the Gateway has a new image, you can do kubectl rollout restart deployment gateway -n cyberdesk-system).
+- Make sure corresponding changes to the developer API / web app / docs are also being pushed to live via Vercel / Fly.io.
+TODO: Figure out how to orchestrate this better. Right now, there is discrepency between when cluster changes are pushed vs when the developer API / web app are pushed to live (since we have so many different hosting environments).
