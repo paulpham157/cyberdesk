@@ -40,7 +40,7 @@ type EnvVars = {
   SUPABASE_ANON_KEY: string;
   SUPABASE_CONNECTION_STRING?: string;
   WEB_URL: string;
-  GATEWAY_EXTERNAL_IP: string;
+  GATEWAY_URL: string;
 };
 
 // Use the schema type for computer actions
@@ -107,7 +107,7 @@ desktop.openapi(getDesktop, async (c) => {
 
 // Route for creating a new desktop instance
 desktop.openapi(createDesktop, async (c) => {
-  const { GATEWAY_EXTERNAL_IP } = env<EnvVars>(c);
+  const { GATEWAY_URL } = env<EnvVars>(c);
   const userId = c.get("userId");
   let createDesktopParams: CreateDesktopParams;
 
@@ -118,7 +118,7 @@ desktop.openapi(createDesktop, async (c) => {
     const newInstance = await addDbInstance(db, userId, createDesktopParams.timeout_ms);
 
     try {
-      const provisioningUrl = `http://${GATEWAY_EXTERNAL_IP}/cyberdesk/${newInstance.id}`;
+      const provisioningUrl = `${GATEWAY_URL}/cyberdesk/${newInstance.id}`;
       const response = await axios.post(provisioningUrl, {
         timeoutMs: createDesktopParams.timeout_ms
       });
@@ -156,12 +156,12 @@ desktop.openapi(createDesktop, async (c) => {
 desktop.openapi(stopDesktop, async (c) => {
   const userId = c.get("userId");
   const id = c.req.param("id");
-  const { GATEWAY_EXTERNAL_IP } = env<EnvVars>(c);
+  const { GATEWAY_URL } = env<EnvVars>(c);
 
   const updatedInstance = await updateDbInstanceStatus(db, id, userId, InstanceStatus.Terminated);
 
   try {
-    const provisioningUrl = `http://${GATEWAY_EXTERNAL_IP}/cyberdesk/${id}/stop`;
+    const provisioningUrl = `${GATEWAY_URL}/cyberdesk/${id}/stop`;
     await axios.post(provisioningUrl);
     console.log('Stopping request successful via Gateway for instance:', id);
   } catch (provisioningError) {
@@ -180,7 +180,7 @@ async function executeComputerAction(
   id: string,
   userId: string,
   action: ComputerAction,
-  GATEWAY_EXTERNAL_IP: string
+  GATEWAY_URL: string
 ): Promise<string> {
   const instance = await getDbInstanceDetails(db, id, userId);
   if (!instance) {
@@ -270,7 +270,7 @@ async function executeComputerAction(
 
   console.log(`Executing command for instance ${id}: ${command}`);
 
-  const provisioningUrl = `http://${GATEWAY_EXTERNAL_IP}/cyberdesk/${id}/execute-command`;
+  const provisioningUrl = `${GATEWAY_URL}/cyberdesk/${id}/execute-command`;
   const requestBody = GatewayExecuteCommandRequestSchema.parse({ command });
   try {
     const response = await axios.post<z.infer<typeof GatewayExecuteCommandResponseSchema>>(
@@ -311,7 +311,7 @@ async function executeComputerAction(
  * @param id Instance ID
  * @param userId User ID for authorization
  * @param command The bash command string to execute
- * @param GATEWAY_EXTERNAL_IP Gateway IP address
+ * @param GATEWAY_URL Gateway URL
  * @returns Promise<string> Resolves with stdout on success
  * @throws Error on command failure or communication issues
  */
@@ -319,7 +319,7 @@ async function executeBashCommand(
     id: string,
     userId: string,
     command: string,
-    GATEWAY_EXTERNAL_IP: string
+    GATEWAY_URL: string
   ): Promise<string> {
     const instance = await getDbInstanceDetails(db, id, userId);
     if (!instance) {
@@ -331,7 +331,7 @@ async function executeBashCommand(
   
     console.log(`Executing bash command for instance ${id}: ${command}`);
   
-    const provisioningUrl = `http://${GATEWAY_EXTERNAL_IP}/cyberdesk/${id}/execute-command`;
+    const provisioningUrl = `${GATEWAY_URL}/cyberdesk/${id}/execute-command`;
     const requestBody = GatewayExecuteCommandRequestSchema.parse({ command });
     try {
       const response = await axios.post<z.infer<typeof GatewayExecuteCommandResponseSchema>>(
@@ -364,7 +364,7 @@ async function executeBashCommand(
 desktop.openapi(computerAction, async (c) => {
   const userId = c.get("userId");
   const id = c.req.param("id");
-  const { GATEWAY_EXTERNAL_IP } = env<EnvVars>(c);
+  const { GATEWAY_URL } = env<EnvVars>(c);
   let action: ComputerAction;
 
   try {
@@ -377,7 +377,7 @@ desktop.openapi(computerAction, async (c) => {
       throw new BadRequestError(`Invalid request body: ${parseError?.message || 'Unknown parsing error'}`);
   }
 
-  const resultString = await executeComputerAction(id, userId, action, GATEWAY_EXTERNAL_IP);
+  const resultString = await executeComputerAction(id, userId, action, GATEWAY_URL);
 
   if (action.type === "screenshot") {
     return c.json({ base64_image: resultString, }, 200);
@@ -393,7 +393,7 @@ desktop.openapi(computerAction, async (c) => {
 desktop.openapi(bashAction, async (c) => {
   const userId = c.get("userId");
   const id = c.req.param("id");
-  const { GATEWAY_EXTERNAL_IP } = env<EnvVars>(c);
+  const { GATEWAY_URL } = env<EnvVars>(c);
   let bashAction: BashAction;
 
   try {
@@ -406,7 +406,7 @@ desktop.openapi(bashAction, async (c) => {
        throw new BadRequestError(`Invalid request body: ${parseError?.message || 'Unknown parsing error'}`);
   }
 
-  const resultString = await executeBashCommand(id, userId, bashAction.command, GATEWAY_EXTERNAL_IP);
+  const resultString = await executeBashCommand(id, userId, bashAction.command, GATEWAY_URL);
 
   return c.json({ status: "success", output: resultString, }, 200);
 });
