@@ -1,26 +1,25 @@
 'use client'
 
 import { Button } from '@/components/button'
+import client from '@/lib/cyberdeskClient'
 import { supabase } from '@/utils/supabaseClient'
 import { ComputerDesktopIcon } from '@heroicons/react/24/outline'
 import { ChevronRightIcon, MinusIcon, PlusIcon } from '@heroicons/react/24/solid'
 import React, { useEffect, useState, useRef, useCallback, forwardRef } from 'react'
 
-// Constants
-const FALLBACK_VIDEO_URL = 'https://www.youtube.com/embed/dQw4w9WgXcQ'
 const DESKTOP_TIMEOUT_MS = 600000
 
 // Types
 interface DemoSectionProps {
-  onDesktopDeployed: (url: string, id: string) => void
+  onDesktopDeployed: (id: string) => void
   onDesktopStopped: () => void
   hideIntro?: boolean
   desktopId?: string
 }
 
-interface DesktopResponse {
-  streamUrl: string
+interface DesktopLaunchResponse {
   id: string
+  status: string
 }
 
 // Main component
@@ -31,20 +30,13 @@ export function DemoSection({
   desktopId,
 }: DemoSectionProps) {
   const [isLoading, setIsLoading] = useState(false)
-  const [streamUrl, setStreamUrl] = useState<string>(FALLBACK_VIDEO_URL)
+  const [streamUrl, setStreamUrl] = useState<string>("")
   const [isLoggedIn, setIsLoggedIn] = useState(false)
   const [authLoading, setAuthLoading] = useState(true)
   const [isDemoLaunched, setIsDemoLaunched] = useState(false)
   const [hasEverLaunchedDemo, setHasEverLaunchedDemo] = useState(false)
+  const [error, setError] = useState<string | null>(null)
   const demoContentRef = useRef<HTMLDivElement>(null)
-
-  // Set isDemoLaunched based on desktopId prop
-  useEffect(() => {
-    if (desktopId) {
-      setIsDemoLaunched(true)
-      setHasEverLaunchedDemo(true)
-    }
-  }, [desktopId])
 
   // Check if user is logged in
   useEffect(() => {
@@ -58,7 +50,6 @@ export function DemoSection({
         setAuthLoading(false)
       }
     }
-
     checkAuthStatus()
   }, [])
 
@@ -67,50 +58,73 @@ export function DemoSection({
     setIsLoading(true)
     setIsDemoLaunched(true)
     setHasEverLaunchedDemo(true)
+    setError(null)
+    setStreamUrl("")
 
-    // Check if we're on mobile (using the same logic as in DesktopIframe)
-    const isMobile = window.innerWidth < 768;
-    
-    // Scroll to the demo content only on mobile
+    // Scroll to the demo content
+    const isMobile = window.innerWidth < 768
     if (demoContentRef.current) {
       if (isMobile) {
-        // On mobile, scroll to the top of the demo content
-        demoContentRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        demoContentRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' })
       } else {
-        // On desktop, scroll to center the demo content
-        demoContentRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        demoContentRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' })
       }
     }
 
     try {
-      const { streamUrl, id } = await deployVirtualDesktop()
-      setStreamUrl(streamUrl)
+      const { status, id } = await deployVirtualDesktop()
+      if (!id || status === 'error') {
+        setIsLoading(false)
+        setError('Failed to deploy virtual desktop.')
+        setIsDemoLaunched(false)
+        return
+      }
+      if (onDesktopDeployed) onDesktopDeployed(id)
 
-      if (onDesktopDeployed) {
-        onDesktopDeployed(streamUrl, id)
+      // Poll for status
+      let running = false
+      let delay = 500 // Start with 0.5s
+      const maxDelay = 5000 // Cap at 5s
+      while (!running) {
+        try {
+          const data = await getDetailsVirtualDesktop(id)
+          if (data.status === 'running') {
+            setStreamUrl(data.stream_url || "")
+            running = true
+            setIsLoading(false)
+            break
+          } else if (data.status === 'error' || data.status === 'unavailable') {
+            setError('Desktop failed to start or is unavailable.')
+            setIsLoading(false)
+            setIsDemoLaunched(false)
+            break
+          }
+        } catch (err) {
+          setError('Error polling desktop status.')
+          setIsLoading(false)
+          setIsDemoLaunched(false)
+          break
+        }
+        await new Promise(res => setTimeout(res, delay))
+        delay = Math.min(delay * 2, maxDelay)
       }
     } catch (error) {
-      console.error('Error executing action:', error)
-      setStreamUrl(FALLBACK_VIDEO_URL)
+      setError('Error during launch.')
+      setIsLoading(false)
+      setIsDemoLaunched(false)
     }
-
-    // Simulate minimum loading time for better UX
-    setTimeout(() => setIsLoading(false), 800)
   }
 
   // Function to handle stopping the desktop
   const handleStopDesktop = async (id: string) => {
+    setIsDemoLaunched(false)
     setIsLoading(true)
     const success = await stopVirtualDesktop(id)
-
     if (success) {
-      // Show a placeholder or different content after stopping
-      setStreamUrl('about:blank')
+      setStreamUrl("")
       setTimeout(() => {
-        setIsDemoLaunched(false)
         setIsLoading(false)
-        setStreamUrl(FALLBACK_VIDEO_URL)
-        // Call the parent component's callback to handle any parent state updates
+        setStreamUrl("")
         onDesktopStopped()
       }, 800)
     } else {
@@ -132,10 +146,9 @@ export function DemoSection({
         streamUrl={streamUrl}
         isLoggedIn={isLoggedIn}
         onLaunchDemo={launchDemo}
+        error={error}
         ref={demoContentRef}
       />
-      
-      {/* Mobile stop button - only visible on mobile devices */}
       {isDemoLaunched && desktopId && (
         <div className="md:hidden w-full flex justify-center mt-4 mb-6">
           <button
@@ -184,96 +197,79 @@ const DemoHeader = ({
   </div>
 )
 
-const LoadingState = () => (
-  <div className="flex h-full w-full items-center justify-center bg-gray-50">
-    <div className="h-12 w-12 animate-spin rounded-full border-b-2 border-indigo-600"></div>
-  </div>
-)
+const loadingMessages = [
+  'Requesting a new virtual desktop...',
+  'Provisioning resources in the cloud...',
+  'Booting up the operating system...',
+  'Establishing a secure connection...',
+  'Preparing your remote desktop experience...'
+]
 
-const DesktopIframe = ({ streamUrl }: { streamUrl: string }) => {
-  const [scale, setScale] = useState(0.5);
-  const [isMobile, setIsMobile] = useState(false);
-  const containerRef = useRef<HTMLDivElement>(null);
+const LoadingState = ({ mode }: { mode: 'starting' | 'stopping' }) => {
+  const [msgIdx, setMsgIdx] = useState(0)
+  const [fade, setFade] = useState(true)
+  const [showWaitMsg, setShowWaitMsg] = useState(false)
 
-  // Detect if we're on mobile
   useEffect(() => {
-    const checkMobile = () => {
-      setIsMobile(window.innerWidth < 768);
-    };
-    
-    checkMobile();
-    window.addEventListener('resize', checkMobile);
-    
-    return () => {
-      window.removeEventListener('resize', checkMobile);
-    };
-  }, []);
+    if (mode !== 'starting') return
+    const interval = setInterval(() => {
+      setFade(false)
+      setTimeout(() => {
+        setMsgIdx((idx) => (idx + 1) % loadingMessages.length)
+        setFade(true)
+      }, 300)
+    }, 2000)
+    return () => clearInterval(interval)
+  }, [mode])
 
-  // Calculate and set the optimal scale based on container size
-  const updateScale = useCallback(() => {
-    if (!containerRef.current) return;
-    
-    const containerWidth = containerRef.current.clientWidth;
-    const containerHeight = containerRef.current.clientHeight;
-    
-    // Calculate how much we need to scale down to fit
-    const widthScale = (containerWidth * 0.85) / 1024;
-    const heightScale = (containerHeight * 0.85) / 768;
-    
-    // Use the smaller scale to ensure it fits both dimensions
-    const optimalScale = Math.min(widthScale, heightScale);
-    
-    setScale(Math.max(0.1, Math.min(1.0, optimalScale)));
-  }, []);
-
-  // Set up resize observer to update scale when container size changes
   useEffect(() => {
-    if (!containerRef.current) return;
-    
-    updateScale();
-    
-    const resizeObserver = new ResizeObserver(() => {
-      updateScale();
-    });
-    
-    resizeObserver.observe(containerRef.current);
-    
-    return () => {
-      resizeObserver.disconnect();
-    };
-  }, [updateScale]);
+    if (mode !== 'starting') return
+    const timer = setTimeout(() => setShowWaitMsg(true), 5000)
+    return () => clearTimeout(timer)
+  }, [mode])
 
   return (
-    <div 
-      ref={containerRef}
-      className="w-full h-[400px] md:h-[500px] bg-black"
-    >
-      <div 
-        className="w-full h-full flex items-center justify-center overflow-auto"
-        style={{ 
-          alignItems: isMobile ? 'flex-start' : 'center',
-          paddingTop: isMobile ? '60px' : '0'
-        }}
-      >
-        <div 
-          style={{ 
-            transform: `scale(${scale})`,
-            transformOrigin: isMobile ? 'top center' : 'center center',
-          }}
-        >
-          <iframe
-            src={streamUrl}
-            width={1024}
-            height={768}
-            style={{ border: 'none' }}
-            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; clipboard-read; clipboard-write; fullscreen"
-            allowFullScreen
-          ></iframe>
-        </div>
-      </div>
+    <div className="flex h-full w-full flex-col items-center justify-center bg-gray-50">
+      <div className="h-12 w-12 animate-spin rounded-full border-b-2 border-indigo-600 mb-6"></div>
+      {mode === 'starting' && (
+        <>
+          <div
+            className={`transition-opacity duration-300 text-lg text-gray-700 font-medium ${fade ? 'opacity-100' : 'opacity-0'}`}
+            style={{ minHeight: 32 }}
+          >
+            {loadingMessages[msgIdx]}
+          </div>
+          {showWaitMsg && (
+            <div className="mt-2 text-sm text-gray-400">This may take up to a minute. Thank you for your patience!</div>
+          )}
+        </>
+      )}
     </div>
-  );
-};
+  )
+}
+
+const DesktopIframe = ({ streamUrl, isLoading }: { streamUrl: string, isLoading: boolean }) => {
+  return (
+    <div className="w-full h-[400px] md:h-[500px] bg-black relative overflow-hidden flex items-center justify-center">
+      <iframe
+        src={streamUrl}
+        className="w-full h-full"
+        style={{ display: streamUrl && streamUrl !== 'about:blank' ? 'block' : 'none', border: 'none' }}
+        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; clipboard-read; clipboard-write; fullscreen"
+        allowFullScreen
+        title="Virtual Desktop Stream"
+      ></iframe>
+      {isLoading && (
+        <div className="absolute inset-0 flex items-center justify-center bg-gray-800 text-white z-10">
+          <div className="flex flex-col items-center">
+            <div className="h-8 w-8 animate-spin rounded-full border-b-2 border-indigo-400 mb-3"></div>
+            Preparing stream...
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
 
 const InitialDemoState = ({ onLaunchDemo }: { onLaunchDemo: () => void }) => (
   <div className="h-full w-full flex items-center justify-center">
@@ -329,62 +325,74 @@ const DemoContent = React.forwardRef<
     streamUrl: string
     isLoggedIn: boolean
     onLaunchDemo: () => void
+    error?: string | null
   }
->(({
-  isLoading,
-  isDemoLaunched,
-  hasEverLaunchedDemo,
-  streamUrl,
-  isLoggedIn,
-  onLaunchDemo,
-}, ref) => {
-  let content;
-  
+>(({ isLoading, isDemoLaunched, hasEverLaunchedDemo, streamUrl, isLoggedIn, onLaunchDemo, error }, ref) => {
+  let content
   if (isLoading) {
-    content = <LoadingState />;
+    content = <LoadingState mode={isDemoLaunched ? 'starting' : 'stopping'} />
+  } else if (error) {
+    content = (
+      <div className="flex flex-col items-center justify-center w-full h-full text-center p-8">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-12 h-12 mb-4 animate-pulse text-red-500">
+          <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.008v.008H12v-.008Z" />
+        </svg>
+        <h3 className="text-xl font-semibold mb-2 text-red-600">Oops! Something went wrong.</h3>
+        <p className="text-md text-gray-600">{error}</p>
+      </div>
+    )
   } else if (isDemoLaunched) {
-    content = <DesktopIframe streamUrl={streamUrl} />;
+    content = <DesktopIframe streamUrl={streamUrl} isLoading={isLoading} />
   } else {
     content = !hasEverLaunchedDemo ? (
       <InitialDemoState onLaunchDemo={onLaunchDemo} />
     ) : (
       <PostDemoState isLoggedIn={isLoggedIn} />
-    );
+    )
   }
-  
   return (
     <div ref={ref} className="flex-grow flex justify-center items-center min-h-[400px] max-h-[400px] md:min-h-[500px] md:max-h-[500px]">
-        {content}
+      {content}
     </div>
-  );
+  )
 })
-
-DemoContent.displayName = 'DemoContent';
+DemoContent.displayName = 'DemoContent'
 
 // API functions
-const deployVirtualDesktop = async (): Promise<DesktopResponse> => {
+const deployVirtualDesktop = async (): Promise<DesktopLaunchResponse> => {
   try {
-    const response = await fetch('/api/playground/desktop', {
+    const apiResponse = await fetch('/api/playground/desktop', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ timeoutMs: DESKTOP_TIMEOUT_MS }),
-    })
+      body: JSON.stringify({ timeoutMs: DESKTOP_TIMEOUT_MS })
+    });
 
-    if (!response.ok) {
-      throw new Error('Failed to deploy desktop')
+    const responseData = await apiResponse.json();
+
+    if (!apiResponse.ok) {
+      console.error('Backend API error:', responseData.error || `Status: ${apiResponse.status}`);
+      // Handle error appropriately in the UI if needed
+      return {
+        id: '',
+        status: 'error'
+      };
+    } else {
+      // TODO: Maybe use the returned streamUrl and id?
+      // Example: setStreamUrl(responseData.streamUrl); onDesktopDeployed(responseData.streamUrl, responseData.id);
+      return {
+        id: responseData.id,
+        status: responseData.status
+      };
     }
-
-    const data = await response.json()
-    return { streamUrl: data.streamUrl, id: data.id }
   } catch (error) {
-    console.error('Error deploying desktop:', error)
-    // Return a fallback URL for demo purposes
+    console.error('Error calling backend API:', error);
+    // Handle fetch error appropriately
     return {
-      streamUrl: FALLBACK_VIDEO_URL,
-      id: 'demo-fallback-id',
-    }
+      id: '',
+      status: 'error'
+    };
   }
 }
 
@@ -406,5 +414,18 @@ const stopVirtualDesktop = async (id: string): Promise<boolean> => {
   } catch (error) {
     console.error('Error stopping desktop:', error)
     return false
+  }
+}
+
+const getDetailsVirtualDesktop = async (id: string): Promise<{ status: string; stream_url?: string; error?: string }> => {
+  try {
+    const response = await fetch(`/api/playground/desktop?id=${id}`)
+    const data = await response.json()
+    if (!response.ok) {
+      return { status: 'error', error: data.error || `Status: ${response.status}` }
+    }
+    return data
+  } catch (error) {
+    return { status: 'error', error: (error as Error).message }
   }
 }

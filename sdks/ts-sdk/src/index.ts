@@ -1,11 +1,17 @@
 /// <reference lib="dom" />
 
 import { createClient, type Client, type Options as ClientOptions } from '@hey-api/client-fetch';
-import * as apiMethods from './client/sdk.gen'; // Import the generated methods
-// Re-export all types from types.gen for user convenience
-export * from './client/types.gen';
+import * as apiMethods from './client/sdk.gen';
+import { 
+    type GetV1DesktopIdData, 
+    type PostV1DesktopData,
+    type PostV1DesktopIdStopData,
+    type PostV1DesktopIdComputerActionData,
+    type PostV1DesktopIdBashActionData
+} from './client/types.gen';
 
-// Define a type for the fetch function to avoid global dependency issues
+const DEFAULT_BASE_URL = 'https://api.cyberdesk.io';
+
 type FetchFn = (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;
 
 /**
@@ -23,19 +29,20 @@ export interface CyberdeskClientOptions {
     clientOptions?: Partial<ClientOptions>;
 }
 
-// Define the type for the SDK object returned by the factory function.
-// This maps the original method names to their corresponding function types
-// from the generated sdk.gen module.
-export type CyberdeskSdk = {
-    getV1DesktopId: typeof apiMethods.getV1DesktopId;
-    postV1Desktop: typeof apiMethods.postV1Desktop;
-    postV1DesktopIdStop: typeof apiMethods.postV1DesktopIdStop;
-    postV1DesktopIdComputerAction: typeof apiMethods.postV1DesktopIdComputerAction;
-    postV1DesktopIdBashAction: typeof apiMethods.postV1DesktopIdBashAction;
-    // Add other methods exported from sdk.gen.ts here if they exist
-};
+// Named parameter types for SDK methods
+export type GetDesktopParams = Omit<GetV1DesktopIdData, 'headers' | 'url'>;
+export type LaunchDesktopParams = Omit<PostV1DesktopData, 'headers' | 'url'>;
+export type TerminateDesktopParams = Omit<PostV1DesktopIdStopData, 'headers' | 'url'>;
+export type ExecuteComputerActionParams = Omit<PostV1DesktopIdComputerActionData, 'headers' | 'url'>;
+export type ExecuteBashActionParams = Omit<PostV1DesktopIdBashActionData, 'headers' | 'url'>;
 
-const DEFAULT_BASE_URL = 'https://api.cyberdesk.io'; // Replace if needed
+export type CyberdeskSDK = {
+    getDesktop: (opts: GetDesktopParams) => ReturnType<typeof apiMethods.getV1DesktopId>;
+    launchDesktop: (opts: LaunchDesktopParams) => ReturnType<typeof apiMethods.postV1Desktop>;
+    terminateDesktop: (opts: TerminateDesktopParams) => ReturnType<typeof apiMethods.postV1DesktopIdStop>;
+    executeComputerAction: (opts: ExecuteComputerActionParams) => ReturnType<typeof apiMethods.postV1DesktopIdComputerAction>;
+    executeBashAction: (opts: ExecuteBashActionParams) => ReturnType<typeof apiMethods.postV1DesktopIdBashAction>;
+};
 
 /**
  * Creates a Cyberdesk SDK instance configured with your API key.
@@ -43,49 +50,57 @@ const DEFAULT_BASE_URL = 'https://api.cyberdesk.io'; // Replace if needed
  * @param options - Configuration options including the API key.
  * @returns An SDK instance with methods ready to be called.
  */
-export function createCyberdeskSdk(options: CyberdeskClientOptions): CyberdeskSdk {
+
+export function createCyberdeskClient(options: CyberdeskClientOptions): CyberdeskSDK {
     const { apiKey, baseUrl = DEFAULT_BASE_URL, fetch: customFetch, clientOptions = {} } = options;
 
     if (!apiKey) {
         throw new Error('Cyberdesk SDK requires an `apiKey` to be provided.');
     }
 
-    // Ensure baseUrl is string | undefined before use
     const finalBaseUrl: string | undefined = baseUrl;
 
-    // Prepare headers, merging defaults with any provided in clientOptions
     const mergedHeaders = {
         'x-api-key': apiKey,
+        'Content-Type': 'application/json',
         ...(clientOptions.headers || {}),
     };
 
-    // Construct the final options for createClient explicitly
     const finalClientOptions = {
-        // Set base URL
         baseUrl: finalBaseUrl,
-        // Set merged headers
         headers: mergedHeaders,
-        // Conditionally add fetch
-        ...(customFetch && { fetch: customFetch }),
-        // TODO: Manually add other relevant clientOptions properties here if needed
-        // Example: ...(clientOptions.timeout && { timeout: clientOptions.timeout })
+        ...(customFetch && { fetch: customFetch })
     };
 
-    // Pass the inferred options object directly
     const configuredClient: Client = createClient(finalClientOptions);
 
     // Return an object where each method is pre-configured with the client instance
     return {
-        getV1DesktopId: (opts) => apiMethods.getV1DesktopId({ ...opts, client: configuredClient }),
-        postV1Desktop: (opts) => apiMethods.postV1Desktop({ ...opts, client: configuredClient }),
-        postV1DesktopIdStop: (opts) => apiMethods.postV1DesktopIdStop({ ...opts, client: configuredClient }),
-        postV1DesktopIdComputerAction: (opts) => apiMethods.postV1DesktopIdComputerAction({ ...opts, client: configuredClient }),
-        postV1DesktopIdBashAction: (opts) => apiMethods.postV1DesktopIdBashAction({ ...opts, client: configuredClient }),
-        // Add bindings for other generated methods here following the same pattern
+        getDesktop: (opts) => apiMethods.getV1DesktopId({
+            ...(opts as GetV1DesktopIdData), // Cast opts to allow potential headers
+            client: configuredClient,
+            headers: { ...mergedHeaders, ...(opts as GetV1DesktopIdData).headers }
+        }),
+        launchDesktop: (opts) => apiMethods.postV1Desktop({
+            ...(opts as PostV1DesktopData),
+            client: configuredClient,
+            headers: { ...mergedHeaders, ...(opts as PostV1DesktopData).headers }
+        }),
+        terminateDesktop: (opts) => apiMethods.postV1DesktopIdStop({
+            ...(opts as PostV1DesktopIdStopData),
+            path: { ...(opts as PostV1DesktopIdStopData).path, id: (opts as PostV1DesktopIdStopData).path.id },
+            client: configuredClient,
+            headers: { ...mergedHeaders, ...(opts as PostV1DesktopIdStopData).headers }
+        }),
+        executeComputerAction: (opts) => apiMethods.postV1DesktopIdComputerAction({
+            ...(opts as PostV1DesktopIdComputerActionData),
+            client: configuredClient,
+            headers: { ...mergedHeaders, ...(opts as PostV1DesktopIdComputerActionData).headers }
+        }),
+        executeBashAction: (opts) => apiMethods.postV1DesktopIdBashAction({
+            ...(opts as PostV1DesktopIdBashActionData),
+            client: configuredClient,
+            headers: { ...mergedHeaders, ...(opts as PostV1DesktopIdBashActionData).headers }
+        }),
     };
 }
-
-// Optional: Export the raw client creation function if users need advanced customization
-export { createClient };
-// Optional: Export the underlying api methods if needed, though usually accessed via the sdk instance
-export * as rawApiMethods from './client/sdk.gen'; 

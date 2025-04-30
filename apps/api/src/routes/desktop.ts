@@ -93,15 +93,24 @@ desktop.use("*", async (c, next) => {
 desktop.openapi(getDesktop, async (c) => {
   const userId = c.get("userId");
   const id = c.req.param("id");
+  const { GATEWAY_URL } = env<EnvVars>(c);
 
   const instanceDetails = await getDbInstanceDetails(db, id, userId);
   
+  // Adjust stream_url for dev environment if needed
+  let streamUrl: string | null = instanceDetails.streamUrl ?? null;
+  if (streamUrl && GATEWAY_URL.includes('dev-gateway')) {
+    // Replace any 'gateway.' (with or without subdomain) with 'dev-gateway.'
+    // This is to support the dev environment, where the gateway is accessible via dev-gateway.cyberdesk.io (or whatever subdomain you've set up)
+    streamUrl = streamUrl.replace(/\bgateway\./g, 'dev-gateway.');
+  }
+
   return c.json({
       id: instanceDetails.id,
       status: instanceDetails.status,
       created_at: (instanceDetails.createdAt || new Date(0)).toISOString(),
       timeout_at: instanceDetails.timeoutAt.toISOString(),
-      stream_url: instanceDetails.streamUrl
+      stream_url: streamUrl
   }, 200);
 });
 
@@ -163,15 +172,16 @@ desktop.openapi(stopDesktop, async (c) => {
   try {
     const provisioningUrl = `${GATEWAY_URL}/cyberdesk/${id}/stop`;
     await axios.post(provisioningUrl);
-    console.log('Stopping request successful via Gateway for instance:', id);
   } catch (provisioningError) {
     console.error('Error calling provisioning service during stop:', provisioningError);
   }
 
+  const responsePayload: { status: InstanceStatus } = {
+      status: updatedInstance.status as InstanceStatus,
+  };
+
   return c.json(
-    {
-      status: updatedInstance.status,
-    },
+    responsePayload,
     200
   );
 });
@@ -280,8 +290,6 @@ async function executeComputerAction(
 
     const parsedResponse = GatewayExecuteCommandResponseSchema.parse(response.data);
 
-    console.log(`Command execution response for instance ${id}:`, parsedResponse);
-
     if (parsedResponse.vm_response.return_code !== 0) {
       throw new ActionExecutionError(
           `Command failed with code ${parsedResponse.vm_response.return_code}`,
@@ -380,7 +388,9 @@ desktop.openapi(computerAction, async (c) => {
   const resultString = await executeComputerAction(id, userId, action, GATEWAY_URL);
 
   if (action.type === "screenshot") {
-    return c.json({ base64_image: resultString, }, 200);
+    // Remove all whitespace (including newlines) from base64 string
+    const cleanedBase64 = resultString.replace(/\s+/g, '');
+    return c.json({ base64_image: cleanedBase64 }, 200);
   } else if (action.type === "get_cursor_position") {
       return c.json({ output: resultString, }, 200);
   } else {

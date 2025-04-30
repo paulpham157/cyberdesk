@@ -24,7 +24,7 @@ export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends 
  */
 export const getV1DesktopId = <ThrowOnError extends boolean = false>(options: Options<GetV1DesktopIdData, ThrowOnError>) => {
     return (options.client ?? _heyApiClient).get<GetV1DesktopIdResponse, GetV1DesktopIdError, ThrowOnError>({
-        url: '/v1/desktop/:id',
+        url: '/v1/desktop/{id}',
         ...options
     });
 };
@@ -50,7 +50,7 @@ export const postV1Desktop = <ThrowOnError extends boolean = false>(options: Opt
  */
 export const postV1DesktopIdStop = <ThrowOnError extends boolean = false>(options: Options<PostV1DesktopIdStopData, ThrowOnError>) => {
     return (options.client ?? _heyApiClient).post<PostV1DesktopIdStopResponse, PostV1DesktopIdStopError, ThrowOnError>({
-        url: '/v1/desktop/:id/stop',
+        url: '/v1/desktop/{id}/stop',
         ...options
     });
 };
@@ -61,7 +61,7 @@ export const postV1DesktopIdStop = <ThrowOnError extends boolean = false>(option
  */
 export const postV1DesktopIdComputerAction = <ThrowOnError extends boolean = false>(options: Options<PostV1DesktopIdComputerActionData, ThrowOnError>) => {
     return (options.client ?? _heyApiClient).post<PostV1DesktopIdComputerActionResponse, PostV1DesktopIdComputerActionError, ThrowOnError>({
-        url: '/v1/desktop/:id/computer-action',
+        url: '/v1/desktop/{id}/computer-action',
         ...options,
         headers: {
             'Content-Type': 'application/json',
@@ -76,7 +76,7 @@ export const postV1DesktopIdComputerAction = <ThrowOnError extends boolean = fal
  */
 export const postV1DesktopIdBashAction = <ThrowOnError extends boolean = false>(options: Options<PostV1DesktopIdBashActionData, ThrowOnError>) => {
     return (options.client ?? _heyApiClient).post<PostV1DesktopIdBashActionResponse, PostV1DesktopIdBashActionError, ThrowOnError>({
-        url: '/v1/desktop/:id/bash-action',
+        url: '/v1/desktop/{id}/bash-action',
         ...options,
         headers: {
             'Content-Type': 'application/json',

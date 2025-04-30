@@ -16,74 +16,88 @@ pnpm add cyberdesk
 
 ## Usage
 
-First, configure the client, for example, by setting default headers for authentication. You only need to do this once.
+First, create a Cyberdesk client instance with your API key:
 
 ```typescript
-import { client, setConfig } from 'cyberdesk/client'; // Import client and setConfig
+import { createCyberdeskClient } from 'cyberdesk';
 
-// Configure the client (e.g., with an API Key)
-// Adjust based on your actual authentication method
-setConfig({
-  headers: {
-    'Authorization': `Bearer YOUR_API_KEY`
-  }
+const cyberdesk = createCyberdeskClient({
+  apiKey: 'YOUR_API_KEY',
+  // Optionally, you can override the baseUrl or provide a custom fetch implementation
 });
 ```
 
-Then, import and call the specific API functions you need:
+### Launch a Desktop
 
 ```typescript
-import {
-  postV1Desktop,
-  postV1DesktopIdComputerAction,
-  type PostV1DesktopData,
-  type PostV1DesktopIdComputerActionData
-} from 'cyberdesk';
+const launchResult = await cyberdesk.launchDesktop({
+  body: { timeout_ms: 10000 } // Optional: set a timeout for the desktop session
+});
 
-async function createAndInteract() {
-  try {
-    // 1. Create a new desktop
-    console.log('Creating desktop...');
-    const createResponse = await postV1Desktop({
-      // Pass request body parameters inside the 'data' object
-      data: {
-         timeoutMs: 10000 
-      }
-      // Headers like Authorization should be set globally via setConfig (see above)
-    });
-
-    if (!createResponse.data) {
-       throw new Error('Failed to create desktop: ' + (createResponse.error?.message || 'Unknown error'));
-    }
-
-    const desktopId = createResponse.data.id; // Assuming the response has an ID
-    console.log(`Desktop created with ID: ${desktopId}`);
-
-    // 2. Perform an action (e.g., a mouse click)
-    console.log(`Performing action on desktop ${desktopId}...`);
-    const actionData: PostV1DesktopIdComputerActionData['data'] = {
-        type: 'click_mouse', // Example action type
-        x: 100,
-        y: 150
-    };
-    
-    const actionResponse = await postV1DesktopIdComputerAction({
-      path: { id: desktopId }, // Provide path parameters
-      data: actionData // Provide request body data
-    });
-
-    if (actionResponse.error) {
-      throw new Error(`Action failed: ${actionResponse.error.message}`);
-    }
-
-    console.log('Action successful:', actionResponse.data);
-
-  } catch (error) {
-    console.error('Error using Cyberdesk SDK:', error);
-  }
+if (launchResult.error) {
+  throw new Error('Failed to launch desktop: ' + launchResult.error.error);
 }
 
-createAndInteract();
+const desktopId = launchResult.id;
+console.log('Launched desktop with ID:', desktopId);
+```
+
+### Get Desktop Info
+
+```typescript
+const info = await cyberdesk.getDesktop({
+  path: { id: desktopId }
+});
+
+if ('error' in info) {
+  throw new Error('Failed to get desktop info: ' + info.error);
+}
+
+console.log('Desktop info:', info);
+```
+
+### Perform a Computer Action (e.g., Mouse Click)
+
+```typescript
+const actionResult = await cyberdesk.executeComputerAction({
+  path: { id: desktopId },
+  body: {
+    type: 'click_mouse',
+    x: 100,
+    y: 150
+  }
+});
+
+if (actionResult.error) {
+  throw new Error('Action failed: ' + actionResult.error);
+}
+
+console.log('Action result:', actionResult);
+```
+
+### Run a Bash Command
+
+```typescript
+const bashResult = await cyberdesk.executeBashAction({
+  path: { id: desktopId },
+  body: {
+    command: 'echo Hello, world!'
+  }
+});
+
+if (bashResult.error) {
+  throw new Error('Bash command failed: ' + bashResult.error);
+}
+
+console.log('Bash output:', bashResult.output);
+```
+
+## TypeScript Support
+
+All request parameter types and the `CyberdeskSDK` type are exported for convenience:
+
+```typescript
+import type { LaunchDesktopParams, CyberdeskSDK } from 'cyberdesk';
 ```
 
 ## License

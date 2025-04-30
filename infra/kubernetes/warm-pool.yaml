@@ -4,7 +4,7 @@ metadata:
   name: cyberdesk-warm-pool
   namespace: kubevirt
 spec:
-  replicas: 1
+  replicas: 10
   selector:
     matchLabels:
       pool.kubevirt.io/warm: ready           # <- selector
@@ -20,7 +20,7 @@ spec:
         spec:
           source:
             snapshot:
-              name: vmsnapshot-421e8597-6c0f-4eee-a219-e44ec1ab26d4-volume-rootdisk
+              name: vmsnapshot-956a468c-8a51-4760-9bf1-8af33761d1ac-volume-rootdisk # Make sure this is updated to the latest snapshot
               namespace: kubevirt
           pvc:
             accessModes: [ReadWriteOnce]

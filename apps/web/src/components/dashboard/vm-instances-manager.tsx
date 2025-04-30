@@ -3,16 +3,10 @@
 import { useState, useEffect } from 'react'
 import { ComputerDesktopIcon, ArrowPathIcon } from '@heroicons/react/24/outline'
 import { supabase } from '@/utils/supabaseClient'
-
-interface VMInstance {
-  id: string
-  remoteId: string
-  created_at: string
-  ended_at: string | null
-}
+import type { CyberdeskInstance } from '../../types/database'
 
 export function VMInstancesManager() {
-  const [vmInstances, setVMInstances] = useState<VMInstance[]>([])
+  const [vmInstances, setVMInstances] = useState<CyberdeskInstance[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [isRefreshing, setIsRefreshing] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -53,7 +47,7 @@ export function VMInstancesManager() {
       
       // Fetch VM instances for this user
       const { data: instances, error: fetchError } = await supabase
-        .from('desktop_instances')
+        .from('cyberdesk_instances')
         .select('*')
         .eq('user_id', userId)
         .order('created_at', { ascending: false })
@@ -110,29 +104,20 @@ export function VMInstancesManager() {
     }
   }
 
-  // Check if VM is still running (less than an hour since creation)
-  const isVMRunning = (instance: VMInstance) => {
-    if (instance.ended_at) return false
-    
-    // Parse the UTC timestamp
-    // Parse the ISO string into a Date object
-    const utcDate = new Date(instance.created_at)
-    const createdAt = new Date(utcDate.getTime() - utcDate.getTimezoneOffset() * 60 * 1000)
-    const hourLater = new Date(createdAt.getTime() + 60 * 60 * 1000)
-    return now < hourLater
+  // Check if VM is still running (use status field)
+  const isVMRunning = (instance: CyberdeskInstance) => {
+    return instance.status === 'running' || instance.status === 'pending';
   }
   
-  // Get the terminated time (either actual ended_at or 1 hour after created_at)
-  const getTerminatedTime = (instance: VMInstance) => {
-    if (instance.ended_at) return formatDate(instance.ended_at)
-    
+  // Get the terminated time (use timeout_at if status is terminated or error)
+  const getTerminatedTime = (instance: CyberdeskInstance) => {
+    if (instance.status === 'terminated' || instance.status === 'error') {
+      return formatDate(instance.timeout_at)
+    }
     const running = isVMRunning(instance)
     if (running) return '-'
-    
-    // If no ended_at and not running, use created_at + 1 hour
-    const createdAt = new Date(instance.created_at)
-    const terminatedTime = new Date(createdAt.getTime() + 60 * 60 * 1000)
-    return formatDate(terminatedTime.toString())
+    // fallback: show timeout_at
+    return formatDate(instance.timeout_at)
   }
 
   return (
