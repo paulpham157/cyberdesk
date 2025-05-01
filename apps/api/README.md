@@ -22,7 +22,7 @@ For Supabase, you'll need to create a project and get your:
 
 - Supabase URL
 - Supabase Anon Key
-- Supabase Connection String (found in the Database settings under Connection Pooling)
+- Supabase Connection String (found in the Database settings under Connection Pooling) 
 
 ## Environment Variables
 
