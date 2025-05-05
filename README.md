@@ -1,10 +1,10 @@
 <table align="center">
   <tr>
     <td>
-      <img src="apps/web/public/favicon.svg" alt="Cyberdesk Logo" width="48" height="48">
+      <img src="apps/web/public/favicon.svg" alt="Cyberdesk Logo" width="72" height="72">
     </td>
-    <td style="vertical-align: middle; padding-left: 12px;">
-      <span style="font-size: 2.5em; font-weight: bold;">Cyberdesk</span>
+    <td style="vertical-align: middle; padding-left: 16px;">
+      <span style="font-size: 3.5em; font-weight: bold;">Cyberdesk</span>
     </td>
   </tr>
 </table>
