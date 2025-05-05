@@ -1,6 +1,21 @@
-# Cyberdesk
+<p align="center">
+  <img src="assets/cyberdesk-logo-with-text.svg" alt="Cyberdesk Logo with Text" width="500" />
+</p>
 
+<div align="center">
+  <img src="assets/QuickDemo.gif" alt="Cyberdesk Demo GIF" style="max-width:100%; height:auto; margin-top: 16px;" />
+  <div><i>Build your own computer use agent within an hour with Cyberdesk</i></div>
+</div>
+
+<br>
 Cyberdesk is a comprehensive platform that provides a suite of tools and services for managing virtual desktops, APIs, documentation, and more. This repository contains various components of the Cyberdesk project, including the API, documentation, web application, operator, and SDK.
+<br>
+
+# Getting Started
+
+If you'd like to get started with using Cyberdesk's API and cloud-hosted desktops, head on over to [docs.cyberdesk.io](https://docs.cyberdesk.io/docs/quickstart).
+
+If you'd like to run the actual project locally, proceed with the rest of this README.
 
 ## Prerequisites
 
