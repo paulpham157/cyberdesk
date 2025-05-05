@@ -1,7 +1,7 @@
-<div style="display: flex; align-items: center; justify-content: center; padding: 8px 0;">
-  <img src="apps/web/public/favicon.svg" alt="Cyberdesk Logo" width="64" height="64" style="margin-right: 16px;" />
-  <span style="font-size:3em; font-weight:bold;"><b>Cyberdesk</b></span>
-</div>
+<p align="center">
+  <img src="apps/web/public/favicon.svg" alt="Cyberdesk Logo" width="64" height="64" style="vertical-align: middle; margin-right: 12px;">
+  <span style="font-size:2.5em; font-weight:bold; vertical-align: middle;">Cyberdesk</span>
+</p>
 
 <div align="center">
   <img src="assets/QuickDemo.gif" alt="Cyberdesk Demo GIF" style="max-width:100%; height:auto; margin-top: 16px;" />
