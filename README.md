@@ -13,7 +13,7 @@ Cyberdesk is a comprehensive platform that provides a suite of tools and service
 
 # Getting Started
 
-To quickly get started with building your own computer-use agents using Cyberdesk's infra, head on over to [docs.cyberdesk.io](https://docs.cyberdesk.io/docs/quickstart).
+To quickly get started with building your own computer-use agents using Cyberdesk's infra, head on over to [docs.cyberdesk.io](https://docs.cyberdesk.io/docs/quickstart). To mess around with the interactive demo checkout out [cyberdesk.io](https://www.cyberdesk.io).
 
 If you'd like to run the actual project locally, proceed with the rest of this README.
 
