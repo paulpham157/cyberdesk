@@ -1,13 +1,6 @@
-<table align="center">
-  <tr>
-    <td>
-      <img src="apps/web/public/favicon.svg" alt="Cyberdesk Logo" width="72" height="72">
-    </td>
-    <td style="vertical-align: middle; padding-left: 20px;">
-      <span style="font-size: 6em; font-weight: bold;"><b>Cyberdesk</b></span>
-    </td>
-  </tr>
-</table>
+<p align="center">
+  <img src="assets/cyberdesk-logo-with-text.svg" alt="Cyberdesk Logo with Text" width="500" />
+</p>
 
 <div align="center">
   <img src="assets/QuickDemo.gif" alt="Cyberdesk Demo GIF" style="max-width:100%; height:auto; margin-top: 16px;" />
