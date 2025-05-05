@@ -3,8 +3,8 @@
     <td>
       <img src="apps/web/public/favicon.svg" alt="Cyberdesk Logo" width="72" height="72">
     </td>
-    <td style="vertical-align: middle; padding-left: 16px;">
-      <span style="font-size: 4em; font-weight: bold;"><b>Cyberdesk</b></span>
+    <td style="vertical-align: middle; padding-left: 20px;">
+      <span style="font-size: 6em; font-weight: bold;"><b>Cyberdesk</b></span>
     </td>
   </tr>
 </table>
