@@ -4,16 +4,16 @@
 
 <div align="center">
   <img src="assets/QuickDemo.gif" alt="Cyberdesk Demo GIF" style="max-width:100%; height:auto; margin-top: 16px;" />
-  <div><i>Build your own computer use agent within an hour with Cyberdesk</i></div>
+  <div><i>A computer-use agent operating on a Cyberdesk Virtual Machine based on a user prompt</i></div>
 </div>
 
 <br>
-Cyberdesk is a comprehensive platform that provides a suite of tools and services for managing virtual desktops, APIs, documentation, and more. This repository contains various components of the Cyberdesk project, including the API, documentation, web application, operator, and SDK.
+Cyberdesk is a comprehensive platform that provides a suite of tools and services for managing virtual desktops, APIs, documentation, and more. With these tools you can setup a computer use agent like the one shown above in as little as an hour. This repository contains various components of the Cyberdesk project, including the API, documentation, web application, operator, and SDK.
 <br>
 
 # Getting Started
 
-If you'd like to get started with using Cyberdesk's API and cloud-hosted desktops, head on over to [docs.cyberdesk.io](https://docs.cyberdesk.io/docs/quickstart).
+To quickly get started with building your own computer-use agents using Cyberdesk's infra, head on over to [docs.cyberdesk.io](https://docs.cyberdesk.io/docs/quickstart).
 
 If you'd like to run the actual project locally, proceed with the rest of this README.
 
