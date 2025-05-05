@@ -1,19 +1,11 @@
-<table border="0" cellspacing="0" cellpadding="0">
-  <tr>
-    <td style="vertical-align: middle;">
-      <img src="apps/web/public/favicon.svg" alt="Cyberdesk Logo" width="120" height="120">
-    </td>
-    <td style="vertical-align: middle; padding-left: 10px;">
-      <span style="font-size:3em; font-weight:bold;">Cyberdesk</span>
-    </td>
-  </tr>
-</table>
+<p align="left">
+  <img src="apps/web/public/favicon.svg" alt="Cyberdesk Logo" width="48" height="48" style="vertical-align:middle; margin-right: 12px;">
+  <span style="font-size:2.5em; font-weight:bold; vertical-align:middle;">Cyberdesk</span>
+</p>
 
-<figure>
-  <img src="https://s13.gifyu.com/images/SRrAB.gif" alt="Cyberdesk Demo GIF" style="max-width:100%; height:auto;" />
-  <figcaption><b>Build your own computer use agent like this one within an hour with Cyberdesk.</b></figcaption>
-</figure>
+<img src="QuickDemo.gif" alt="Cyberdesk Demo GIF" style="max-width:100%; height:auto;" />
 
+<b>Build your own computer use agent like this one within an hour with Cyberdesk.</b>
 
 Cyberdesk is a comprehensive platform that provides a suite of tools and services for managing virtual desktops, APIs, documentation, and more. This repository contains various components of the Cyberdesk project, including the API, documentation, web application, operator, and SDK.
 
