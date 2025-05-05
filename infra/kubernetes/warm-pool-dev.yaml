@@ -1,0 +1,64 @@
+apiVersion: pool.kubevirt.io/v1alpha1
+kind: VirtualMachinePool
+metadata:
+  name: cyberdesk-warm-pool
+  namespace: kubevirt
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      pool.kubevirt.io/warm: ready           # <- selector
+  virtualMachineTemplate:
+    metadata:
+      labels:
+        pool.kubevirt.io/warm: ready         # <- matches selector while warm
+    spec:
+      runStrategy: Always                    # already running
+      dataVolumeTemplates:
+      - metadata:
+          name: rootdisk
+        spec:
+          source:
+            snapshot:
+              name: vmsnapshot-956a468c-8a51-4760-9bf1-8af33761d1ac-volume-rootdisk # Make sure this is updated to the latest snapshot
+              namespace: kubevirt
+          pvc:
+            accessModes: [ReadWriteOnce]
+            resources:
+              requests:
+                storage: 20Gi
+            volumeMode: Filesystem
+      template:
+        metadata:
+          labels:
+            pool.kubevirt.io/warm: ready
+            app: cyberdesk
+        spec:
+          domain:
+            cpu:
+              cores: 1
+            resources:
+              requests:
+                memory: 2Gi
+            devices:
+              disks:
+              - name: rootdisk
+                disk:
+                  bus: virtio
+              - name: cloudinit
+                disk:
+                  bus: virtio
+              interfaces:
+              - name: default
+                masquerade: {}
+          networks:
+          - name: default
+            pod: {}
+          volumes:
+          - name: rootdisk
+            dataVolume:
+              name: rootdisk
+          - name: cloudinit
+            cloudInitNoCloud:
+              secretRef:
+                name: cloud-init-golden-vm
