@@ -5,6 +5,7 @@ import * as Typescript from "fumadocs-typescript";
 void OpenAPI.generateFiles({
   input: ["../../sdks/openapi.json"],
   output: "./content/docs/",
+  name: () => "api-reference",
   frontmatter: (title) => ({
     toc: false,
     title: `${title[0].toUpperCase()}${title.slice(1)}`,

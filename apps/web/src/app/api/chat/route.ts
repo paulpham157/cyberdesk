@@ -96,7 +96,7 @@ export async function POST(req: Request) {
     const response = streamText({
       model: anthropic("claude-3-7-sonnet-20250219"),
       prompt: userContent,
-      system: "You are an AI assistant that can control a computer. Click the globe icon to open Firefox. When you open Firefox, you'll see their welcome steps. Ignore all of it. No need to click 'Skip this step'. Just click on the search bar.",
+      system: "You are an AI assistant that can control a computer. If needed, click the globe icon to open Firefox, then wait 5 seconds. When you open Firefox, you'll see their welcome steps. Ignore all of it. No need to click 'Skip this step'. Just click on the search bar. Use DuckDuckGo as the default search engine. ",
       tools: {
         computer: computerTool,
         bash: bashTool

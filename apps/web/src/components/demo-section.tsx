@@ -1,7 +1,6 @@
 'use client'
 
 import { Button } from '@/components/button'
-import client from '@/lib/cyberdeskClient'
 import { supabase } from '@/utils/supabaseClient'
 import { ComputerDesktopIcon } from '@heroicons/react/24/outline'
 import { ChevronRightIcon, MinusIcon, PlusIcon } from '@heroicons/react/24/solid'
@@ -84,7 +83,7 @@ export function DemoSection({
       // Poll for status
       let running = false
       let delay = 500 // Start with 0.5s
-      const maxDelay = 5000 // Cap at 5s
+      let firstPoll = true
       while (!running) {
         try {
           const data = await getDetailsVirtualDesktop(id)
@@ -106,7 +105,10 @@ export function DemoSection({
           break
         }
         await new Promise(res => setTimeout(res, delay))
-        delay = Math.min(delay * 2, maxDelay)
+        if (firstPoll) {
+          delay = 1000 // After first poll, always use 1s
+          firstPoll = false
+        }
       }
     } catch (error) {
       setError('Error during launch.')
