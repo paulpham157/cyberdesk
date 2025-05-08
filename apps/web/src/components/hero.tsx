@@ -47,7 +47,7 @@ export function Hero() {
         />
         <div className="pt-16 pb-24 sm:pt-24 sm:pb-32 md:pt-32 md:pb-48">
           <h1 className="font-display text-4xl font-medium tracking-tight text-balance text-gray-950 sm:text-8xl/[0.8] md:text-9xl/[0.8]">
-            Virtual desktops for AI agents
+            Open source virtual desktops for AI agents
           </h1>
           <p className="mt-14 max-w-lg text-xl/7 font-medium text-gray-950/75 sm:text-2xl/8">
             Deploy AI agents on virtual desktops with a few lines of code.
