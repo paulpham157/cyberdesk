@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="assets/cyberdesk-logo-with-text.svg" alt="Cyberdesk Logo with Text" width="500" />
+  <img src="assets/cyberdesk-logo-with-text.png" alt="Cyberdesk Logo with Text" width="500" />
 </p>
 
 <div align="center">
