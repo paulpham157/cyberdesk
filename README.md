@@ -1,5 +1,9 @@
 <p align="center">
-  <img src="assets/cyberdesk-logo-with-text.png" alt="Cyberdesk Logo with Text" width="500" />
+  <img src="assets/cyberdesk-logo-with-text.png" width="400" alt="Cyberdesk Logo" />
+</p>
+
+<p align="center">
+  <b>The open platform for orchestrating and automating virtual desktops, powered by modern APIs and AI.</b>
 </p>
 
 <p align="center">
@@ -35,118 +39,148 @@
   </a>
 </p>
 
+<p align="center">
+  <img src="assets/QuickDemo.gif" alt="Cyberdesk Demo" width="600" />
+  <br>
+  <i>Cyberdesk agent operating a virtual machine from a user prompt</i>
+</p>
+
+---
+
+## 🚀 Quick Start
+
+### TypeScript
+
+```bash
+npm install cyberdesk
+```
+
+```typescript
+import { createCyberdeskClient } from 'cyberdesk';
+
+const cyberdesk = createCyberdeskClient({ apiKey: 'YOUR_API_KEY' });
+const launchResult = await cyberdesk.launchDesktop({ body: { timeout_ms: 10000 } });
+const desktopId = launchResult.id;
+
+// Take a screenshot
+const screenshot = await cyberdesk.executeComputerAction({
+  path: { id: desktopId },
+  body: { type: 'screenshot' }
+});
+
+// Left click at (100, 150)
+await cyberdesk.executeComputerAction({
+  path: { id: desktopId },
+  body: { type: 'click_mouse', x: 100, y: 150, button: 'left' }
+});
+```
+
+### Python
+
+```bash
+pip install cyberdesk
+```
+
+```python
+from cyberdesk import CyberdeskClient
+from cyberdesk.actions import click_mouse, screenshot
+
+client = CyberdeskClient(api_key="YOUR_API_KEY")
+result = client.launch_desktop(timeout_ms=10000)
+desktop_id = result.id
+
+# Take a screenshot
+screenshot_action = screenshot()
+screenshot_result = client.execute_computer_action(desktop_id, screenshot_action)
+
+# Left click at (100, 150)
+click_action = click_mouse(x=100, y=150, button="left")
+client.execute_computer_action(desktop_id, click_action)
+```
+
+👉 For more details and advanced usage, see the [Quickstart Guide](https://docs.cyberdesk.io/docs/quickstart) and [Official Documentation](#-official-documentation).
+
+---
+
+## ✨ Features
+
 <div align="center">
-  <img src="assets/QuickDemo.gif" alt="Cyberdesk Demo GIF" style="max-width:100%; height:auto; margin-top: 16px;" />
-  <div><i>A computer-use agent operating on a Cyberdesk Virtual Machine based on a user prompt</i></div>
+
+<table>
+  <tr>
+    <td align="center" width="260"><br><b>🚀 Fast Launch</b><br><sub>Spin up virtual desktops in seconds, ready for automation or remote use.</sub><br><br></td>
+    <td align="center" width="260"><br><b>🖱️ Full Automation</b><br><sub>Control mouse, keyboard, and more—perfect for computer agents.</sub><br><br></td>
+    <td align="center" width="260"><br><b>🖥️ Cloud Native</b><br><sub>Runs on AKS, or self-hosted on your own infrastructure.</sub><br><br></td>
+  </tr>
+  <tr>
+    <td align="center" width="260"><br><b>🔒 Secure & Auditable</b><br><sub>Session logs, API keys, and enterprise-grade security.</sub><br><br></td>
+    <td align="center" width="260"><br><b>🧩 Type-Safe SDKs</b><br><sub>Official Python & TypeScript SDKs with full type hints.</sub><br><br></td>
+    <td align="center" width="260"><br><b>🤖 AI-Ready</b><br><sub>Tailor built for the next generation of computer use agents</sub><br><br></td>
+  </tr>
+</table>
+
 </div>
 
-<br>
-Cyberdesk is a comprehensive platform that provides a suite of tools and services for managing virtual desktops, APIs, documentation, and more. With these tools you can setup a computer use agent like the one shown above in as little as an hour. This repository contains various components of the Cyberdesk project, including the API, documentation, web application, operator, and SDK.
-<br>
+---
 
-# Getting Started
+## 📚 Official Documentation
 
-To quickly get started with building your own computer-use agents using Cyberdesk's infra, head on over to [docs.cyberdesk.io](https://docs.cyberdesk.io/docs/quickstart). To mess around with the interactive demo checkout out [cyberdesk.io](https://www.cyberdesk.io).
+- [Quickstart Guide](https://docs.cyberdesk.io/docs/quickstart)
+- [API Reference](https://docs.cyberdesk.io/docs/api-reference)
+- [TypeScript SDK](sdks/ts-sdk/README.md)
+- [Python SDK](sdks/py-sdk/README.md)
 
-If you'd like to run the actual project locally, proceed with the rest of this README (work in progress, contact a team member for a personal 1-1 walkthrough of how to self host the project).
+---
 
-## Prerequisites
+## 🛠️ Project Structure
 
-Before running the project, ensure you have the following prerequisites installed:
+### /apps
+- **web**: Landing page and dashboard ([README](apps/web/README.md))
+- **api**: Developer-facing API ([README](apps/api/README.md))
+- **docs**: Documentation site ([README](apps/docs/README.md))
 
-- Node.js (v14 or higher)
-- npm or yarn
-- Docker
-- Kubernetes
-- Supabase account
-- Unkey account
+### /services
+- **cyberdesk-operator**: Kubernetes operator for managing Cyberdesk Custom Resources, and starting/stopping Kubevirt virtual machines ([README](services/cyberdesk-operator/README.md))
+- **gateway**: HTTP service that proxies requests to the Kubevirt API, and routes them to the correct virtual machine ([README](services/gateway/README.md))
 
-## Installation
+### /sdks
+- **ts-sdk**: TypeScript SDK ([README](sdks/ts-sdk/README.md))
+- **py-sdk**: Python SDK ([README](sdks/py-sdk/README.md))
 
-To install the project, follow these steps:
+### /infrastructure
+- **terraform**: AKS Cluster Setup (Terraform) ([README](infrastructure/README.md))
+- **kubernetes**: Kubernetes resources for the Cyberdesk operator
 
-1. Clone the repository:
+---
 
-```bash
-git clone https://github.com/cyberdesk-hq/cyberdesk.git
-cd cyberdesk
-```
+## 🤝 Contributing
 
-2. Install dependencies for each component:
+We welcome contributions!
+- Join the [Discord](https://discord.gg/ws5ddx5yZ8) for discussion and support
+- Get a personal 1-1 walkthrough of how to self host the project by contacting us on [Discord](https://discord.gg/ws5ddx5yZ8)
 
-```bash
-# Install dependencies for the API
-cd apps/api
-npm install
+---
 
-# Install dependencies for the documentation
-cd ../docs
-npm install
+## 📣 Community & Support
 
-# Install dependencies for the web application
-cd ../web
-npm install
+- [Discord](https://discord.gg/ws5ddx5yZ8) for help and chat
+- [Good First Issues](https://github.com/cyberdesk-hq/cyberdesk/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22)
+- [Open an Issue](https://github.com/cyberdesk-hq/cyberdesk/issues)
 
-# Install dependencies for the operator
-cd ../../services/cyberdesk-operator
-pip install -r requirements.txt
+---
 
-# Install dependencies for the SDK
-cd ../../sdks/ts-sdk
-npm install
-```
+## 💡 Philosophy
 
-## Usage
+> At **Cyberdesk** our mission is to make building computer agents as easy as playing with legos. We believe in open, simple, and extensible tools for the new generation of developers: *computer agent developers*.
 
-To run the project, follow these steps:
+---
 
-1. Start the API:
+## 📄 License
 
-```bash
-cd apps/api
-npm run dev
-```
+Apache License 2.0. See [LICENSE](LICENSE).
 
-2. Start the documentation:
+---
 
-```bash
-cd ../docs
-npm run dev
-```
-
-3. Start the web application:
-
-```bash
-cd ../web
-npm run dev
-```
-
-4. Run the operator locally:
-
-```bash
-cd ../../services/cyberdesk-operator
-docker build -t cyberdesk/cyberdesk-operator:local .
-docker run --rm -it -v "${env:USERPROFILE}\.kube:/root/.kube:ro" --env-file ./.env cyberdesk/cyberdesk-operator:local
-```
-
-5. Use the SDK:
-
-Refer to the [SDK README](sdks/ts-sdk/README.md) for usage examples and instructions.
-
-## Links to Existing README Files
-
-For more detailed information about each component, refer to the existing `README.md` files:
-
-- [API README](apps/api/README.md)
-- [Documentation README](apps/docs/README.md)
-- [Web Application README](apps/web/README.md)
-- [Operator README](services/cyberdesk-operator/README.md)
-- [SDK README](sdks/ts-sdk/README.md)
-
-## Contributing
-
-We welcome contributions to the Cyberdesk project. Please refer to the [implementation guidelines](services/cyberdesk-operator/checklist.md) for more information on how to contribute.
-
-## License
-
-This project is licensed under the [Apache License 2.0](LICENSE) file in the root directory.
+<p align="center">
+  <sub>Made with ❤️ by the Cyberdesk Team</sub>
+</p>
