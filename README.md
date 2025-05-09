@@ -3,7 +3,7 @@
 </p>
 
 <p align="center">
-  <b>The open platform for orchestrating and automating virtual desktops, powered by modern APIs and AI.</b>
+  <b>The open source infra for virtual desktop orchestration, tailored for computer agents</b>
 </p>
 
 <p align="center">
