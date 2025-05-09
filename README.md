@@ -42,7 +42,7 @@
 <p align="center">
   <img src="assets/QuickDemo.gif" alt="Cyberdesk Demo" width="600" />
   <br>
-  <i>Cyberdesk agent operating a virtual machine from a user prompt</i>
+  <i>A computer agent operating a Cyberdesk virtual desktop from a user prompt</i>
 </p>
 
 ---
