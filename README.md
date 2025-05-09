@@ -2,6 +2,39 @@
   <img src="assets/cyberdesk-logo-with-text.png" alt="Cyberdesk Logo with Text" width="500" />
 </p>
 
+<p align="center">
+  <!-- NPM Version -->
+  <a href="https://www.npmjs.com/package/cyberdesk">
+    <img src="https://img.shields.io/npm/v/cyberdesk?color=cb3837&logo=npm" alt="NPM Version" />
+  </a>
+  <!-- NPM Downloads -->
+  <a href="https://www.npmjs.com/package/cyberdesk">
+    <img src="https://img.shields.io/npm/dw/cyberdesk?color=cb3837&logo=npm" alt="NPM Downloads" />
+  </a>
+  <!-- PyPI Version -->
+  <a href="https://pypi.org/project/cyberdesk/">
+    <img src="https://img.shields.io/pypi/v/cyberdesk?color=3776ab&logo=pypi" alt="PyPI Version" />
+  </a>
+  <!-- PyPI Downloads -->
+  <a href="https://pypi.org/project/cyberdesk/">
+    <img src="https://img.shields.io/pypi/dw/cyberdesk?color=3776ab&logo=pypi" alt="PyPI Downloads" />
+  </a>
+</p>
+<p align="center">
+  <!-- Discord -->
+  <a href="https://discord.gg/ws5ddx5yZ8">
+    <img src="https://img.shields.io/discord/1228348939648004096?label=discord&logo=discord&color=5865F2" alt="Discord" />
+  </a>
+  <!-- License -->
+  <a href="LICENSE">
+    <img src="https://img.shields.io/badge/license-Apache%202.0-blue.svg" alt="License: Apache 2.0" />
+  </a>
+  <!-- GitHub Stars (optional) -->
+  <a href="https://github.com/cyberdesk-hq/cyberdesk">
+    <img src="https://img.shields.io/github/stars/cyberdesk-hq/cyberdesk?style=social" alt="GitHub Stars" />
+  </a>
+</p>
+
 <div align="center">
   <img src="assets/QuickDemo.gif" alt="Cyberdesk Demo GIF" style="max-width:100%; height:auto; margin-top: 16px;" />
   <div><i>A computer-use agent operating on a Cyberdesk Virtual Machine based on a user prompt</i></div>
@@ -15,7 +48,7 @@ Cyberdesk is a comprehensive platform that provides a suite of tools and service
 
 To quickly get started with building your own computer-use agents using Cyberdesk's infra, head on over to [docs.cyberdesk.io](https://docs.cyberdesk.io/docs/quickstart). To mess around with the interactive demo checkout out [cyberdesk.io](https://www.cyberdesk.io).
 
-If you'd like to run the actual project locally, proceed with the rest of this README.
+If you'd like to run the actual project locally, proceed with the rest of this README (work in progress, contact a team member for a personal 1-1 walkthrough of how to self host the project).
 
 ## Prerequisites
 
@@ -116,4 +149,4 @@ We welcome contributions to the Cyberdesk project. Please refer to the [implemen
 
 ## License
 
-This project is licensed under the [LICENSE.md](apps/web/LICENSE.md) file in the `apps/web` directory.
+This project is licensed under the [Apache License 2.0](LICENSE) file in the root directory.

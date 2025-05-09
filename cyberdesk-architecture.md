@@ -2,7 +2,7 @@
 
 ## System Overview
 
-This document outlines the architecture for a scalable cloud desktop platform that allows users to create and interact with isolated virtual machine environments. The system is designed to support thousands of concurrent VMs while maintaining security, performance, and ease of use.
+This document outlines the architecture for Cyberdesk,a scalable cloud desktop platform that allows users to create and interact with isolated virtual machine environments. The system is designed to support thousands of concurrent VMs while maintaining security, performance, and ease of use.
 
 ## Architecture Components
 
@@ -54,7 +54,7 @@ This document outlines the architecture for a scalable cloud desktop platform th
 
 #### Implementation
 - Custom lightweight HTTP service
-- Written in Node.js
+- Written in FastAPI
 - Runs on private-internal-ip:port inside each VM, only Gateway Service can access
 - Starts automatically when VM boots
 
