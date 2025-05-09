@@ -1,0 +1,11 @@
+# Ignore generated OpenAPI client
+openapi_client/
+
+# Python cache
+__pycache__/
+*.pyc
+
+# Build artifacts
+dist/
+build/
+*.egg-info/ 

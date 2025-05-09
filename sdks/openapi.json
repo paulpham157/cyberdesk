@@ -2,7 +2,7 @@
     "openapi": "3.1.0",
     "info": {
         "title": "API Reference",
-        "version": "1.2.0",
+        "version": "1.2.1",
         "description": "API for Cyberdesk, to create, control, and manage virtual desktop instances."
     },
     "servers": [
@@ -23,7 +23,7 @@
         "parameters": {}
     },
     "paths": {
-        "/v1/desktop/:id": {
+        "/v1/desktop/{id}": {
             "get": {
                 "tags": [
                     "Desktop"
@@ -630,7 +630,7 @@
                 }
             }
         },
-        "/v1/desktop/:id/stop": {
+        "/v1/desktop/{id}/stop": {
             "post": {
                 "tags": [
                     "Desktop"
@@ -913,7 +913,7 @@
                 }
             }
         },
-        "/v1/desktop/:id/computer-action": {
+        "/v1/desktop/{id}/computer-action": {
             "post": {
                 "tags": [
                     "Desktop"
@@ -1519,7 +1519,7 @@
                 }
             }
         },
-        "/v1/desktop/:id/bash-action": {
+        "/v1/desktop/{id}/bash-action": {
             "post": {
                 "tags": [
                     "Desktop"
