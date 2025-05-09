@@ -76,7 +76,7 @@ export function newApp() {
     openapi: "3.1.0",
     info: {
       title: "API Reference",
-      version: "1.2.0",
+      version: "1.2.1",
       description: "API for Cyberdesk, to create, control, and manage virtual desktop instances.",
     },
     servers: [

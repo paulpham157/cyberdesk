@@ -1,0 +1,24 @@
+[project]
+name = "cyberdesk"
+version = "0.2.2"
+description = "The official Python SDK for Cyberdesk"
+authors = [{name = "Cyberdesk Team", email = "dev@cyberdesk.io"}]
+readme = "README.md"
+license = "MIT"
+dependencies = [
+    "httpx"
+]
+
+[build-system]
+requires = ["setuptools", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project.optional-dependencies]
+dev = [
+    "openapi-python-client",
+    "build",
+    "twine"
+]
+
+[tool.setuptools.packages.find]
+include = ["cyberdesk*"] 
