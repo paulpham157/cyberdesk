@@ -232,7 +232,7 @@ export const createDesktop = createRoute({
 // Stop Desktop Route
 export const stopDesktop = createRoute({
   method: "post",
-  path: "/desktop/:id/stop",
+  path: "/desktop/{id}/stop",
   tags: ["Desktop"],
   summary: "Stop a running desktop instance",
   description: "Stops a running desktop instance and cleans up resources",
@@ -285,7 +285,7 @@ const GetDesktopResponseSchema = z.object({
 // Get Desktop Route
 export const getDesktop = createRoute({
   method: "get",
-  path: "/desktop/:id",
+  path: "/desktop/{id}",
   tags: ["Desktop"],
   summary: "Get details of a specific desktop instance",
   description: "Returns the ID, status, creation timestamp, and timeout timestamp for a given desktop instance.",
@@ -314,7 +314,7 @@ export const getDesktop = createRoute({
 // Computer Action Route
 export const computerAction = createRoute({
   method: "post",
-  path: "/desktop/:id/computer-action",
+  path: "/desktop/{id}/computer-action",
   tags: ["Desktop"],
   summary: "Perform an action on the desktop",
   description: "Executes a computer action such as mouse clicks, keyboard input, or screenshots on the desktop",
@@ -350,7 +350,7 @@ export const computerAction = createRoute({
 // Bash Action Route
 export const bashAction = createRoute({
   method: "post",
-  path: "/desktop/:id/bash-action",
+  path: "/desktop/{id}/bash-action",
   tags: ["Desktop"],
   summary: "Execute a bash command on the desktop",
   description: "Runs a bash command on the desktop and returns the command output",

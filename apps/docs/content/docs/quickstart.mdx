@@ -2,6 +2,8 @@
 title: Quickstart
 description: Get started quickly with Cyberdesk
 ---
+import { Tab, Tabs } from 'fumadocs-ui/components/tabs';
+
 Get up and running with Cyberdesk in minutes.
 
 ## Fastest Start: Cyberdesk Starter Assistant UI
@@ -47,18 +49,19 @@ npm run dev
 
 This template provides a complete working example that you can customize for your specific use case. For more details, check out the [repository README](https://github.com/cyberdesk-hq/cyberdesk-ai-sdk-starter).
 
-## Building a Custom Integration with the TypeScript SDK
+## Building a Custom Integration
 
-If you want to build your own integration, the **official TypeScript SDK** is the recommended approach. The rest of this guide shows how to use the SDK.
+If you want to build your own integration, you can use either the **official TypeScript SDK** or the **official Python SDK**. See the code tabs below for both options.
 
 ### Prerequisites
 
-- Node.js installed
+- Node.js or Python 3.8+
 - A Cyberdesk API key (obtain from your [Cyberdesk dashboard](https://cyberdesk.io/dashboard))
 
 ### Installation
 
-Install the SDK package:
+<Tabs groupId="language" items={["TypeScript", "Python"]} persist>
+  <Tab value="TypeScript">
 
 ```bash
 npm install cyberdesk
@@ -68,9 +71,20 @@ yarn add cyberdesk
 pnpm add cyberdesk
 ```
 
+  </Tab>
+  <Tab value="Python">
+
+```bash
+pip install cyberdesk
+```
+
+  </Tab>
+</Tabs>
+
 ### 1. Initialize the Client
 
-Create a Cyberdesk client instance with your API key:
+<Tabs groupId="language" items={["TypeScript", "Python"]} persist>
+  <Tab value="TypeScript">
 
 ```typescript
 import { createCyberdeskClient } from 'cyberdesk';
@@ -79,180 +93,252 @@ const cyberdesk = createCyberdeskClient({
   apiKey: 'YOUR_API_KEY',
   // Optionally, you can override the baseUrl or provide a custom fetch implementation
 });
-
-console.log('Cyberdesk client initialized.');
 ```
+
+  </Tab>
+  <Tab value="Python">
+
+```python
+from cyberdesk import CyberdeskClient
+
+client = CyberdeskClient(api_key="YOUR_API_KEY")
+```
+
+  </Tab>
+</Tabs>
 
 ### 2. Launch a Desktop Instance
 
-Use the `launchDesktop` method to create a new virtual desktop:
+<Tabs groupId="language" items={["TypeScript", "Python"]} persist>
+  <Tab value="TypeScript">
 
 ```typescript
-async function launch() {
-  console.log('Launching desktop...');
-  const launchResult = await cyberdesk.launchDesktop({
-    body: { timeout_ms: 600000 } // Optional: 10-minute timeout
-  });
+const launchResult = await cyberdesk.launchDesktop({
+  body: { timeout_ms: 600000 } // Optional: 10-minute timeout
+});
 
-  // Error handling - check for the error property
-  if ('error' in launchResult) {
-    console.error('Failed to launch desktop:', launchResult.error);
-    throw new Error('Failed to launch desktop: ' + launchResult.error);
-  }
-
-  // Success - result contains id and status
-  console.log('Desktop launch initiated:', launchResult);
-  return launchResult.id; // Return the ID for the next steps
+if ('error' in launchResult) {
+  throw new Error('Failed to launch desktop: ' + launchResult.error);
 }
 
-// We'll call this function later
+const desktopId = launchResult.id;
 ```
 
-*The response from `launchDesktop` contains the `id` and initial `status`.* 
+  </Tab>
+  <Tab value="Python">
+
+```python
+result = client.launch_desktop(timeout_ms=10000)  # Optional: set a timeout for the desktop session
+
+if hasattr(result, 'error') and result.error:
+    raise Exception('Failed to launch desktop: ' + str(result.error))
+
+desktop_id = getattr(result, 'id', None)
+```
+
+  </Tab>
+</Tabs>
 
 ### 3. Get Desktop Information (Including Stream URL)
 
-Once the desktop is running (or pending), you can fetch its details, including the `stream_url`:
+<Tabs groupId="language" items={["TypeScript", "Python"]} persist>
+  <Tab value="TypeScript">
 
 ```typescript
-async function getInfo(desktopId: string) {
-  console.log(`Getting info for desktop ${desktopId}...`);
-  // Poll until the desktop is running (optional, for demonstration)
-  let info;
-  for (let i = 0; i < 10; i++) { // Try up to 10 times
-    info = await cyberdesk.getDesktop({ path: { id: desktopId } });
-    if (!('error' in info) && info.status === 'running') {
-      break; // Exit loop if running
-    }
-    if ('error' in info) {
-      console.error('Error getting info:', info.error);
-      throw new Error('Failed to get desktop info: ' + info.error);
-    }
-    console.log(`Status: ${info.status}, waiting...`);
-    await new Promise(resolve => setTimeout(resolve, 5000)); // Wait 5 seconds
-  }
+const info = await cyberdesk.getDesktop({ path: { id: desktopId } });
 
-  if (!info || 'error' in info) {
-     throw new Error('Failed to get running desktop info.');
-  }
-
-  console.log('Desktop info retrieved:', info);
-  console.log('Stream URL:', info.stream_url);
-  return info;
+if ('error' in info) {
+  throw new Error('Failed to get desktop info: ' + info.error);
 }
 
-// We'll call this function later
+console.log('Desktop info:', info);
+console.log('Stream URL:', info.stream_url);
 ```
 
-*The `stream_url` can be opened in a browser or used with a VNC client.* 
+  </Tab>
+  <Tab value="Python">
+
+```python
+info = client.get_desktop(desktop_id)
+
+if hasattr(info, 'error') and info.error:
+    raise Exception('Failed to get desktop info: ' + str(info.error))
+
+print('Desktop info:', info)
+# If available: print('Stream URL:', getattr(info, 'stream_url', None))
+```
+
+  </Tab>
+</Tabs>
 
 ### 4. Control the Desktop
 
-Interact with the running desktop using methods like `executeComputerAction` and `executeBashAction`.
-
 #### Perform a Mouse Click
 
+<Tabs groupId="language" items={["TypeScript", "Python"]} persist>
+  <Tab value="TypeScript">
+
 ```typescript
-async function clickMouse(desktopId: string) {
-  console.log(`Clicking mouse on desktop ${desktopId}...`);
-  const actionResult = await cyberdesk.executeComputerAction({
-    path: { id: desktopId },
-    body: {
-      type: 'click_mouse',
-      x: 100,
-      y: 150,
-      button: 'left' // Optional, defaults to left
-    }
-  });
-
-  if ('error' in actionResult) {
-    console.error('Mouse click failed:', actionResult.error);
-    throw new Error('Mouse click failed: ' + actionResult.error);
+const actionResult = await cyberdesk.executeComputerAction({
+  path: { id: desktopId },
+  body: {
+    type: 'click_mouse',
+    x: 100,
+    y: 150,
+    button: 'left'
   }
+});
 
-  console.log('Mouse click successful:', actionResult);
+if ('error' in actionResult) {
+  throw new Error('Mouse click failed: ' + actionResult.error);
 }
-
-// We'll call this function later
 ```
+
+  </Tab>
+  <Tab value="Python">
+
+```python
+from cyberdesk.actions import click_mouse
+
+action = click_mouse(x=100, y=150, button="left")
+action_result = client.execute_computer_action(desktop_id, action)
+
+if hasattr(action_result, 'error') and action_result.error:
+    raise Exception('Action failed: ' + str(action_result.error))
+```
+
+  </Tab>
+</Tabs>
 
 #### Run a Bash Command
 
+<Tabs groupId="language" items={["TypeScript", "Python"]} persist>
+  <Tab value="TypeScript">
+
 ```typescript
-async function runBash(desktopId: string) {
-  console.log(`Running bash command on desktop ${desktopId}...`);
-  const bashResult = await cyberdesk.executeBashAction({
-    path: { id: desktopId },
-    body: {
-      command: 'ls -la /tmp'
-    }
-  });
-
-  if ('error' in bashResult) {
-    console.error('Bash command failed:', bashResult.error);
-    throw new Error('Bash command failed: ' + bashResult.error);
+const bashResult = await cyberdesk.executeBashAction({
+  path: { id: desktopId },
+  body: {
+    command: 'ls -la /tmp'
   }
+});
 
-  console.log('Bash command output:', bashResult.output);
+if ('error' in bashResult) {
+  throw new Error('Bash command failed: ' + bashResult.error);
 }
 
-// We'll call this function later
+console.log('Bash command output:', bashResult.output);
 ```
+
+  </Tab>
+  <Tab value="Python">
+
+```python
+bash_result = client.execute_bash_action(
+    desktop_id,
+    "ls -la /tmp"
+)
+
+if hasattr(bash_result, 'error') and bash_result.error:
+    raise Exception('Bash command failed: ' + str(bash_result.error))
+
+print('Bash command output:', getattr(bash_result, 'output', bash_result))
+```
+
+  </Tab>
+</Tabs>
 
 ### 5. Stop the Desktop Instance
 
-When finished, use the `terminateDesktop` method to stop the instance and release resources:
+<Tabs groupId="language" items={["TypeScript", "Python"]} persist>
+  <Tab value="TypeScript">
 
 ```typescript
-async function terminate(desktopId: string) {
-  console.log(`Terminating desktop ${desktopId}...`);
-  const terminateResult = await cyberdesk.terminateDesktop({
-    path: { id: desktopId }
-  });
+const terminateResult = await cyberdesk.terminateDesktop({
+  path: { id: desktopId }
+});
 
-  if ('error' in terminateResult) {
-    console.error('Termination failed:', terminateResult.error);
-    // Note: You might still want to proceed even if termination fails
-  }
-
-  console.log('Desktop termination result:', terminateResult);
+if ('error' in terminateResult) {
+  // You might still want to proceed even if termination fails
 }
-
-// We'll call this function later
 ```
 
-### Putting it all Together
+  </Tab>
+  <Tab value="Python">
+
+```python
+terminate_result = client.terminate_desktop(desktop_id)
+
+if hasattr(terminate_result, 'error') and terminate_result.error:
+    print('Termination failed:', terminate_result.error)
+```
+
+  </Tab>
+</Tabs>
+
+### 6. Async Usage
+
+<Tabs groupId="language" items={["TypeScript", "Python"]} persist>
+  <Tab value="TypeScript">
 
 ```typescript
-// (Make sure you have the client initialized as shown in Step 1)
-
-async function main() {
-  let desktopId: string | undefined;
-  try {
-    // 1. Launch
-    desktopId = await launch();
-
-    // 2. Get Info (wait for running state)
-    await getInfo(desktopId);
-
-    // 3. Control (Click and Bash)
-    await clickMouse(desktopId);
-    await runBash(desktopId);
-
-    console.log('Quickstart complete!');
-
-  } catch (error) {
-    console.error('An error occurred during the quickstart:', error);
-  } finally {
-    // 4. Terminate (always attempt, even if errors occurred)
-    if (desktopId) {
-      await terminate(desktopId);
-    }
-  }
-}
-
-main(); // Run the quickstart sequence
+// All methods are available as async functions (see above)
 ```
+
+  </Tab>
+  <Tab value="Python">
+
+```python
+import asyncio
+from cyberdesk import CyberdeskClient
+from cyberdesk.actions import click_mouse
+
+async def main():
+    client = CyberdeskClient(api_key="YOUR_API_KEY")
+    result = await client.async_launch_desktop(timeout_ms=10000)
+    print(result)
+    action = click_mouse(x=100, y=200)
+    await client.async_execute_computer_action(desktop_id, action)
+    # ... use other async_ methods as needed
+
+asyncio.run(main())
+```
+
+  </Tab>
+</Tabs>
+
+### 7. Type Hints and Models
+
+<Tabs groupId="language" items={["TypeScript", "Python"]} persist>
+  <Tab value="TypeScript">
+
+```typescript
+// All request/response types are available from the generated models
+```
+
+  </Tab>
+  <Tab value="Python">
+
+```python
+from cyberdesk.actions import click_mouse, drag_mouse, type_text, wait, scroll, move_mouse, press_keys, screenshot, get_cursor_position
+```
+
+  </Tab>
+</Tabs>
+
+### 8. Available Computer Actions
+
+| Action         | Factory Function (Python Only)         | Description                |
+|----------------|-------------------------|----------------------------|
+| Click Mouse    | `click_mouse`           | Mouse click at (x, y)      |
+| Drag Mouse     | `drag_mouse`            | Mouse drag from/to (x, y)  |
+| Move Mouse     | `move_mouse`            | Move mouse to (x, y)       |
+| Scroll         | `scroll`                | Scroll by dx, dy           |
+| Type Text      | `type_text`             | Type text                  |
+| Press Keys     | `press_keys`            | Press keyboard keys        |
+| Screenshot     | `screenshot`            | Take a screenshot          |
+| Wait           | `wait`                  | Wait for ms milliseconds   |
+| Get Cursor Pos | `get_cursor_position`   | Get mouse cursor position  |
 
 ## Next Steps
 
