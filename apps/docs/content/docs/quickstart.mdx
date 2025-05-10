@@ -130,10 +130,10 @@ const desktopId = launchResult.id;
 ```python
 result = client.launch_desktop(timeout_ms=10000)  # Optional: set a timeout for the desktop session
 
-if hasattr(result, 'error') and result.error:
+if result.error:
     raise Exception('Failed to launch desktop: ' + str(result.error))
 
-desktop_id = getattr(result, 'id', None)
+desktop_id = result.id
 ```
 
   </Tab>
@@ -161,11 +161,11 @@ console.log('Stream URL:', info.stream_url);
 ```python
 info = client.get_desktop(desktop_id)
 
-if hasattr(info, 'error') and info.error:
+if info.error:
     raise Exception('Failed to get desktop info: ' + str(info.error))
 
 print('Desktop info:', info)
-# If available: print('Stream URL:', getattr(info, 'stream_url', None))
+# If available: print('Stream URL:', info.stream_url)
 ```
 
   </Tab>
@@ -203,7 +203,7 @@ from cyberdesk.actions import click_mouse, ClickMouseButton
 action = click_mouse(x=100, y=150, button=ClickMouseButton.LEFT)
 action_result = client.execute_computer_action(desktop_id, action)
 
-if hasattr(action_result, 'error') and action_result.error:
+if action_result.error:
     raise Exception('Action failed: ' + str(action_result.error))
 ```
 
@@ -239,7 +239,7 @@ bash_result = client.execute_bash_action(
     "ls -la /tmp"
 )
 
-if hasattr(bash_result, 'error') and bash_result.error:
+if bash_result.error:
     raise Exception('Bash command failed: ' + str(bash_result.error))
 
 print('Bash command output:', getattr(bash_result, 'output', bash_result))
@@ -269,7 +269,7 @@ if ('error' in terminateResult) {
 ```python
 terminate_result = client.terminate_desktop(desktop_id)
 
-if hasattr(terminate_result, 'error') and terminate_result.error:
+if terminate_result.error:
     print('Termination failed:', terminate_result.error)
 ```
 
