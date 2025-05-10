@@ -1,12 +1,13 @@
 [project]
 name = "cyberdesk"
-version = "0.2.2"
+version = "0.2.7"
 description = "The official Python SDK for Cyberdesk"
 authors = [{name = "Cyberdesk Team", email = "dev@cyberdesk.io"}]
 readme = "README.md"
 license = "MIT"
 dependencies = [
-    "httpx"
+    "httpx",
+    "attrs"
 ]
 
 [build-system]
@@ -21,4 +22,4 @@ dev = [
 ]
 
 [tool.setuptools.packages.find]
-include = ["cyberdesk*"] 
+include = ["cyberdesk*", "openapi_client*"] 
