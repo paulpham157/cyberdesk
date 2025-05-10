@@ -55,9 +55,9 @@ print('Desktop info:', info)
 ### Perform a Computer Action (e.g., Mouse Click)
 
 ```python
-from cyberdesk.actions import click_mouse
+from cyberdesk.actions import click_mouse, ClickMouseButton
 
-action = click_mouse(x=100, y=150, button="left")
+action = click_mouse(x=100, y=150, button=ClickMouseButton.LEFT)
 action_result = client.execute_computer_action("your-desktop-id", action)
 
 if hasattr(action_result, 'error') and action_result.error:
@@ -90,9 +90,9 @@ To create computer actions (mouse, keyboard, etc.), use the factory functions in
 
 **Example:**
 ```python
-from cyberdesk.actions import click_mouse, type_text
+from cyberdesk.actions import click_mouse, type_text, ClickMouseButton
 
-action1 = click_mouse(x=100, y=200, button="left")
+action1 = click_mouse(x=100, y=200, button=ClickMouseButton.LEFT)
 action2 = type_text(text="Hello, world!")
 
 client.execute_computer_action("your-desktop-id", action1)
@@ -120,14 +120,14 @@ All methods are also available as async variants (prefixed with `async_`). Examp
 ```python
 import asyncio
 from cyberdesk import CyberdeskClient
-from cyberdesk.actions import click_mouse
+from cyberdesk.actions import click_mouse, ClickMouseButton
 
 async def main():
     client = CyberdeskClient(api_key="YOUR_API_KEY")
     result = await client.async_launch_desktop(timeout_ms=10000)
     print(result)
     # Example async computer action
-    action = click_mouse(x=100, y=200)
+    action = click_mouse(x=100, y=200, button=ClickMouseButton.LEFT)
     await client.async_execute_computer_action("your-desktop-id", action)
     # ... use other async_ methods as needed
 
@@ -141,8 +141,10 @@ asyncio.run(main())
 All request/response types are available from the generated models, and all computer actions are available as factory functions in `cyberdesk.actions` for ergonomic, type-safe usage.
 
 ```python
-from cyberdesk.actions import click_mouse, drag_mouse, type_text, wait, scroll, move_mouse, press_keys, screenshot, get_cursor_position
+from cyberdesk.actions import click_mouse, drag_mouse, type_text, wait, scroll, move_mouse, press_keys, screenshot, get_cursor_position, ClickMouseButton, ClickMouseActionType, PressKeyActionType, ScrollDirection
 ```
+
+# Note: All action enums (e.g., ClickMouseButton, ClickMouseActionType, PressKeyActionType, ScrollDirection, etc.) are available from cyberdesk.actions for type-safe usage.
 
 ---
 
@@ -161,13 +163,22 @@ To build and publish this package to [PyPI](https://pypi.org/project/cyberdesk/)
    uv pip install .[dev]
    ```
 
-3. **Build the package:**
+3. **Bump the version number** in `pyproject.toml` (e.g., `version = "0.2.4"`).
+
+4. **Clean your `dist/` directory** before building to avoid 'File already exists' errors:
+   ```bash
+   rm -rf dist/*
+   # On Windows PowerShell:
+   Remove-Item dist\* -Force
+   ```
+
+5. **Build the package:**
    ```bash
    python -m build
    ```
    This creates a `dist/` directory with `.whl` and `.tar.gz` files.
 
-4. **(Recommended) Set up a `.pypirc` file for easy publishing:**
+6. **(Recommended) Set up a `.pypirc` file for easy publishing:**
    - Create a file named `.pypirc` in your home directory (e.g., `C:\Users\yourname\.pypirc` on Windows or `~/.pypirc` on Linux/macOS).
    - Add:
      ```ini
@@ -180,14 +191,14 @@ To build and publish this package to [PyPI](https://pypi.org/project/cyberdesk/)
      password = pypi-AgEIcH...   # <-- paste your API token here
      ```
 
-5. **Publish to PyPI:**
+7. **Publish to PyPI:**
    ```bash
    twine upload dist/*
    ```
    - If you set up `.pypirc`, you won't be prompted for credentials.
    - If not, enter `__token__` as the username and paste your API token as the password.
 
-6. **Verify:**
+8. **Verify:**
    - Visit https://pypi.org/project/cyberdesk/ to see your published package.
    - Try installing it in a fresh environment:
      ```bash

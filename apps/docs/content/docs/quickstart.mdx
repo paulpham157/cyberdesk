@@ -198,9 +198,9 @@ if ('error' in actionResult) {
   <Tab value="Python">
 
 ```python
-from cyberdesk.actions import click_mouse
+from cyberdesk.actions import click_mouse, ClickMouseButton
 
-action = click_mouse(x=100, y=150, button="left")
+action = click_mouse(x=100, y=150, button=ClickMouseButton.LEFT)
 action_result = client.execute_computer_action(desktop_id, action)
 
 if hasattr(action_result, 'error') and action_result.error:
@@ -291,13 +291,13 @@ if hasattr(terminate_result, 'error') and terminate_result.error:
 ```python
 import asyncio
 from cyberdesk import CyberdeskClient
-from cyberdesk.actions import click_mouse
+from cyberdesk.actions import click_mouse, ClickMouseButton
 
 async def main():
     client = CyberdeskClient(api_key="YOUR_API_KEY")
     result = await client.async_launch_desktop(timeout_ms=10000)
     print(result)
-    action = click_mouse(x=100, y=200)
+    action = click_mouse(x=100, y=200, button=ClickMouseButton.LEFT)
     await client.async_execute_computer_action(desktop_id, action)
     # ... use other async_ methods as needed
 
@@ -320,7 +320,7 @@ asyncio.run(main())
   <Tab value="Python">
 
 ```python
-from cyberdesk.actions import click_mouse, drag_mouse, type_text, wait, scroll, move_mouse, press_keys, screenshot, get_cursor_position
+from cyberdesk.actions import click_mouse, drag_mouse, type_text, wait, scroll, move_mouse, press_keys, screenshot, get_cursor_position, ClickMouseButton, ClickMouseActionType, PressKeyActionType, ScrollDirection
 ```
 
   </Tab>

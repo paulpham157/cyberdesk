@@ -83,7 +83,7 @@ pip install cyberdesk
 
 ```python
 from cyberdesk import CyberdeskClient
-from cyberdesk.actions import click_mouse, screenshot
+from cyberdesk.actions import click_mouse, screenshot, ClickMouseButton
 
 client = CyberdeskClient(api_key="YOUR_API_KEY")
 result = client.launch_desktop(timeout_ms=10000)
@@ -94,7 +94,7 @@ screenshot_action = screenshot()
 screenshot_result = client.execute_computer_action(desktop_id, screenshot_action)
 
 # Left click at (100, 150)
-click_action = click_mouse(x=100, y=150, button="left")
+click_action = click_mouse(x=100, y=150, button=ClickMouseButton.LEFT)
 client.execute_computer_action(desktop_id, click_action)
 ```
 
