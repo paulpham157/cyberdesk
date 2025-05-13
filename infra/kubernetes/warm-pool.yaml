@@ -20,7 +20,7 @@ spec:
         spec:
           source:
             snapshot:
-              name: vmsnapshot-956a468c-8a51-4760-9bf1-8af33761d1ac-volume-rootdisk # Make sure this is updated to the latest snapshot
+              name: vmsnapshot-c87b14f8-85cd-4957-ace9-0a48c206feda-volume-rootdisk # Make sure this is updated to the latest snapshot
               namespace: kubevirt
           pvc:
             accessModes: [ReadWriteOnce]
