@@ -130,8 +130,22 @@ This enables snapshotting for Azure disks and is required for KubeVirt VM snapsh
 
      # Inside the VM, if there doesn't seem to be any cloud-init logs, run this and see if "status:done" is printed
      cloud-init status
+
+     # Once done, exit the VM console with ctrl / cmd + ]
+
+     # Then, VNC into the VM
+     virtctl port-forward golden-vm 5900:5900 -n kubevirt
+
+     # Use RealVNC (download if you don't have it for free) and connect to localhost:5900
+
+     # Install any applications and set any settings you'd like in all VMs, such as DuckDuckGo for search, VSCode, etc.
+     # Current list:
+     # - DuckDuckGo as the default search engine
+     # - VSCode
+     # - Change desktop background to something nice
+     # - Delete browser history and cookies
      ```
-     - Once done, exit the VM console with ctrl / cmd + ]
+     - Once done, exit RealVNC and stop the port-forward:
 3. **Stop the Golden VM:**
    ```bash
    virtctl stop golden-vm -n kubevirt
