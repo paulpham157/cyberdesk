@@ -1,5 +1,5 @@
 import React from 'react';
-import { cn } from '@/lib/utils'; // Assuming you use shadcn/ui or similar for utils
+import { cn } from '@/utils/misc-utils'; // Assuming you use shadcn/ui or similar for utils
 
 interface LogoTextProps extends React.HTMLAttributes<HTMLSpanElement> {}
 

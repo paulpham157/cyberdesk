@@ -1,6 +1,6 @@
 import { createClient } from '@/utils/supabase/server'
 import { NextRequest, NextResponse } from 'next/server'
-import PostHogClient from '@/lib/posthog'
+import PostHogClient from '@/utils/posthog/posthog'
 
 export async function GET(request: NextRequest) {
   const requestUrl = new URL(request.url)

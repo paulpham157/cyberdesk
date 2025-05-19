@@ -6,7 +6,6 @@ import { AssistantRuntimeProvider } from '@assistant-ui/react'
 import { useChatRuntime } from '@assistant-ui/react-ai-sdk'
 import {
   ChatBubbleLeftIcon,
-  ComputerDesktopIcon,
   HeartIcon,
 } from '@heroicons/react/24/outline'
 import { useState } from 'react'

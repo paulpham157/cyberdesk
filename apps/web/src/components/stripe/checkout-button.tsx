@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { Button } from '@/components/button';
 import type { User } from '@supabase/supabase-js';
 import type { Profile } from '@/types/database';
-import type { Tier } from '@/config/tiers';
+import type { Tier } from '@/utils/stripe/tiers';
 
 export interface CheckoutButtonProps {
   tier: Tier;

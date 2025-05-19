@@ -1,4 +1,4 @@
-import { stripe } from '@/utils/stripe-server';
+import { stripe } from '@/utils/stripe/stripe-server';
 import { headers } from 'next/headers';
 import { NextRequest, NextResponse } from 'next/server';
 import Stripe from 'stripe';
@@ -19,10 +19,14 @@ export async function POST(req: NextRequest) {
 
   try {
     event = stripe.webhooks.constructEvent(body, sig, endpointSecret!);
-  } catch (err: any) {
-    console.error(`Webhook Error: ${err.message}`);
+  } catch (err: unknown) {
+    let errorMessage = "An unknown error occurred";
+    if (err instanceof Error) {
+      errorMessage = err.message;
+    }
+    console.error(`Webhook Error: ${errorMessage}`);
     return NextResponse.json(
-      { error: `Webhook Error: ${err.message}` },
+      { error: `Webhook Error: ${errorMessage}` },
       { status: 400 }
     );
   }
@@ -30,7 +34,12 @@ export async function POST(req: NextRequest) {
   // Helper function to update profile in Supabase
   const updateProfile = async (customerId: string, data: { 
     subscription_status?: SubscriptionStatus;
-    [key: string]: any;
+    updated_at?: Date;
+    stripe_subscription_id?: string | null;
+    current_period_end?: Date | null;
+    plan_id?: string | null;
+    cancel_at_period_end?: boolean | null;
+    email?: string | null;
   }) => {
     try {
       // First, find the profile with this Stripe customer ID

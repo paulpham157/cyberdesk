@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import { Button } from '@/components/button'
 import { ClipboardIcon, KeyIcon, ArrowPathIcon } from '@heroicons/react/24/outline'
 import { CheckIcon } from '@heroicons/react/24/solid'
-import {supabase} from '@/utils/supabaseClient'
+import { supabase } from '@/utils/supabase/client'
 interface ApiKey {
   id: string
   key: string

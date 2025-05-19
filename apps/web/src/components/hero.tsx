@@ -8,7 +8,7 @@ import { Navbar } from '@/components/navbar'
 import { ChevronRightIcon } from '@heroicons/react/16/solid'
 import { useRouter } from 'next/navigation'
 import { useState, useEffect } from 'react'
-import { supabase } from '@/utils/supabaseClient'
+import { supabase } from '@/utils/supabase/client'
 import CONFIG from '../../config';
 
 export function Hero() {

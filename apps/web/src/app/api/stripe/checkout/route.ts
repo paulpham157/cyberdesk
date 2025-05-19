@@ -1,4 +1,4 @@
-import { stripe, STRIPE_PRICE_ID } from '@/utils/stripe-server';
+import { stripe, STRIPE_PRICE_ID } from '@/utils/stripe/stripe-server';
 import { NextRequest, NextResponse } from 'next/server';
 
 export async function POST(req: NextRequest) {

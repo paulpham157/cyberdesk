@@ -4,15 +4,16 @@ import { SubscriptionSection } from '@/components/dashboard/subscription-section
 import type { Profile } from '@/types/database'
 import { ApiKeyManager } from '@/components/dashboard/api-key-manager'
 import { VMInstancesManager } from '@/components/dashboard/vm-instances-manager'
-import { supabase } from '@/utils/supabaseClient'
+import { supabase } from '@/utils/supabase/client'
 import { ArrowRightOnRectangleIcon } from '@heroicons/react/24/outline'
 import { PricingCard } from '@/components/stripe/client-pricing-card'
-import { tiers } from '@/config/tiers'
+import { tiers } from '@/utils/stripe/tiers'
 import { FAQSection } from '@/components/dashboard/faq-section'
 import posthog from 'posthog-js'
 import { useEffect, useState } from 'react'
 import { Subheading } from '@/components/text'
 import CONFIG from '../../../config'
+import type { User } from '@supabase/supabase-js'
 
 interface DashboardContentProps {
   userEmail?: string;
@@ -138,7 +139,7 @@ export function DashboardContent({ userEmail, userId, profile }: DashboardConten
             ) : (
               <PricingCard 
                 tier={tiers[0]} 
-                user={userId ? { id: userId } as any : null} 
+                user={userId ? { id: userId, email: userEmail } as User : null}
                 profile={profile || null}
               />
             )}
