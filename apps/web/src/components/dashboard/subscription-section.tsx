@@ -4,7 +4,7 @@ import { useState } from 'react'
 import type { Profile } from '@/types/database'
 import { SubscriptionManagement } from '@/components/stripe/subscription-management'
 import { PricingCard } from '@/components/stripe/client-pricing-card'
-import { tiers } from '@/config/tiers'
+import { tiers } from '@/utils/stripe/tiers'
 
 interface SubscriptionSectionProps {
   userEmail?: string;

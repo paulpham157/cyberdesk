@@ -192,6 +192,7 @@ async function executeComputerAction(
   action: ComputerAction,
   GATEWAY_URL: string
 ): Promise<string> {
+  console.log("Executing computer action:", action);
   const instance = await getDbInstanceDetails(db, id, userId);
   if (!instance) {
     throw new NotFoundError("Instance not found or unauthorized");

@@ -1,6 +1,6 @@
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
-import { stripe } from '@/utils/stripe-server';
+import { stripe } from '@/utils/stripe/stripe-server';
 import type { Profile } from '@/types/database';
 import { DashboardLayout } from '@/components/dashboard/dashboard-layout';
 import { DashboardContent } from './dashboard-content';

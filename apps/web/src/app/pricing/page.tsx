@@ -16,7 +16,7 @@ import type { Metadata } from 'next'
 import { createClient } from '@/utils/supabase/server'
 import type { Profile } from '@/types/database'
 import type { User } from '@supabase/supabase-js'
-import { tiers } from '@/config/tiers'
+import { tiers } from '@/utils/stripe/tiers'
 import { FAQSection } from '@/components/dashboard/faq-section'
 
 export const metadata: Metadata = {

@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { ComputerDesktopIcon, ArrowPathIcon } from '@heroicons/react/24/outline'
-import { supabase } from '@/utils/supabaseClient'
+import { supabase } from '@/utils/supabase/client'
 import type { CyberdeskInstance } from '../../types/database'
 
 export function VMInstancesManager() {
