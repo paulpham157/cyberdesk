@@ -32,6 +32,8 @@ import {
   UnauthorizedError,
   InternalServerError,
 } from "../lib/errors.js";
+import posthogClient from '../lib/posthog.js';
+import type { Context } from "hono";
 
 // Type definitions
 type EnvVars = {
@@ -72,6 +74,26 @@ desktop.use("*", async (c, next) => {
   await handler(c, next);
 });
 
+// Helper function to capture API events in PostHog
+async function captureApiEvent(
+  c: Context,
+  userId: string,
+  eventName: string,
+  additionalProperties: Record<string, any> = {}
+) {
+  const properties = {
+    path: c.req.path,
+    method: c.req.method,
+    userAgent: c.req.header('User-Agent'),
+    ...additionalProperties,
+  };
+  posthogClient.capture({
+    distinctId: userId,
+    event: eventName,
+    properties: properties,
+  });
+}
+
 // Authentication and database connection middleware
 desktop.use("*", async (c, next) => {
   const result = c.get("unkey");
@@ -94,6 +116,8 @@ desktop.openapi(getDesktop, async (c) => {
   const userId = c.get("userId");
   const id = c.req.param("id");
   const { GATEWAY_URL } = env<EnvVars>(c);
+
+  await captureApiEvent(c, userId, 'Viewed Desktop Details');
 
   const instanceDetails = await getDbInstanceDetails(db, id, userId);
   
@@ -123,6 +147,8 @@ desktop.openapi(createDesktop, async (c) => {
   try {
     const body = await c.req.json().catch(() => ({}));
     createDesktopParams = CreateDesktopParamsSchema.parse(body);
+
+    await captureApiEvent(c, userId, 'Created Desktop');
 
     const newInstance = await addDbInstance(db, userId, createDesktopParams.timeout_ms);
 
@@ -166,6 +192,8 @@ desktop.openapi(stopDesktop, async (c) => {
   const userId = c.get("userId");
   const id = c.req.param("id");
   const { GATEWAY_URL } = env<EnvVars>(c);
+
+  await captureApiEvent(c, userId, 'Stopped Desktop');
 
   const updatedInstance = await updateDbInstanceStatus(db, id, userId, InstanceStatus.Terminated);
 
@@ -379,6 +407,8 @@ desktop.openapi(computerAction, async (c) => {
   try {
       const body = await c.req.json().catch(() => ({}));
       action = ComputerActionSchema.parse(body);
+      // Capture event with actionType
+      await captureApiEvent(c, userId, 'Performed Computer Action', { actionType: action.type });
   } catch (parseError: any) {
       if (parseError instanceof z.ZodError) {
           throw parseError;
@@ -410,6 +440,7 @@ desktop.openapi(bashAction, async (c) => {
   try {
       const body = await c.req.json().catch(() => ({}));
       bashAction = BashActionSchema.parse(body);
+      await captureApiEvent(c, userId, 'Executed Bash Command');
   } catch (parseError: any) {
        if (parseError instanceof z.ZodError) {
            throw parseError;
