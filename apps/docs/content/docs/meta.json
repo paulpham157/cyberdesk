@@ -1,6 +1,6 @@
 {
     "title": "Docs",
-    "pages": ["index", "introduction", "quickstart", "tutorials", "conceptual-guide", "openapi"],
+    "pages": ["index", "introduction", "quickstart", "tutorials", "conceptual-guide", "api-reference"],
     "defaultOpen": true,
     "root": true
   }
