@@ -3,8 +3,8 @@
 import { Button } from '@/components/button'
 import { supabase } from '@/utils/supabase/client'
 import { ComputerDesktopIcon } from '@heroicons/react/24/outline'
-import { ChevronRightIcon, MinusIcon, PlusIcon } from '@heroicons/react/24/solid'
-import React, { useEffect, useState, useRef, useCallback, forwardRef } from 'react'
+import { ChevronRightIcon } from '@heroicons/react/24/solid'
+import React, { useEffect, useState, useRef } from 'react'
 
 const DESKTOP_TIMEOUT_MS = 600000
 
@@ -25,7 +25,6 @@ interface DesktopLaunchResponse {
 export function DemoSection({
   onDesktopDeployed,
   onDesktopStopped,
-  hideIntro = false,
   desktopId,
 }: DemoSectionProps) {
   const [isLoading, setIsLoading] = useState(false)

@@ -1,4 +1,3 @@
-import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { stripe } from '@/utils/stripe/stripe-server';
 import type { Profile } from '@/types/database';
@@ -67,7 +66,8 @@ export default async function Dashboard() {
   }
   
   // Get session for client components
-  const { data: { session } } = await supabase.auth.getSession();
+  // TODO: Utilize this for client components
+  // const { data: { session } } = await supabase.auth.getSession();
   
   return (
     <DashboardLayout userEmail={user.email}>

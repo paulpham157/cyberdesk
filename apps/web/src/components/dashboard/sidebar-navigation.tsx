@@ -2,11 +2,6 @@
 
 import {
   HomeIcon,
-  UsersIcon,
-  FolderIcon,
-  CalendarIcon,
-  DocumentDuplicateIcon,
-  ChartPieIcon,
   DocumentTextIcon,
 } from '@heroicons/react/24/outline'
 import CONFIG from '../../../config'

@@ -1,7 +1,7 @@
 "use client";
 
 import { PreviewMessage } from "@/components/playground/message";
-import { getDesktopURL, startDesktop, killDesktop } from "@/utils/playground/server-actions";
+import { getDesktopURL, startDesktop } from "@/utils/playground/server-actions";
 import { useScrollToBottom } from "@/utils/playground/use-scroll-to-bottom";
 import { useChat } from "@ai-sdk/react";
 import { useEffect, useState } from "react";

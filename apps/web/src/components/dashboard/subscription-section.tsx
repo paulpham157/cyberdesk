@@ -1,10 +1,10 @@
 'use client'
 
-import { useState } from 'react'
 import type { Profile } from '@/types/database'
 import { SubscriptionManagement } from '@/components/stripe/subscription-management'
 import { PricingCard } from '@/components/stripe/client-pricing-card'
 import { tiers } from '@/utils/stripe/tiers'
+import type { User } from '@supabase/supabase-js'
 
 interface SubscriptionSectionProps {
   userEmail?: string;
@@ -32,7 +32,7 @@ export function SubscriptionSection({ userEmail, userId, profile }: Subscription
               <div className="p-0">
                 <PricingCard 
                   tier={tiers[0]} 
-                  user={userId ? { id: userId } as any : null} 
+                  user={userId ? { id: userId, email: userEmail } as User : null}
                   profile={profile || null}
                 />
               </div>

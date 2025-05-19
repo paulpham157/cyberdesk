@@ -1,5 +1,4 @@
 import { anthropic } from "@ai-sdk/anthropic";
-import { openai } from '@ai-sdk/openai';
 import { streamText, type UIMessage } from "ai";
 import { prunedMessages } from "@/utils/playground/misc-demo-utils";
 import { bashTool, computerTool } from "@/utils/playground/tools";
@@ -25,9 +24,6 @@ export async function POST(req: Request) {
       tools: { computer: computerTool(sandboxId), bash: bashTool(sandboxId) },
       providerOptions: {
         anthropic: { cacheControl: { type: "ephemeral" } },
-      },
-      onChunk: (chunk) => {
-        // console.log(chunk);
       },
       maxSteps: 100,
     });

@@ -18,7 +18,7 @@ export async function generateMetadata({
 }: {
   params: { slug: string }
 }): Promise<Metadata> {
-  let post = await getPost(params.slug)
+  const post = await getPost(params.slug)
 
   return post ? { title: post.title, description: post.excerpt } : {}
 }
@@ -28,7 +28,7 @@ export default async function BlogPost({
 }: {
   params: { slug: string }
 }) {
-  let post = (await getPost(params.slug)) || notFound()
+  const post = (await getPost(params.slug)) || notFound()
 
   return (
     <main className="overflow-hidden">

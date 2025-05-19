@@ -138,7 +138,7 @@ export function DashboardContent({ userEmail, userId, profile }: DashboardConten
             ) : (
               <PricingCard 
                 tier={tiers[0]} 
-                user={userId ? { id: userId } as any : null} 
+                user={userId ? { id: userId, email: userEmail } as User : null}
                 profile={profile || null}
               />
             )}

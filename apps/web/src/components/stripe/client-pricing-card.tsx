@@ -46,7 +46,7 @@ interface Tier {
   priceMonthly: number;
   href: string;
   highlights: { description: string; disabled?: boolean }[];
-  features: any[];
+  features: { section: string; name: string; value: string | number | boolean; }[];
 }
 
 export function PricingCard({ 
