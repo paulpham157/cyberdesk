@@ -13,7 +13,7 @@ import { PlusGrid, PlusGridItem, PlusGridRow } from './plus-grid'
 import { AppLogo } from '@/components/shared/app-logo'
 import { LogoText } from './LogoText' // Import the new component
 import { useEffect, useState } from 'react'
-import { supabase } from '@/utils/supabaseClient'
+import { supabase } from '@/utils/supabase/client'
 import CONFIG from '../../config'
 import { TooltipIconButton } from './tooltip-icon-button'
 

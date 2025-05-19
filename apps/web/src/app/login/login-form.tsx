@@ -3,9 +3,6 @@
 import { Button } from '@/components/button'
 import { Link } from '@/components/link'
 import { Mark } from '@/components/logo'
-import { Checkbox, Field, Input, Label } from '@headlessui/react'
-import { CheckIcon } from '@heroicons/react/16/solid'
-import { clsx } from 'clsx'
 import { supabase } from '@/utils/supabase/client'
 import { useRouter } from 'next/navigation'
 
@@ -13,7 +10,7 @@ export function LoginForm() {
 
   const router = useRouter()
   const signInWithGoogle = async () => {
-    const { data, error } = await supabase.auth.signInWithOAuth({
+    const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
         redirectTo: `${window.location.origin}/auth/callback`,

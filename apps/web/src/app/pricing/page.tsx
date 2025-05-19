@@ -1,11 +1,10 @@
 import { Button } from '@/components/button'
 import { Container } from '@/components/container'
 import { Footer } from '@/components/footer'
-import { Gradient, GradientBackground } from '@/components/gradient'
+import { GradientBackground } from '@/components/gradient'
 import { Link } from '@/components/link'
-import { LogoCloud } from '@/components/logo-cloud'
 import { Navbar } from '@/components/navbar'
-import { Heading, Lead, Subheading } from '@/components/text'
+import { Heading, Subheading } from '@/components/text'
 import { Menu, MenuButton, MenuItem, MenuItems } from '@headlessui/react'
 import {
   CheckIcon,
@@ -15,9 +14,7 @@ import {
 import type { Metadata } from 'next'
 import { createClient } from '@/utils/supabase/server'
 import type { Profile } from '@/types/database'
-import type { User } from '@supabase/supabase-js'
-import { tiers } from '@/config/tiers'
-import { FAQSection } from '@/components/dashboard/faq-section'
+import { tiers } from '@/utils/stripe/tiers'
 
 export const metadata: Metadata = {
   title: 'Pricing',
@@ -165,7 +162,7 @@ function PricingTable({
                       {name}
                     </th>
                     {tiers.map((tier) => {
-                      let value = tier.features.find(
+                      const value = tier.features.find(
                         (feature) =>
                           feature.section === section && feature.name === name,
                       )?.value

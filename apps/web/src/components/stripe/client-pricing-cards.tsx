@@ -6,7 +6,7 @@ import type { User } from '@supabase/supabase-js';
 import type { Profile } from '@/types/database';
 import { PricingCard } from './client-pricing-card';
 import { useEffect, useState } from 'react';
-import { supabase } from '@/utils/supabaseClient';
+import { supabase } from '@/utils/supabase/client';
 import { Subheading } from '@/components/text';
 import CONFIG from '../../../config';
 
@@ -18,7 +18,7 @@ interface Tier {
   priceMonthly: number;
   href: string;
   highlights: { description: string; disabled?: boolean }[];
-  features: any[];
+  features: { section: string; name: string; value: string | number | boolean; }[];
 }
 
 export default function ClientPricingCards({ 

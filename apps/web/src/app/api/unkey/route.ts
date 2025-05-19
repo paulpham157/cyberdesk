@@ -116,7 +116,7 @@ export async function POST(request: Request) {
   
   try {
     // Check if user exists in profiles table
-    const { data: profileData, error: profileError } = await supabase
+    const { error: profileError } = await supabase
       .from('profiles')
       .select('id, unkey_key_id')
       .eq('id', userId)

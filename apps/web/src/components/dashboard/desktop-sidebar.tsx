@@ -1,9 +1,8 @@
 'use client'
 
-import { navigation, teams, classNames } from './sidebar-navigation'
+import { navigation, classNames } from './sidebar-navigation'
 import { AppLogo } from '@/components/shared/app-logo'
 import { ArrowTopRightOnSquareIcon } from '@heroicons/react/24/outline'
-import type { Profile } from '@/types/database'
 
 interface DesktopSidebarProps {
   userEmail?: string;
