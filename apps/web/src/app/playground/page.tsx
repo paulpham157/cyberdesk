@@ -221,9 +221,11 @@ export default function Playground() {
         </div>
       )}
       {/* Mobile/tablet banner */}
+      {/* REMOVE THIS BANNER
       <div className="flex items-center justify-center fixed left-1/2 -translate-x-1/2 top-5 shadow-md text-xs mx-auto rounded-lg h-8 w-fit bg-blue-600 text-white px-3 py-2 text-left z-50 xl:hidden">
         <span>Headless mode</span>
       </div>
+      */}
       {/* Resizable Panels */}
       <div className="w-full hidden xl:block">
         <ResizablePanelGroup direction="horizontal" className="h-full">
@@ -311,43 +313,79 @@ export default function Playground() {
         </ResizablePanelGroup>
       </div>
       {/* Mobile View (Chat Only) */}
-      <div className="w-full xl:hidden flex flex-col">
-        <div
-          className="flex-1 space-y-6 py-4 overflow-y-auto px-4"
-          ref={mobileContainerRef}
-        >
-          {messages.length === 0 ? <ProjectInfo /> : null}
-          {messages.map((message, i) => (
-            <PreviewMessage
-              message={message}
-              key={message.id}
-              isLoading={isLoading}
-              status={status}
-              isLatestMessage={i === messages.length - 1}
-            />
-          ))}
-          <div ref={mobileEndRef} className="pb-2" />
+      <div className="w-full xl:hidden flex flex-col h-dvh">
+        {/* Desktop Stream Panel for Mobile */}
+        <div className="h-[40%] bg-black relative flex items-center justify-center">
+          {streamUrl ? (
+            <>
+              <iframe
+                src={streamUrl}
+                className="w-full h-full"
+                style={{
+                  transformOrigin: "center",
+                  width: "100%",
+                  height: "100%",
+                }}
+                allow="autoplay"
+              />
+              <Button
+                onClick={refreshDesktop}
+                className="absolute top-2 right-2 bg-black/50 hover:bg-black/70 text-white px-2 py-1 rounded text-xs z-10"
+                disabled={isInitializing}
+              >
+                {isInitializing ? "Creating..." : "New Desktop"}
+              </Button>
+            </>
+          ) : (
+            <div className="flex items-center justify-center h-full text-white text-sm p-4 text-center">
+              {isInitializing
+                ? "Initializing desktop..."
+                : hasStarted
+                ? "Loading stream..."
+                : "Desktop not started. Click Start Desktop if available or refresh."}
+            </div>
+          )}
         </div>
-        {messages.length === 0 && (
-          <PromptSuggestions
-            disabled={isInitializing || !hasStarted || !streamUrl}
-            submitPrompt={(prompt: string) =>
-              append({ role: "user", content: prompt })
-            }
-          />
-        )}
-        <ChatError error={error} onRetry={reload} />
-        <div className="bg-white">
-          <form onSubmit={handleSubmit} className="p-4">
-            <Input
-              handleInputChange={handleInputChange}
-              input={input}
-              isInitializing={isInitializing || !hasStarted || !streamUrl || !!error}
-              isLoading={isLoading}
-              status={status}
-              stop={stop}
+
+        {/* Chat Interface Panel for Mobile */}
+        <div className="flex-1 flex flex-col overflow-hidden">
+          <div
+            className="flex-1 space-y-6 py-4 overflow-y-auto px-4"
+            ref={mobileContainerRef}
+          >
+            {messages.length === 0 ? <ProjectInfo /> : null}
+            {messages.map((message, i) => (
+              <PreviewMessage
+                message={message}
+                key={message.id}
+                isLoading={isLoading}
+                status={status}
+                isLatestMessage={i === messages.length - 1}
+              />
+            ))}
+            <div ref={mobileEndRef} className="pb-2" />
+          </div>
+          {messages.length === 0 && (
+            <PromptSuggestions
+              disabled={isInitializing || !hasStarted || !streamUrl}
+              submitPrompt={(prompt: string) =>
+                append({ role: "user", content: prompt })
+              }
             />
-          </form>
+          )}
+          <ChatError error={error} onRetry={reload} />
+          <div className="bg-white">
+            <form onSubmit={handleSubmit} className="p-4">
+              <Input
+                handleInputChange={handleInputChange}
+                input={input}
+                isInitializing={isInitializing || !hasStarted || !streamUrl || !!error}
+                isLoading={isLoading}
+                status={status}
+                stop={stop}
+              />
+            </form>
+          </div>
         </div>
       </div>
     </div>
