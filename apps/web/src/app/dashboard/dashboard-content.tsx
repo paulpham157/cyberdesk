@@ -13,6 +13,7 @@ import posthog from 'posthog-js'
 import { useEffect, useState } from 'react'
 import { Subheading } from '@/components/text'
 import CONFIG from '../../../config'
+import type { User } from '@supabase/supabase-js'
 
 interface DashboardContentProps {
   userEmail?: string;
