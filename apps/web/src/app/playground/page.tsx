@@ -198,10 +198,10 @@ export default function Playground() {
               <FaRocket className="text-blue-600 text-6xl animate-bounce drop-shadow-lg" style={{ filter: 'drop-shadow(0 0 16px #3b82f6)' }} />
               <span className="absolute -bottom-2 left-1/2 -translate-x-1/2 w-16 h-4 bg-blue-400/30 blur-lg rounded-full animate-pulse" />
             </div>
-            <h1 className="text-3xl font-extrabold text-zinc-800 tracking-tight text-center">Welcome to Cyberdesk + AI SDK Computer Use</h1>
-            <p className="text-zinc-500 text-base font-medium text-center">Your secure, cloud-powered development environment</p>
+            <h1 className="text-3xl font-extrabold text-zinc-800 tracking-tight text-center">Launch a demo computer agent</h1>
+            {/* <p className="text-zinc-500 text-base font-medium text-center">Your secure, cloud-powered development environment</p> */}
             <p className="text-zinc-700 max-w-md text-center text-lg font-normal">
-              Click below to start your cloud desktop. You can chat and control the environment after it launches.
+              Click below to start a Cyberdesk desktop. Once it launches, you can chat with a computer agent that can use the desktop.
             </p>
             <Button
               onClick={handleStartDesktop}
