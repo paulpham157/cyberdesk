@@ -117,6 +117,10 @@ desktop.openapi(getDesktop, async (c) => {
   const id = c.req.param("id");
   const { GATEWAY_URL } = env<EnvVars>(c);
 
+  if (!id) {
+    throw new BadRequestError("Instance ID is required");
+  }
+
   await captureApiEvent(c, userId, 'Viewed Desktop Details');
 
   const instanceDetails = await getDbInstanceDetails(db, id, userId);
