@@ -4,7 +4,7 @@
   "scripts": {
     "build": "tsc",
     "dev": "tsx watch src/index.ts",
-    "start": "node dist/src/index.js",
+    "start": "node dist/index.js",
     "env": "dotenv",
     "db:push": "npm run env -- drizzle-kit push",
     "db:studio": "npm run env -- drizzle-kit studio",
