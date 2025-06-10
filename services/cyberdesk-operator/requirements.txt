@@ -14,7 +14,7 @@ durationpy==0.9
 frozenlist==1.5.0
 google-auth==2.38.0
 gotrue==2.12.0
-h11==0.14.0
+h11==0.16.0
 h2==4.2.0
 hpack==4.1.0
 httpcore==1.0.8
@@ -41,7 +41,7 @@ python-dotenv==1.1.0
 python-json-logger==3.3.0
 pyyaml==6.0.2
 realtime==2.4.2
-requests==2.32.3
+requests==2.32.4
 requests-oauthlib==2.0.0
 rsa==4.9
 six==1.17.0
