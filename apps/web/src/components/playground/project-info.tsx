@@ -26,7 +26,7 @@ export const ProjectInfo = () => {
           The code for this demo is open source on{" "}
           <Link
             className="text-blue-500 dark:text-blue-400"
-            href="https://github.com/cyberdesk-hq/cyberdesk-agent"
+            href="https://github.com/cyberdesk-hq/cyberdesk-ai-sdk-starter"
             target="_blank"
           >
             GitHub
