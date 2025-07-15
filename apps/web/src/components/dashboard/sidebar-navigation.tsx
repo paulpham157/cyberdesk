@@ -5,10 +5,19 @@ import {
   DocumentTextIcon,
 } from '@heroicons/react/24/outline'
 import CONFIG from '../../../config'
+import type React from 'react'
 
-export const navigation = [
-  { name: 'Home', href: '#', icon: HomeIcon, current: true },
-  { name: 'Docs', href: CONFIG.docsURL, icon: DocumentTextIcon, current: false, external: true },
+interface NavItem {
+  name: string;
+  href: string;
+  icon: React.ComponentType<React.SVGProps<SVGSVGElement>>;
+  current: boolean;
+  external?: boolean;
+}
+
+export const navigation: NavItem[] = [
+  { name: 'Home', href: '#', icon: HomeIcon, current: true, external: false },
+  // { name: 'Docs', href: CONFIG.docsURL, icon: DocumentTextIcon, current: false, external: true },
   // { name: 'Team', href: '#', icon: UsersIcon, current: false },
   // { name: 'Projects', href: '#', icon: FolderIcon, current: false },
   // { name: 'Calendar', href: '#', icon: CalendarIcon, current: false },

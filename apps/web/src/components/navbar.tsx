@@ -26,8 +26,8 @@ interface NavLink {
 }
 
 const staticLinks: NavLink[] = [
-  { href: '/pricing', label: 'Pricing' },
-  { href: CONFIG.docsURL, label: 'Docs', external: true },
+  // { href: '/pricing', label: 'Pricing' },
+  // { href: CONFIG.docsURL, label: 'Docs', external: true },
   // { href: '/company', label: 'Company' },
   // { href: '/blog', label: 'Blog' },
 ]
@@ -209,6 +209,7 @@ export function Navbar({ banner }: { banner?: React.ReactNode }) {
             </PlusGridItem>
           </div>
           <div className="flex items-center gap-4">
+            {/*
             <a
               href="https://github.com/cyberdesk-hq/cyberdesk"
               target="_blank"
@@ -224,11 +225,13 @@ export function Navbar({ banner }: { banner?: React.ReactNode }) {
                 <GitHubIcon className="size-9" />
               </TooltipIconButton>
             </a>
+            */}
             <DesktopNav />
             <MobileNavButton />
           </div>
         </PlusGridRow>
       </PlusGrid>
+      {/*
       <MobileNav githubIcon={
         <a
           href="https://github.com/cyberdesk-hq/cyberdesk"
@@ -246,6 +249,8 @@ export function Navbar({ banner }: { banner?: React.ReactNode }) {
           </TooltipIconButton>
         </a>
       } />
+      */}
+      <MobileNav />
     </Disclosure>
   )
 }

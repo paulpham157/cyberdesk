@@ -1,35 +1,32 @@
 'use client'
-import { ArrowTopRightOnSquareIcon } from '@heroicons/react/24/outline'
 import { PlusGrid, PlusGridItem, PlusGridRow } from '@/components/plus-grid'
 import { Button } from './button'
 import { Container } from './container'
 import { Gradient } from './gradient'
 import { Link } from './link'
-import { Logo } from './logo'
 import { LogoText } from './LogoText' // Import the new component
 import { Subheading } from './text'
 import { useState, useEffect } from 'react'
 import { supabase } from '@/utils/supabase/client'
 import { AppLogo } from './shared/app-logo'
-import CONFIG from '../../config'
 
 function CallToAction() {
   return (
     <div className="relative pt-20 pb-16 text-center sm:py-24">
       <hgroup>
-        <Subheading>Get started</Subheading>
+        <Subheading>Book a demo</Subheading>
         <p className="mt-6 text-3xl font-medium tracking-tight text-gray-950 sm:text-5xl">
-          Launch your computer
+          Dealing with high-volume
           <br />
-          agent today.
+          repetitive computer tasks?
         </p>
       </hgroup>
       <p className="mx-auto mt-6 max-w-xs text-sm/6 text-gray-500">
-        Deploy AI agents on virtual desktops with a few lines of code.
+        We&apos;d love to chat and see how we can help
       </p>
       <div className="mt-6">
-        <Button className="w-full sm:w-auto" href="/login">
-          Get started
+        <Button className="w-full sm:w-auto" href="https://cal.com/mahmoud-al-madi-klrs5s/30min" target="_blank" rel="noopener noreferrer">
+          Book a demo
         </Button>
       </div>
     </div>
@@ -58,21 +55,19 @@ function SitemapLink(props: React.ComponentPropsWithoutRef<typeof Link>) {
 function Sitemap() {
   return (
     <>
+      {/*
       <div>
         <SitemapHeading>Product</SitemapHeading>
         <SitemapLinks>
           <SitemapLink href="/pricing">Pricing</SitemapLink>
           <SitemapLink href={CONFIG.docsURL} target="_blank" rel="noopener noreferrer">
-            <div className="flex items-center">
-            <div>
-            Docs 
-            </div>
+            <span>Docs</span>
             <ArrowTopRightOnSquareIcon className="ml-1 h-4 w-4 text-gray-500" aria-hidden="true" />
-            </div>
-            </SitemapLink>
-          {/* <SitemapLink href="#">API</SitemapLink> */}
+          </SitemapLink>
+          <SitemapLink href="#">API</SitemapLink>
         </SitemapLinks>
       </div>
+      */}
       <div>
         <SitemapHeading>Legal</SitemapHeading>
         <SitemapLinks>
@@ -134,36 +129,7 @@ function SocialIconLinkedIn(props: React.ComponentPropsWithoutRef<'svg'>) {
   )
 }
 
-function SocialLinks() {
-  return (
-    <>
-      <Link
-        href="https://facebook.com"
-        target="_blank"
-        aria-label="Visit us on Facebook"
-        className="text-gray-950 data-hover:text-gray-950/75"
-      >
-        <SocialIconFacebook className="size-4" />
-      </Link>
-      <Link
-        href="https://x.com"
-        target="_blank"
-        aria-label="Visit us on X"
-        className="text-gray-950 data-hover:text-gray-950/75"
-      >
-        <SocialIconX className="size-4" />
-      </Link>
-      <Link
-        href="https://linkedin.com"
-        target="_blank"
-        aria-label="Visit us on LinkedIn"
-        className="text-gray-950 data-hover:text-gray-950/75"
-      >
-        <SocialIconLinkedIn className="size-4" />
-      </Link>
-    </>
-  )
-}
+// Social links currently not in use.
 
 function Copyright() {
   return (

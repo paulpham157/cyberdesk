@@ -116,7 +116,7 @@ export default function Privacy() {
 
             <h2>12. Contact Us</h2>
             <p>
-              If you have any questions about this Privacy Policy, please contact us at privacy@cyberdesk.io.
+              If you have any questions about this Privacy Policy, please contact us at mahmoud@cyberdesk.io.
             </p>
           </div>
         </Container>

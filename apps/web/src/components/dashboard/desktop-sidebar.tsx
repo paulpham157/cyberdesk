@@ -24,23 +24,28 @@ export function DesktopSidebar({ userEmail }: DesktopSidebarProps) {
               <ul role="list" className="-mx-2 space-y-1">
                 {navigation.map((item) => (
                   <li key={item.name}>
-                    <a
-                      href={item.href}
-                      target={item.external ? '_blank' : undefined}
-                      rel={item.external ? 'noopener noreferrer' : undefined}
-                      className={classNames(
-                        item.current
-                          ? 'bg-gray-800 text-white'
-                          : 'text-gray-400 hover:bg-gray-800 hover:text-white',
-                        'group flex gap-x-3 rounded-md p-2 text-sm/6 font-semibold',
-                      )}
-                    >
-                      <item.icon aria-hidden="true" className="size-6 shrink-0" />
-                      <span className="flex-1">{item.name}</span>
-                      {item.external && (
-                        <ArrowTopRightOnSquareIcon aria-hidden="true" className="size-4 text-gray-400 self-center" />
-                      )}
-                    </a>
+                    {(() => {
+                      const isExternal = (item as { external?: boolean }).external;
+                      return (
+                        <a
+                          href={item.href}
+                          target={isExternal ? '_blank' : undefined}
+                          rel={isExternal ? 'noopener noreferrer' : undefined}
+                          className={classNames(
+                            item.current
+                              ? 'bg-gray-800 text-white'
+                              : 'text-gray-400 hover:bg-gray-800 hover:text-white',
+                            'group flex gap-x-3 rounded-md p-2 text-sm/6 font-semibold',
+                          )}
+                        >
+                          <item.icon aria-hidden="true" className="size-6 shrink-0" />
+                          <span className="flex-1">{item.name}</span>
+                          {isExternal && (
+                            <ArrowTopRightOnSquareIcon aria-hidden="true" className="size-4 text-gray-400 self-center" />
+                          )}
+                        </a>
+                      );
+                    })()}
                   </li>
                 ))}
               </ul>
