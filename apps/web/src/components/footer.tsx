@@ -1,17 +1,14 @@
 'use client'
-import { ArrowTopRightOnSquareIcon } from '@heroicons/react/24/outline'
 import { PlusGrid, PlusGridItem, PlusGridRow } from '@/components/plus-grid'
 import { Button } from './button'
 import { Container } from './container'
 import { Gradient } from './gradient'
 import { Link } from './link'
-import { Logo } from './logo'
 import { LogoText } from './LogoText' // Import the new component
 import { Subheading } from './text'
 import { useState, useEffect } from 'react'
 import { supabase } from '@/utils/supabase/client'
 import { AppLogo } from './shared/app-logo'
-import CONFIG from '../../config'
 
 function CallToAction() {
   return (
@@ -25,7 +22,7 @@ function CallToAction() {
         </p>
       </hgroup>
       <p className="mx-auto mt-6 max-w-xs text-sm/6 text-gray-500">
-        We'd love to chat and see how we can help
+        We&apos;d love to chat and see how we can help
       </p>
       <div className="mt-6">
         <Button className="w-full sm:w-auto" href="https://cal.com/mahmoud-al-madi-klrs5s/30min" target="_blank" rel="noopener noreferrer">
@@ -132,36 +129,7 @@ function SocialIconLinkedIn(props: React.ComponentPropsWithoutRef<'svg'>) {
   )
 }
 
-function SocialLinks() {
-  return (
-    <>
-      <Link
-        href="https://facebook.com"
-        target="_blank"
-        aria-label="Visit us on Facebook"
-        className="text-gray-950 data-hover:text-gray-950/75"
-      >
-        <SocialIconFacebook className="size-4" />
-      </Link>
-      <Link
-        href="https://x.com"
-        target="_blank"
-        aria-label="Visit us on X"
-        className="text-gray-950 data-hover:text-gray-950/75"
-      >
-        <SocialIconX className="size-4" />
-      </Link>
-      <Link
-        href="https://linkedin.com"
-        target="_blank"
-        aria-label="Visit us on LinkedIn"
-        className="text-gray-950 data-hover:text-gray-950/75"
-      >
-        <SocialIconLinkedIn className="size-4" />
-      </Link>
-    </>
-  )
-}
+// Social links currently not in use.
 
 function Copyright() {
   return (
