@@ -6,13 +6,11 @@ import { Gradient } from '@/components/gradient'
 import { Link } from '@/components/link'
 import { Navbar } from '@/components/navbar'
 import { ChevronRightIcon } from '@heroicons/react/16/solid'
-import { useRouter } from 'next/navigation'
 import { useState, useEffect } from 'react'
 import { supabase } from '@/utils/supabase/client'
 import CONFIG from '../../config';
 
 export function Hero() {
-  const router = useRouter()
   const [isLoggedIn, setIsLoggedIn] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
   
@@ -46,21 +44,30 @@ export function Hero() {
           // }
         />
         <div className="pt-16 pb-24 sm:pt-24 sm:pb-32 md:pt-32 md:pb-48">
-          <h1 className="font-display text-4xl font-medium tracking-tight text-balance text-gray-950 sm:text-7xl/[0.8] md:text-8xl/[0.8]">
-            Open source virtual desktops for AI agents
+          <h1
+            className="font-display text-4xl font-medium tracking-tight text-balance text-gray-950 sm:text-6xl/[0.8] md:text-7xl/[0.8] leading-tight sm:leading-[1.025] md:leading-[1.05] space-y-1"
+          >
+            <span className="block mb-1">
+              AI agents for highly reliable
+            </span>
+            <span className="block">
+              computer task automations
+            </span>
           </h1>
           <p className="mt-14 max-w-lg text-xl/7 font-medium text-gray-950/75 sm:text-2xl/8">
-            Deploy AI agents on virtual desktops with a few lines of code.
+            We integrate our automations with existing systems in healthcare, accounting, supply chain and beyond
           </p>
           <div className="mt-12 flex flex-col gap-x-6 gap-y-4 sm:flex-row">
             {!isLoading && (isLoggedIn ? (
               <Button href="/dashboard">Go to Dashboard</Button>
             ) : (
               <>
-                <Button onClick={() => router.push('/login')}>Get started</Button>
+                <Button href="https://cal.com/mahmoud-al-madi-klrs5s/30min" target="_blank" rel="noopener noreferrer">Book a demo</Button>
+                {/*
                 <Button variant="secondary" href={CONFIG.docsURL} target="_blank" rel="noopener noreferrer">
                   See docs
                 </Button>
+                */}
               </>
             ))}
           </div>

@@ -102,7 +102,7 @@ export default function Terms() {
 
             <h2>15. Contact Information</h2>
             <p>
-              If you have any questions about these Terms, please contact us at legal@cyberdesk.io.
+              If you have any questions about these Terms, please contact us at mahmoud@cyberdesk.io.
             </p>
           </div>
         </Container>

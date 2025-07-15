@@ -7,7 +7,7 @@ export const LogoText: React.FC<LogoTextProps> = ({ className, ...props }) => {
   return (
     <span
       className={cn(
-        'text-xl font-medium tracking-tight text-gray-950',
+        'text-[35px] font-medium tracking-tight text-gray-950',
         className
       )}
       {...props}

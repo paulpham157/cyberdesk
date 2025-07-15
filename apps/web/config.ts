@@ -1,6 +1,3 @@
-
-
-
 const CONFIG = {
     docsURL: 'https://docs.cyberdesk.io',
     subscriptionLimit: 1000

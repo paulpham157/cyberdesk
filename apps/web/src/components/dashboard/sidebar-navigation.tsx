@@ -8,7 +8,7 @@ import CONFIG from '../../../config'
 
 export const navigation = [
   { name: 'Home', href: '#', icon: HomeIcon, current: true },
-  { name: 'Docs', href: CONFIG.docsURL, icon: DocumentTextIcon, current: false, external: true },
+  // { name: 'Docs', href: CONFIG.docsURL, icon: DocumentTextIcon, current: false, external: true },
   // { name: 'Team', href: '#', icon: UsersIcon, current: false },
   // { name: 'Projects', href: '#', icon: FolderIcon, current: false },
   // { name: 'Calendar', href: '#', icon: CalendarIcon, current: false },
