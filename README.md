@@ -52,7 +52,7 @@
 ### TypeScript
 
 ```bash
-npm install cyberdesk
+npm install cyberdesk@0.2.1
 ```
 
 ```typescript
@@ -78,7 +78,7 @@ await cyberdesk.executeComputerAction({
 ### Python
 
 ```bash
-pip install cyberdesk
+pip install cyberdesk==0.2.7
 ```
 
 ```python
